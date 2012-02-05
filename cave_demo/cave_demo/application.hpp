@@ -3,8 +3,8 @@
 
 #include "black_label/log.hpp"
 #include "black_label/shared_library.hpp"
-#include "black_label/thread_pool.hpp"
-#include "black_label/world.hpp"
+#include "black_label/thread_pool/dynamic_interface.hpp"
+#include "black_label/world/dynamic_interface.hpp"
 
 #include <boost/program_options.hpp>
 

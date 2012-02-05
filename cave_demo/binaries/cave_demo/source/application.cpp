@@ -14,27 +14,33 @@ using namespace boost::program_options;
 
 application::application( int argc, char const* argv[] )
 	: log(new black_label::log::log("log.txt"))
-	, thread_pool(0)
 	, world(0)
 	, world_library(0)
+	, thread_pool(0)
 	, thread_pool_library(0)
 	, fully_constructed(false)
 {
 	if (!log->is_open()) return;
 
-	char* world_function_names[] = {
-		"construct_world",
-		"destroy_world",
-		"copy_world",
-		"add_entity",
-		"remove_entity"};
 
-	void** world_function_pointers[] = {
-		reinterpret_cast<void**>(&world::construct),
-		reinterpret_cast<void**>(&world::destroy),
-		reinterpret_cast<void**>(&world::copy),
-		reinterpret_cast<void**>(&entities::add),
-		reinterpret_cast<void**>(&entities::remove)};
+
+#define WORLD_LIBRARY_SYMBOL_COUNT 6
+
+	char* world_function_names[WORLD_LIBRARY_SYMBOL_COUNT] = {
+		"world_construct",
+		"world_destroy",
+		"world_dynamic_entities",
+		"world_static_entities",
+		"entities_create",
+		"entities_remove"};
+
+	void** world_function_pointers[WORLD_LIBRARY_SYMBOL_COUNT] = {
+		reinterpret_cast<void**>(&world::method_pointers.construct),
+		reinterpret_cast<void**>(&world::method_pointers.destroy),
+		reinterpret_cast<void**>(&world::method_pointers.dynamic_entities),
+		reinterpret_cast<void**>(&world::method_pointers.static_entities),
+		reinterpret_cast<void**>(&entities::method_pointers.create),
+		reinterpret_cast<void**>(&entities::method_pointers.remove)};
 
 	world_library = new shared_library(
 		"D:/sfj/black_label/stage/libraries/black_label_world-vc100-mt-gd-0_1.dll",
@@ -46,28 +52,40 @@ application::application( int argc, char const* argv[] )
 
 	if (0 < 
 		world_library->map_symbols(
-			5,
+			WORLD_LIBRARY_SYMBOL_COUNT,
 			world_function_names,
 			world_function_pointers))
 		return;
 
 
 
+#define THREAD_POOL_LIBRARY_SYMBOL_COUNT 11
 
+	char* thread_pool_function_names[THREAD_POOL_LIBRARY_SYMBOL_COUNT] = {
+		"thread_pool_construct",
+		"thread_pool_destroy",
+		"thread_pool_schedule",
+		"thread_pool_create_and_schedule",
+		"thread_pool_employ_current_thread",
+		"thread_pool_join",
+		"thread_pool_tasks",
+		"tasks_construct",
+		"tasks_destroy",
+		"tasks_create",
+		"tasks_remove"};
 
-	char* thread_pool_function_names[] = {
-		"construct_thread_pool",
-		"destroy_thread_pool",
-		"add_task",
-		"add_raw_task",
-		"join"};
-
-	void** thread_pool_function_pointers[] = {
-		reinterpret_cast<void**>(&thread_pool::construct),
-		reinterpret_cast<void**>(&thread_pool::destroy),
-		reinterpret_cast<void**>(&thread_pool::add_task),
-		reinterpret_cast<void**>(&thread_pool::add_raw_task),
-		reinterpret_cast<void**>(&thread_pool::join)};
+	void** thread_pool_function_pointers[THREAD_POOL_LIBRARY_SYMBOL_COUNT] = {
+		reinterpret_cast<void**>(&thread_pool::method_pointers.construct),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.destroy),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.schedule),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.create_and_schedule),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.employ_current_thread),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.join),
+		reinterpret_cast<void**>(&thread_pool::method_pointers.tasks),
+		reinterpret_cast<void**>(&tasks::method_pointers.construct),
+		reinterpret_cast<void**>(&tasks::method_pointers.destroy),
+		reinterpret_cast<void**>(&tasks::method_pointers.create),
+		reinterpret_cast<void**>(&tasks::method_pointers.remove)};
 
 	thread_pool_library = new shared_library(
 		"D:/sfj/black_label/stage/libraries/black_label_thread_pool-vc100-mt-gd-0_1.dll",
@@ -79,7 +97,7 @@ application::application( int argc, char const* argv[] )
 
 	if (0 < 
 		thread_pool_library->map_symbols(
-			5,
+			THREAD_POOL_LIBRARY_SYMBOL_COUNT,
 			thread_pool_function_names,
 			thread_pool_function_pointers))
 		return;
@@ -87,17 +105,17 @@ application::application( int argc, char const* argv[] )
 	world::configuration world_configuration(5000, 5000);
 	register_program_options(argc, argv, world_configuration);
 
-	world = world::construct( world_configuration );
+	world = new black_label::world::world(world_configuration);
 
-	thread_pool = thread_pool::construct();
+	thread_pool = new black_label::thread_pool::thread_pool();
 
 	fully_constructed = true;
 }
 
 application::~application()
 {
-	if (thread_pool) thread_pool::destroy(thread_pool);
-	if (world) world::destroy(world);
+	if (thread_pool) delete thread_pool;
+	if (world) delete world;
 	if (thread_pool_library) delete thread_pool_library;
 	if (world_library) delete world_library;
 	delete log;

@@ -2,7 +2,7 @@
 #ifndef BLACK_LABEL_WORLD_WORLD_HPP
 #define BLACK_LABEL_WORLD_WORLD_HPP
 
-#include "world/entities.hpp"
+#include "black_label/world/entities.hpp"
 
 
 
@@ -36,8 +36,10 @@ struct world
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// World
+/// Static Interface
 ////////////////////////////////////////////////////////////////////////////////
+#ifndef BLACK_LABEL_WORLD_DYNAMIC_INTERFACE
+
 	world( configuration configuration );
 	
 	world& operator =( world const& world );
@@ -48,19 +50,33 @@ struct world
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Shared Library Runtime Interface
+/// Dynamic Interface for Runtime-loaded Shared Libraries
 ////////////////////////////////////////////////////////////////////////////////
-	typedef world* construct_world_type(
-		configuration configuration );
-	typedef void destroy_world_type(
-		world const* world );
-	typedef void copy_world_type(
-		world& destination,
-		world const& source );
+#else
 
-	static construct_world_type* construct;
-	static destroy_world_type* destroy;
-	static copy_world_type* copy;
+	struct method_pointers_type
+	{
+		void* (*construct)( configuration configuration );
+		void (*destroy)( void const* world );
+		void* (*dynamic_entities)( void* world );
+		void* (*static_entities)( void* world );
+	} static method_pointers;
+		
+	world( configuration configuration )
+		: _this(method_pointers.construct(configuration))
+		, dynamic_entities(method_pointers.dynamic_entities(_this))
+		, static_entities(method_pointers.static_entities(_this))
+	{}
+	~world()
+	{ method_pointers.destroy(_this); }
+
+	void* _this;
+
+	entities 
+		dynamic_entities,
+		static_entities;
+
+#endif
 };
 
 } // namespace world

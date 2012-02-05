@@ -64,9 +64,9 @@ function(directory_source_group GROUP DIRECTORY EXTENSION)
 	foreach(SUBDIRECTORY ${SUBDIRECTORIES})
 		if(IS_DIRECTORY ${SUBDIRECTORY})
 			# Advance recursion
-			string(REGEX MATCH "[a-zA-Z0-9]*$" DIRECTORY_NAME ${SUBDIRECTORY})
+			string(REGEX MATCH "[a-zA-Z0-9_]*$" DIRECTORY_NAME ${SUBDIRECTORY})
 			set(GROUP "${GROUP}\\${DIRECTORY_NAME}")
-		
+
 			directory_source_group(${GROUP} ${SUBDIRECTORY} ${EXTENSION})
 
 			# Regress recursion

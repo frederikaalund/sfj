@@ -17,35 +17,33 @@ world::world( configuration configuration )
 
 }
 
-world& world::operator =( world const& world )
-{
-	
-
-	return *this;
-}
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Shared Library Runtime Interface
+/// Dynamic Interface for Runtime-loaded Shared Library
 ////////////////////////////////////////////////////////////////////////////////
-BLACK_LABEL_SHARED_LIBRARY world* construct_world(
+BLACK_LABEL_SHARED_LIBRARY world* world_construct(
 	world::configuration configuration )
 {
 	return new world(configuration);
 }
 
-BLACK_LABEL_SHARED_LIBRARY void destroy_world(
+BLACK_LABEL_SHARED_LIBRARY void world_destroy(
 	world const* world )
 {
 	delete world;
 }
 
-BLACK_LABEL_SHARED_LIBRARY void copy_world(
-	world& destination,
-	world const& source )
+BLACK_LABEL_SHARED_LIBRARY entities* world_dynamic_entities(
+	world* world )
 {
-	destination = source;
+	return &world->dynamic_entities;
+}
+
+BLACK_LABEL_SHARED_LIBRARY entities* world_static_entities(
+	world* world )
+{
+	return &world->static_entities;
 }
 
 } // namespace world

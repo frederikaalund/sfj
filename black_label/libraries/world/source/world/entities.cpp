@@ -26,25 +26,37 @@ entities::~entities()
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-/// Shared Library Runtime Interface
-////////////////////////////////////////////////////////////////////////////////
-BLACK_LABEL_SHARED_LIBRARY entities::size_type add_entity( 
-	entities& entities, 
-	entities::matrix4f transformation )
+entities::size_type entities::create( matrix4f transformation )
 {
-	entities::size_type id = entities.ids[entities.size++];
+	entities::size_type entity = ids[size++];
 
-	entities.transformations[id] = transformation;
+	transformations[entity] = transformation;
 
-	return id;
+	return entity;
 }
 
-BLACK_LABEL_SHARED_LIBRARY void remove_entity( 
-	entities& entities, 
-	entities::size_type id )
+void entities::remove( size_type entity )
 {
-	entities.ids[--entities.size] = id;
+	ids[--size] = entity;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Dynamic Interface for Runtime-loaded Shared Library
+////////////////////////////////////////////////////////////////////////////////
+BLACK_LABEL_SHARED_LIBRARY entities::size_type entities_create( 
+	entities* entities, 
+	entities::matrix4f transformation )
+{
+	return entities->create(transformation);
+}
+
+BLACK_LABEL_SHARED_LIBRARY void entities_remove( 
+	entities* entities, 
+	entities::size_type entity )
+{
+	entities->remove(entity);
 }
 
 } // namespace world

@@ -1,17 +1,10 @@
-#include "black_label/world.hpp"
-#include "black_label/thread_pool.hpp"
+#include "black_label/world/dynamic_interface.hpp"
+#include "black_label/thread_pool/dynamic_interface.hpp"
 
 using namespace black_label::world;
 using namespace black_label::thread_pool;
 
-world::construct_world_type* world::construct;
-world::destroy_world_type* world::destroy;
-world::copy_world_type* world::copy;
-entities::add_entity_type* entities::add;
-entities::remove_entity_type* entities::remove;
-
-thread_pool::construct_thread_pool_type* thread_pool::construct;
-thread_pool::destroy_thread_pool_type* thread_pool::destroy;
-thread_pool::add_task_type* thread_pool::add_task;
-thread_pool::add_raw_task_type* thread_pool::add_raw_task;
-thread_pool::join_type* thread_pool::join;
+world::method_pointers_type			world::method_pointers;
+entities::method_pointers_type		entities::method_pointers;
+thread_pool::method_pointers_type	thread_pool::method_pointers;
+tasks::method_pointers_type			tasks::method_pointers;

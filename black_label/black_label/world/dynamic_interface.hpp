@@ -1,0 +1,12 @@
+// Version 0.1
+#ifndef BLACK_LABEL_WORLD_DYNAMIC_INTERFACE_HPP
+#define BLACK_LABEL_WORLD_DYNAMIC_INTERFACE_HPP
+
+
+
+#define BLACK_LABEL_WORLD_DYNAMIC_INTERFACE
+#include "black_label/world.hpp"
+
+
+
+#endif

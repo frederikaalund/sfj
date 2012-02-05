@@ -101,10 +101,10 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	add_library(${TARGET_NAME} ${TARGET_LIBRARY_TYPE} ${${TARGET_NAME}_HPPS} ${${TARGET_NAME}_CPPS})
 	
 	
+	
 	##############################################################################
 	## External Libraries
 	##############################################################################
-	
 	if(${TARGET_NAME} STREQUAL thread_pool)
 		target_link_libraries(
 			${TARGET_NAME}
