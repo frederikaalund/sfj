@@ -33,7 +33,7 @@ set(BLACK_LABEL_LIBRARY_DIR ${PROJECT_SOURCE_DIR}/../black_label/stage/libraries
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.46.1 REQUIRED COMPONENTS program_options)
+find_package(Boost 1.46.1 REQUIRED program_options)
 include_directories(${Boost_INCLUDE_DIR})
 
 
