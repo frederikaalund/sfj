@@ -16,6 +16,11 @@ world::world( configuration configuration )
 {
 
 }
+    
+world::~world()
+{
+    
+}
 
 
 

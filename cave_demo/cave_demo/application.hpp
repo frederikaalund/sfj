@@ -28,7 +28,7 @@ protected:
 private:
 	void register_program_options( 
 		int argc, 
-		const char* argv[], 
+        char const* argv[], 
 		black_label::world::world::configuration& world_configuration );
 
 	black_label::shared_library::shared_library

@@ -5,6 +5,8 @@
 
 #include "black_label/thread_pool/types.hpp"
 
+#include <cstring>
+
 
 
 namespace black_label
@@ -41,7 +43,7 @@ public:
 	void remove( size_type task );
 	void run( size_type task );
 
-	inline void tasks::add_child(size_type parent, size_type child);
+	inline void add_child(size_type parent, size_type child);
 
 	size_type parent(size_type task, size_type index) const
 	{ 

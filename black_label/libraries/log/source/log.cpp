@@ -15,7 +15,7 @@ using namespace std;
 
 
 
-void log::write_to_log( log* log, int verbosity_level, char* message, ... )
+void log::write_to_log( log* log, int verbosity_level, char const* message, ... )
 {
 	va_list extra_arguments;
 	va_start(extra_arguments, message);
@@ -25,7 +25,7 @@ void log::write_to_log( log* log, int verbosity_level, char* message, ... )
 
 
 
-log::log( char* log_file, bool write_log_events )
+log::log( char const* log_file, bool write_log_events )
 	: write_log_events(write_log_events)
 {
 	file.open(log_file, ios::app);
@@ -49,7 +49,7 @@ bool log::is_open()
 	return file.is_open();
 }
 
-void log::write( int verbosity_level, char* message, ... )
+void log::write( int verbosity_level, char const* message, ... )
 {
 	va_list extra_arguments;
 	va_start(extra_arguments, message);
@@ -59,12 +59,12 @@ void log::write( int verbosity_level, char* message, ... )
 
 void log::write_explicit( 
 	int verbosity_level, 
-	char* message, 
+	char const* message, 
 	va_list extra_arguments )
 {
 	if (2 < verbosity_level) return;
 
-	static char* prefixes[] = {
+	static char const* prefixes[] = {
 		"[ERROR]   ",
 		"[WARNING] ",
 		"[INFO]    "};
