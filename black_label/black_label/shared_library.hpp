@@ -4,10 +4,6 @@
 #include <iostream>
 #include "black_label/shared_library/utility.hpp"
 
-#ifdef WIN32
-#include <windows.h>
-#endif
-
 
 
 namespace black_label
@@ -18,18 +14,16 @@ namespace shared_library
 class shared_library
 {
 public:
-#ifdef WIN32
-	typedef HINSTANCE handle_type;
-#endif
+	typedef void* handle_type;
 	typedef void log_type;
 	typedef void write_to_log_type( 
 		log_type* log,
 		int verbosity_level,
-		char* message,
+        char const* message,
 		... );
 
 	shared_library( 
-		char* path, 
+		char const* path, 
 		log_type* log, 
 		write_to_log_type* write_to_log );
 	~shared_library();
@@ -37,10 +31,10 @@ public:
 	bool is_open();
 	int map_symbols( 
 		size_t count,
-		char* names[],
+		char const* names[],
 		void** pointers[] );
 
-	char* path;
+	char const* path;
 	handle_type handle;
 
 	log_type* log;

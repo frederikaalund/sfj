@@ -18,9 +18,9 @@ using boost::thread_group;
 
 
 thread_pool::thread_pool()
-	: internal_worker_size(boost::thread::hardware_concurrency()-1)
+	: tasks(50000)
+	, internal_worker_size(boost::thread::hardware_concurrency()-1)
 	, external_worker_capacity(1)
-	, tasks(50000)
 	, internal_workers(new worker*[internal_worker_size])
 	, external_workers(new worker*[external_worker_capacity])
 	, scheduled_task_size(0)

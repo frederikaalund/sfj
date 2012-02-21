@@ -27,15 +27,15 @@ void task1( void* data )
 void task2( void* data )
 {
 	static int run = 0;
-	if (run++ > 5) // Atomicity not guaranteed, but this is just a test task.
+	if (run++ > 10) // Atomicity not guaranteed, but this is just a test task.
 		return;
 
 	application* demo = reinterpret_cast<application*>(data);
 	
 	int i = 0;
 	tasks::size_type task = demo->thread_pool->create_and_schedule(task1, 0, NOT_A_THREAD_ID, 1);
-	while (i++ < 500)
-		task = demo->thread_pool->create_and_schedule(task1, 0, NOT_A_THREAD_ID, 1, 1, &task);
+	while (i++ < 5000)
+		task = demo->thread_pool->create_and_schedule(task1, 0, NOT_A_THREAD_ID, 1);
 }
 
 
@@ -43,7 +43,7 @@ void task2( void* data )
 int main( int argc, char const* argv[] )
 {	
 	application demo(argc, argv);
-	if (!demo.is_fully_constructed()) goto error;
+	if (!demo.is_fully_constructed()) return 1;
 
 
 
@@ -91,7 +91,4 @@ int main( int argc, char const* argv[] )
 /// Exit
 ////////////////////////////////////////////////////////////////////////////////
 	return 0;
-
-error:
-	return 1;
 }

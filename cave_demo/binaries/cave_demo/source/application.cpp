@@ -14,19 +14,27 @@ using namespace boost::program_options;
 
 application::application( int argc, char const* argv[] )
 	: log(new black_label::log::log("log.txt"))
-	, world(0)
-	, world_library(0)
 	, thread_pool(0)
+	, world(0)
 	, thread_pool_library(0)
+	, world_library(0)
 	, fully_constructed(false)
 {
 	if (!log->is_open()) return;
 
 
 
+#ifdef WINDOWS
+    #define WORLD_LIBRARY_PATH "../../../black_label/stage/libraries/black_label_world-vc100-mt-gd-0_1.dll"
+#elif UNIX
+    #define WORLD_LIBRARY_PATH "/Users/frederikaalund/Documents/sfj/black_label/stage/libraries/libblack_label_world-xgcc421-gd-0_1.so"
+#else
+    #error "Unsupported platform!"
+#endif
+    
 #define WORLD_LIBRARY_SYMBOL_COUNT 6
 
-	char* world_function_names[WORLD_LIBRARY_SYMBOL_COUNT] = {
+	char const* world_function_names[WORLD_LIBRARY_SYMBOL_COUNT] = {
 		"world_construct",
 		"world_destroy",
 		"world_dynamic_entities",
@@ -43,7 +51,7 @@ application::application( int argc, char const* argv[] )
 		reinterpret_cast<void**>(&entities::method_pointers.remove)};
 
 	world_library = new shared_library(
-		"D:/sfj/black_label/stage/libraries/black_label_world-vc100-mt-gd-0_1.dll",
+        WORLD_LIBRARY_PATH,
 		log,
 		reinterpret_cast<shared_library::write_to_log_type*>(
 		&black_label::log::log::write_to_log));
@@ -59,9 +67,17 @@ application::application( int argc, char const* argv[] )
 
 
 
+#ifdef WINDOWS
+#define THREAD_POOL_LIBRARY_PATH "../../../black_label/stage/libraries/black_label_thread_pool-vc100-mt-gd-0_1.dll"
+#elif UNIX
+#define THREAD_POOL_LIBRARY_PATH "/Users/frederikaalund/Documents/sfj/black_label/stage/libraries/libblack_label_thread_pool-xgcc421-gd-0_1.so"
+#else
+#error "Unsupported platform!"
+#endif
+    
 #define THREAD_POOL_LIBRARY_SYMBOL_COUNT 11
 
-	char* thread_pool_function_names[THREAD_POOL_LIBRARY_SYMBOL_COUNT] = {
+	char const* thread_pool_function_names[THREAD_POOL_LIBRARY_SYMBOL_COUNT] = {
 		"thread_pool_construct",
 		"thread_pool_destroy",
 		"thread_pool_schedule",
@@ -88,7 +104,7 @@ application::application( int argc, char const* argv[] )
 		reinterpret_cast<void**>(&tasks::method_pointers.remove)};
 
 	thread_pool_library = new shared_library(
-		"D:/sfj/black_label/stage/libraries/black_label_thread_pool-vc100-mt-gd-0_1.dll",
+		THREAD_POOL_LIBRARY_PATH,
 		log,
 		reinterpret_cast<shared_library::write_to_log_type*>(
 		&black_label::log::log::write_to_log));
@@ -132,7 +148,7 @@ bool application::is_fully_constructed()
 
 void application::register_program_options( 
 	int argc, 
-	const char* argv[],
+    char const* argv[],
 	world::configuration& world_configuration )
 {
 	options_description description("Options");
@@ -147,7 +163,6 @@ void application::register_program_options(
 				&world_configuration.static_entities_capacity)
 					->default_value(
 					world_configuration.static_entities_capacity));
-	program_options_map;
 
 	try
 	{

@@ -1,6 +1,8 @@
 #ifndef BLACK_LABEL_WORLD_ENTITIES_HPP
 #define BLACK_LABEL_WORLD_ENTITIES_HPP
 
+#include <cstring>
+
 #ifdef BLACK_LABEL_WORLD_ENTITIES_IMPLEMENTATION
 #include <boost/atomic.hpp> 
 #endif

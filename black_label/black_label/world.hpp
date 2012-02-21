@@ -41,6 +41,7 @@ struct world
 #ifndef BLACK_LABEL_WORLD_DYNAMIC_INTERFACE
 
 	world( configuration configuration );
+	~world();
 	
 	world& operator =( world const& world );
 
@@ -67,8 +68,7 @@ struct world
 		, dynamic_entities(method_pointers.dynamic_entities(_this))
 		, static_entities(method_pointers.static_entities(_this))
 	{}
-	~world()
-	{ method_pointers.destroy(_this); }
+	~world() { method_pointers.destroy(_this); }
 
 	void* _this;
 

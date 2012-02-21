@@ -23,18 +23,25 @@ include(${PROJECT_SOURCE_DIR}/../cmake/common.cmake)
 set(HPP_DIR ${PROJECT_SOURCE_DIR}/${PROJECT_NAME})
 set(CPP_DIR ${PROJECT_SOURCE_DIR}/libraries)
 
-
-
 include_directories(${PROJECT_SOURCE_DIR})
 
+
+
+##############################################################################
+## External Libraries
+##############################################################################
+
+## Boost
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.46.1 REQUIRED COMPONENTS date_time thread)
 include_directories(${Boost_INCLUDE_DIR})
 
-if(NOT DEFINED Boost_Lockfree_ROOT)
-	message(FATAL_ERROR "You must define Boost_Lockfree_ROOT and point it to the root directory of Boost Lockfree")
+## Boost Lockfree
+set(Boost_Lockfree_ROOT "Boost_Lockfree_ROOT-NOTFOUND" CACHE PATH "The root directory of Boost Lockfree.")
+if(NOT Boost_Lockfree_ROOT)
+	message(FATAL_ERROR "Please set Boost_Lockfree_ROOT to the root directory of Boost Lockfree. Boost Lockfree is NOT a Boost library but available through git at:\n  git://tim.klingt.org/boost_lockfree.git")
 endif()
 include_directories(${Boost_Lockfree_ROOT})
 
@@ -57,9 +64,10 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	
 	##############################################################################
 	## Type
-	##############################################################################		
+	##############################################################################
 	string(TOUPPER ${TARGET_NAME} TARGET_NAME_CAPITALIZED)
-	if(BLACK_LABEL_${TARGET_NAME_CAPITALIZED}_BUILD_STATIC)
+	set(BLACK_LABEL_BUILD_STATIC_${TARGET_NAME_CAPITALIZED} CACHE BOOL "Build ${TARGET_NAME} as a static library.")
+	if(BLACK_LABEL_BUILD_STATIC_${TARGET_NAME_CAPITALIZED})
 		set(TARGET_LIBRARY_TYPE STATIC)
 		set(TARGET_TARGET_TYPE ARCHIVE)
 	else()
@@ -103,7 +111,7 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	
 	
 	##############################################################################
-	## External Libraries
+	## Linking
 	##############################################################################
 	if(${TARGET_NAME} STREQUAL thread_pool)
 		target_link_libraries(

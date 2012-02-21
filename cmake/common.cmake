@@ -17,8 +17,8 @@ endforeach()
 
 
 
+## Toolset
 if (MSVC)
-	## Toolset
 	math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)
 	set(TOOLSET vc${VC_VERSION})
 	
@@ -41,14 +41,50 @@ if (MSVC)
 			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s)
 		endif()
 	endforeach()
+elseif (CMAKE_COMPILER_IS_GNUCXX)
+	## Identify compiler specifics
+	execute_process(COMMAND ${CMAKE_CXX_COMPILER} "-dumpversion" OUTPUT_VARIABLE GNUCXX_VERSION)
+	execute_process(COMMAND ${CMAKE_CXX_COMPILER} "-dumpmachine" OUTPUT_VARIABLE GNUCXX_TARGET_MACHINE)
+	string(STRIP ${GNUCXX_VERSION} GNUCXX_VERSION)
+	string(STRIP ${GNUCXX_TARGET_MACHINE} GNUCXX_TARGET_MACHINE)
 	
-	## ABI based on configuration
-	set(ABI_RELEASE ${ABI_RELEASE})
-	set(ABI_DEBUG ${ABI_DEBUG}d)
-	set(ABI_MINSIZEREL ${ABI_MINSIZEREL}m)
-	set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}i)
+	## Target machine
+	if(GNUCXX_TARGET_MACHINE MATCHES "darwin")
+		set(TOOLSET "xgcc")
+	else()
+		message(FATAL_ERROR "Detected unsupported GNUCXX target machine:\n  ${GNUCXX_TARGET_MACHINE}\nSupported GNUCXX target machines:\n  darwin\n")
+	endif()
+
+	## Version
+	string(REPLACE "." "" GNUCXX_VERSION_FORMATTED ${GNUCXX_VERSION})
+	set(TOOLSET ${TOOLSET}${GNUCXX_VERSION_FORMATTED})
+	
+	foreach(CONFIGURATION ${CONFIGURATIONS})
+		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "-pthread")
+			set(THREADING_${CONFIGURATION} mt)
+		endif()
+		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "-static-libgcc")
+			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s)
+		endif()
+		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "-g")
+			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}g)
+		endif()
+	endforeach()
 else()
-	message(FATAL_ERROR "Unsupported toolset! Supported toolsets: MSVC (all versions)")
+	message(FATAL_ERROR "Unsupported toolset! Supported toolsets: MSVC (all versions), GNUCXX (darwin: all versions)")
+endif()
+
+## ABI based on configuration
+set(ABI_RELEASE ${ABI_RELEASE})
+set(ABI_DEBUG ${ABI_DEBUG}d)
+set(ABI_MINSIZEREL ${ABI_MINSIZEREL}m)
+set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}i)
+
+## Definitions
+if(WIN32)
+	add_definitions("-DWINDOWS")
+elseif(UNIX)
+	add_definitions("-DUNIX")
 endif()
 
 
