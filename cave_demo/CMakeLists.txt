@@ -37,7 +37,7 @@ include_directories(${PROJECT_SOURCE_DIR})
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.46.1 REQUIRED date_time thread program_options)
+find_package(Boost 1.46.1 REQUIRED date_time system chrono thread program_options)
 include_directories(${Boost_INCLUDE_DIRS})
 
 ## Boost Lockfree

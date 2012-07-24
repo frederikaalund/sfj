@@ -46,7 +46,7 @@ find_package(BlackLabel REQUIRED "file_buffer 0.1")
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.49.0 REQUIRED date_time thread unit_test_framework)
+find_package(Boost 1.49.0 REQUIRED date_time system chrono thread unit_test_framework)
 include_directories(${Boost_INCLUDE_DIRS})
 
 ## Boost Lockfree
@@ -186,6 +186,8 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 			target_link_libraries(
 				${TARGET_NAME}
 				${Boost_DATE_TIME_LIBRARIES}
+				${Boost_SYSTEM_LIBRARIES}
+				${Boost_CHRONO_LIBRARIES}
 				${Boost_THREAD_LIBRARIES}
 				)
 		elseif(${TARGET_NAME} STREQUAL renderer)
