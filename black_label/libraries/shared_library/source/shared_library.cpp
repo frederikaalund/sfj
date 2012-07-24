@@ -1,4 +1,4 @@
-#include "black_label/shared_library.hpp"
+#include <black_label/shared_library.hpp>
 
 #ifdef WINDOWS
   #include <windows.h>
@@ -27,7 +27,7 @@ inline shared_library::handle_type load_shared_library( char const* path )
 inline void* get_symbol_address( shared_library::handle_type handle, char const* symbol_name )
 {
 #ifdef WINDOWS
-	return GetProcAddress(handle, symbol_name);
+	return GetProcAddress(reinterpret_cast<HMODULE>(handle), symbol_name);
 #elif UNIX
     return dlsym(handle, symbol_name);
 #endif
@@ -51,7 +51,7 @@ shared_library::~shared_library()
 {
     if (handle)
 #ifdef WINDOWS
-        FreeLibrary(handle);
+        FreeLibrary(reinterpret_cast<HMODULE>(handle));
 #elif UNIX
         dlclose(handle);
 #endif

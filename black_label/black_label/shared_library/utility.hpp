@@ -1,5 +1,9 @@
-#ifdef	WIN32
-#define BLACK_LABEL_SHARED_LIBRARY extern "C" __declspec(dllexport)
+#ifdef WINDOWS
+	#ifdef BLACK_LABEL_SHARED_LIBRARY_EXPORT
+		#define BLACK_LABEL_SHARED_LIBRARY __declspec(dllexport)
+	#else
+		#define BLACK_LABEL_SHARED_LIBRARY __declspec(dllimport)
+	#endif
 #else
-#define BLACK_LABEL_SHARED_LIBRARY extern "C"
+	#define BLACK_LABEL_SHARED_LIBRARY 
 #endif

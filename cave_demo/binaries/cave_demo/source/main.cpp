@@ -1,6 +1,7 @@
-#include "cave_demo/application.hpp"
+#include <cave_demo/application.hpp>
 
-#include "black_label/thread_pool/tasks.hpp"
+#include <memory>
+#include <iostream>
 
 
 
@@ -10,83 +11,68 @@ using namespace cave_demo;
 
 
 
-int size = 1000*1000;
-float
-	* number1s,
-	* number2s,
-	* number3s;
-
-// Simulates work
-void task1( void* data )
+void wait()
 {
-	for (int i = 0; i < size; ++i)
-		number3s[i] += number1s[i] * number2s[i];
-}
-
-// Creates and schedules other tasks
-void task2( void* data )
-{
-	static int run = 0;
-	if (run++ > 10) // Atomicity not guaranteed, but this is just a test task.
-		return;
-
-	application* demo = reinterpret_cast<application*>(data);
-	
-	int i = 0;
-	tasks::size_type task = demo->thread_pool->create_and_schedule(task1, 0, NOT_A_THREAD_ID, 1);
-	while (i++ < 5000)
-		task = demo->thread_pool->create_and_schedule(task1, 0, NOT_A_THREAD_ID, 1);
+	srand(535435);
+	int max = rand()%2500;
+	for (int i = 0; i < max; ++i)
+		while(0 < rand()) int i = 2;
 }
 
 
 
 int main( int argc, char const* argv[] )
 {	
-	application demo(argc, argv);
-	if (!demo.is_fully_constructed()) return 1;
+	application demo(argc, argv); // TODO: Check for exceptions
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// World Test
 ////////////////////////////////////////////////////////////////////////////////
-	world* world = demo.world;
+	world& world = demo.world;
 
 	// Create some entities, then delete one, then create another one
-	entities::size_type first_id = 
-		world->static_entities.create(entities::matrix4f());
-	world->static_entities.create(entities::matrix4f());
-	world->static_entities.remove(first_id);
-	world->static_entities.create(entities::matrix4f());
+	world::generic_type::size_type first_id = 
+		world.static_entities.create("cube");
+	world.static_entities.create("cube");
+	world.static_entities.remove(first_id);
+	world.static_entities.create("cube");
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Thread Pool Test
 ////////////////////////////////////////////////////////////////////////////////
-	thread_pool* thread_pool = demo.thread_pool;
+	thread_pool& thread_pool = demo.thread_pool;
 
 	// Allocate data
-	number1s = new float[size],
-	number2s = new float[size],
-	number3s = new float[size];
+	int size = 1000*1000;
+	std::unique_ptr<float[]>
+		number1s(new float[size]),
+		number2s(new float[size]),
+		number3s(new float[size]);
 
-	//thread_pool->current_thread_id();
+	using std::cout;
+	using std::endl;
+	
+	task task_1 = ([&](){wait();cout<<"A1 ";} | [&](){wait();cout<<"A2 ";}) 
+		>> ([&](){wait();cout<<"B1 ";} | [&](){wait();cout<<"B2 ";} | [&](){wait();cout<<"B3 ";})
+		>> [&](){wait();cout<<"C1 ";};
+	
+	task task_2 = ([&](){wait();cout<<"E1 ";} | [&](){wait();cout<<"E2 ";})
+		>> ([&](){wait();cout<<"F1 ";} | [&](){wait();cout<<"F2 ";});
+		
+	task task_3 = [&](){wait();cout<<"D1 ";} >> [&](){wait();cout<<"D2 ";};
+	
 
-	// Create an initial task and schedule it
-	thread_pool->create_and_schedule(task2, &demo);
-	// The thread pool will give work to the current thread
-	thread_pool->employ_current_thread();
+	// Schedule a task
+	thread_pool.schedule(task_1);
 	// Blocks until all tasks have been processed
-	thread_pool->join();
-
-	// Cleanup
-	delete[] number1s;
-	delete[] number2s;
-	delete[] number3s;
+	thread_pool.join();
 
 
-
+	
 ////////////////////////////////////////////////////////////////////////////////
 /// Exit
 ////////////////////////////////////////////////////////////////////////////////

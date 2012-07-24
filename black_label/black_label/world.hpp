@@ -2,7 +2,12 @@
 #ifndef BLACK_LABEL_WORLD_WORLD_HPP
 #define BLACK_LABEL_WORLD_WORLD_HPP
 
-#include "black_label/world/entities.hpp"
+#include <black_label/world/entities.hpp>
+#include <black_label/lsystem.hpp>
+
+#include <string>
+
+#include <glm/glm.hpp>
 
 
 
@@ -11,8 +16,16 @@ namespace black_label
 namespace world
 {
 
-struct world
+class world
 {
+public:
+	typedef size_t id_type;
+	typedef glm::mat4 transformation_type;
+
+	typedef entities<std::string, transformation_type, id_type> 
+		generic_type;
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Configuration
@@ -20,63 +33,37 @@ struct world
 	struct configuration
 	{
 		configuration( 
-			entities::size_type dynamic_entities_capacity, 
-			entities::size_type static_entities_capacity )
+			generic_type::size_type dynamic_entities_capacity, 
+			generic_type::size_type static_entities_capacity )
 			: dynamic_entities_capacity(dynamic_entities_capacity)
 			, static_entities_capacity(static_entities_capacity)
-		{
+		{}
 
-		}
-
-		entities::size_type 
+		generic_type::size_type 
 			dynamic_entities_capacity, 
 			static_entities_capacity;
 	};
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-/// Static Interface
-////////////////////////////////////////////////////////////////////////////////
-#ifndef BLACK_LABEL_WORLD_DYNAMIC_INTERFACE
-
-	world( configuration configuration );
-	~world();
-	
-	world& operator =( world const& world );
-
-	entities dynamic_entities;
-	entities static_entities;
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Dynamic Interface for Runtime-loaded Shared Libraries
-////////////////////////////////////////////////////////////////////////////////
-#else
-
-	struct method_pointers_type
+	friend void swap( world& lhs, world& rhs )
 	{
-		void* (*construct)( configuration configuration );
-		void (*destroy)( void const* world );
-		void* (*dynamic_entities)( void* world );
-		void* (*static_entities)( void* world );
-	} static method_pointers;
-		
+		using std::swap;
+		swap(lhs.dynamic_entities, rhs.dynamic_entities);
+		swap(lhs.static_entities, rhs.static_entities);
+	}
+
+	world() {}
 	world( configuration configuration )
-		: _this(method_pointers.construct(configuration))
-		, dynamic_entities(method_pointers.dynamic_entities(_this))
-		, static_entities(method_pointers.static_entities(_this))
+		: dynamic_entities(configuration.dynamic_entities_capacity)
+		, static_entities(configuration.static_entities_capacity)
 	{}
-	~world() { method_pointers.destroy(_this); }
+	world( world&& other ) { swap(*this, other); }
 
-	void* _this;
+	world& operator=( world rhs ) { swap(*this, rhs); return *this; }
 
-	entities 
-		dynamic_entities,
-		static_entities;
-
-#endif
+	generic_type dynamic_entities;
+	generic_type static_entities;
 };
 
 } // namespace world

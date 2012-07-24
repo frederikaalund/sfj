@@ -2,7 +2,7 @@
 #ifndef BLACK_LABEL_SHARED_LIBRARY_SHARED_LIBRARY_HPP
 #define BLACK_LABEL_SHARED_LIBRARY_SHARED_LIBRARY_HPP
 #include <iostream>
-#include "black_label/shared_library/utility.hpp"
+#include <black_label/shared_library/utility.hpp>
 
 
 

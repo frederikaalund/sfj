@@ -1,5 +1,7 @@
-#include "black_label/thread_pool.hpp"
-#include "black_label/shared_library/utility.hpp"
+#define BLACK_LABEL_SHARED_LIBRARY_EXPORT
+#include <black_label/thread_pool.hpp>
+
+#include <black_label/utility/algorithm.hpp>
 
 
 
@@ -7,6 +9,11 @@ namespace black_label
 {
 namespace thread_pool
 {
+
+
+
+using std::for_each;
+using utility::min_element;
 
 using boost::atomic;
 using boost::unique_lock;
@@ -18,96 +25,59 @@ using boost::thread_group;
 
 
 thread_pool::thread_pool()
-	: tasks(50000)
-	, internal_worker_size(boost::thread::hardware_concurrency()-1)
-	, external_worker_capacity(1)
-	, internal_workers(new worker*[internal_worker_size])
-	, external_workers(new worker*[external_worker_capacity])
-	, scheduled_task_size(0)
-	, external_worker_size(0)
-	, remaining_parents_counts(new atomic<int>[tasks.capacity])
+	: workers(boost::thread::hardware_concurrency())
+	, scheduled_task_count(0)
 {
-	for (int i = 0; i < internal_worker_size; ++i)
-	{
-		internal_workers[i] = new worker(*this);
-		boost::thread* thread = new boost::thread(boost::ref(*internal_workers[i]));
-		
+	for_each(workers.begin(), workers.end(), [this] ( worker& worker ) {
+		worker.pool = this;
+		boost::thread* thread = new boost::thread(boost::ref(worker));
 		worker_threads.add_thread(thread);
-	}
-
-	for (int i = 0; i < external_worker_capacity; ++i)
-	{
-		external_workers[i] = new worker(*this);
-	}
+	});
 }
 
 thread_pool::~thread_pool()
 {
+	join();
 	stop_workers();
 	wait_for_workers_to_stop();
-
-	for (int i = 0; i < internal_worker_size; ++i)
-		delete internal_workers[i];
-	delete[] internal_workers;
-	for (int i = 0; i < external_worker_capacity; ++i)
-		delete external_workers[i];
-	delete[] external_workers;
-	delete[] remaining_parents_counts;
 }
 
-void thread_pool::schedule( tasks_type::size_type task )
+
+
+void thread_pool::schedule( task* task )
 {
-	scheduled_task_size++;
+	typedef black_label::thread_pool::task task_type;
 
-	remaining_parents_counts[task].store(tasks.parent_counts[task]);
-
-	if (tasks.has_parents(task)) return;
-
-	add(task);
-}
-
-thread_pool::tasks_type::size_type thread_pool::create_and_schedule( 
-	tasks_type::function_type* function, 
-	tasks_type::data_type* data, 
-	thread_id_type thread_affinity, 
-	tasks_type::weight_type weight, 
-	tasks_type::size_type parent_count, 
-	tasks_type::size_type* parents )
-{
-	tasks_type::size_type task = tasks.create(
-		function, 
-		data, 
-		thread_affinity, 
-		weight, 
-		parent_count, 
-		parents);
-	schedule(task);
-	return task;
-}
-
-void thread_pool::employ_current_thread()
-{
-	int id;
-
+	// Distribute sub tasks.
+	if (task->is_group_task())
+		for_each(task->sub_tasks.begin(), task->sub_tasks.end(),
+			[this] ( task_type& sub_task ) { schedule(&sub_task); });
+	// Schedule task.
+	else if (task->function)
 	{
-		lock_guard<mutex> lock(waiting_for_workers);
-		id = external_worker_size++;
+		scheduled_task_count++;
+		add(task);
 	}
+	// Task was empty - clean up after it.
+	else
+		resolve_dependencies(task);
+}
 
-	external_workers[id]->start();
+void thread_pool::schedule( const task& task )
+{
+	// Make a lingering copy for internal use.
+	typedef black_label::thread_pool::task task_type;
+	task_type* task_copy = new task_type(task);
+	task_copy->register_sub_tasks();
 
-	{
-		lock_guard<mutex> lock(waiting_for_workers);
-		if (0 == external_worker_size--)
-			all_external_workers_are_stopped.notify_all();
-	}
+	schedule(task_copy);
 }
 
 void thread_pool::join()
 {
 	unique_lock<mutex> lock(waiting_for_workers);
 
-	while (0 < scheduled_task_size)
+	while (0 < scheduled_task_count)
 		all_tasks_are_processed.wait(lock);
 }
 
@@ -117,90 +87,60 @@ void thread_pool::current_thread_id()
 	
 }
 
-
-
-void thread_pool::stop_internal_workers()
-{
-	for (int i = 0; i < internal_worker_size; ++i)
-		internal_workers[i]->stop();
-}
-void thread_pool::stop_external_workers()
-{
-	for (int i = 0; i < external_worker_size; ++i)
-		external_workers[i]->stop();
-}
 void thread_pool::stop_workers()
 {
-	stop_internal_workers();
-	stop_external_workers();
+	for (auto worker = workers.begin(); workers.end() != worker; ++worker)
+		worker->stop();
 }
 
-void thread_pool::wait_for_internal_workers_to_stop()
+void thread_pool::wait_for_workers_to_stop()
 {
 	worker_threads.join_all();
 }
-void thread_pool::wait_for_external_workers_to_stop()
+
+void thread_pool::resolve_dependencies( task* task )
 {
-	unique_lock<mutex> lock(waiting_for_workers);
-	while (0 < external_worker_size)
-		all_external_workers_are_stopped.wait(lock);
+	if (task->owner)
+	{
+		int sub_tasks_left = --task->owner->sub_tasks_left;
+
+		if (0 == sub_tasks_left)
+		{
+			if (task->owner->successor)
+				schedule(task->owner->successor.get());
+			else
+				resolve_dependencies(task->owner);
+		}
+		else if (-1 == sub_tasks_left)
+			resolve_dependencies(task->owner);
+	}
+	// Delete the internal lingering copy.
+	else
+		delete task;
 }
-void thread_pool::wait_for_workers_to_stop()
+
+void thread_pool::processed_task( task* task )
 {
-	wait_for_internal_workers_to_stop();
-	wait_for_external_workers_to_stop();
-}
+	resolve_dependencies(task);
 
-void thread_pool::processed_task( tasks_type::size_type task )
-{
-	schedule_children(task);
-
-	if (0 < --scheduled_task_size) return;
-
-	stop_external_workers();
-
+	if (0 < --scheduled_task_count) return;
+	
 	lock_guard<mutex> lock(waiting_for_workers);
 	all_tasks_are_processed.notify_all();
 }
 
-void thread_pool::add( tasks_type::size_type task )
+void thread_pool::add( task* task )
 {
-	if (NOT_A_THREAD_ID != tasks.thread_affinities[task])
+	// Add task to requested worker.
+	if (NOT_A_THREAD_ID != task->thread_affinity)
 	{
-		internal_workers[tasks.thread_affinities[task]]->add_task(task);
+		workers[task->thread_affinity].add_task(task);
 		return;
 	}
 
-
-
-	worker* least_burdened_worker = internal_workers[0];
-	for (int i = 1; i < internal_worker_size; ++i)
-	{
-		worker* potential = internal_workers[i];
-		if (least_burdened_worker->tasks.weight > potential->tasks.weight)
-			least_burdened_worker = potential;
-	}
-	for (int i = 0; i < external_worker_size; ++i)
-	{
-		worker* potential = external_workers[i];
-		if (least_burdened_worker->tasks.weight > potential->tasks.weight)
-			least_burdened_worker = potential;
-	}
-
-	least_burdened_worker->add_task(task);
-}
-
-
-
-void thread_pool::schedule_children( tasks_type::size_type parent )
-{
-	for (tasks_type::size_type i = 0; i < tasks.child_counts[parent]; ++i)
-	{
-		tasks_type::size_type child = 
-			tasks.children[tasks.max_children * parent + i];
-		if (0 == --remaining_parents_counts[child])
-			add(child);
-	}
+	// Add task to least burdened worker.
+	min_element(workers.begin(), workers.end(), [] ( worker& lhs, worker& rhs )
+		{ return lhs.tasks.weight < rhs.tasks.weight; })->add_task(task);
 }
 
 
@@ -208,31 +148,21 @@ void thread_pool::schedule_children( tasks_type::size_type parent )
 ////////////////////////////////////////////////////////////////////////////////
 /// Task Group
 ////////////////////////////////////////////////////////////////////////////////
-thread_pool::task_group::task_group( thread_pool& pool )
-	: pool(pool)
-	, weight(0)
+void thread_pool::task_group::add( task* task )
 {
-	 
-}
-
-
-
-void thread_pool::task_group::add( tasks_type::size_type task )
-{
-	weight += pool.tasks.weights[task];
+	weight += task->weight;
 	tasks.enqueue(task);
 }
 
-bool thread_pool::task_group::next( tasks_type::size_type& task )
+bool thread_pool::task_group::next( task*& task )
 {
 	return tasks.dequeue(task);
 }
 
-void thread_pool::task_group::process( tasks_type::size_type task )
+void thread_pool::task_group::process( task* task )
 {
-	pool.tasks.run(task);
-	weight -= pool.tasks.weights[task];
-	pool.processed_task(task);
+	(*task)();
+	weight -= task->weight;
 }
 
 
@@ -240,16 +170,6 @@ void thread_pool::task_group::process( tasks_type::size_type task )
 ////////////////////////////////////////////////////////////////////////////////
 /// Worker
 ////////////////////////////////////////////////////////////////////////////////
-thread_pool::worker::worker( thread_pool& pool )
-	: tasks(pool)
-	, about_to_wait(false)
-	, work(true)
-{
-
-}
-
-
-
 void thread_pool::worker::start()
 {
 	work = true;
@@ -270,7 +190,7 @@ void thread_pool::worker::wake()
 	work_to_do.notify_one();
 }
 
-void thread_pool::worker::add_task( tasks_type::size_type task )
+void thread_pool::worker::add_task( task* task )
 {
 	tasks.add(task);
 	wake();
@@ -278,7 +198,7 @@ void thread_pool::worker::add_task( tasks_type::size_type task )
 
 void thread_pool::worker::operator()()
 {
-	tasks_type::size_type task;
+	task* task = nullptr;
 
 	while (true)
 	{
@@ -294,63 +214,8 @@ void thread_pool::worker::operator()()
 		if (!work) return;
 
 		tasks.process(task);
+		pool->processed_task(task);
 	}
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Dynamic Interface for Runtime-loaded Shared Libraries
-////////////////////////////////////////////////////////////////////////////////
-BLACK_LABEL_SHARED_LIBRARY thread_pool* thread_pool_construct()
-{
-	return new thread_pool();
-}
-
-BLACK_LABEL_SHARED_LIBRARY void thread_pool_destroy( thread_pool const* pool )
-{
-	delete pool;
-}
-
-BLACK_LABEL_SHARED_LIBRARY void thread_pool_schedule( 
-	thread_pool* pool, 
-	thread_pool::tasks_type::size_type task )
-{	
-	pool->schedule(task);
-}
-
-BLACK_LABEL_SHARED_LIBRARY thread_pool::tasks_type::size_type 
-thread_pool_create_and_schedule( 
-	thread_pool* pool,
-	thread_pool::tasks_type::function_type* function,
-	thread_pool::tasks_type::data_type* data,
-	thread_id_type thread_affinity,
-	thread_pool::tasks_type::weight_type weight,
-	thread_pool::tasks_type::size_type parent_count,
-	thread_pool::tasks_type::size_type* parents ) 
-{
-	return pool->create_and_schedule(
-		function,
-		data,
-		thread_affinity,
-		weight,
-		parent_count,
-		parents);
-}
-
-BLACK_LABEL_SHARED_LIBRARY void thread_pool_employ_current_thread( thread_pool* pool )
-{
-	pool->employ_current_thread();
-}
-
-BLACK_LABEL_SHARED_LIBRARY void thread_pool_join( thread_pool* pool )
-{
-	pool->join();
-}
-
-BLACK_LABEL_SHARED_LIBRARY thread_pool::tasks_type* thread_pool_tasks( thread_pool* pool )
-{
-	return &pool->tasks;
 }
 
 } // namespace thread_pool
