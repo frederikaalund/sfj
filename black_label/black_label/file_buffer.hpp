@@ -3,6 +3,9 @@
 #define BLACK_LABEL_DARRAY_HPP
 
 #include <black_label/container/darray.hpp>
+#include <black_label/shared_library/utility.hpp>
+
+#include <string>
 
 
 
@@ -22,21 +25,35 @@ const null_terminated_type null_terminated;
 ////////////////////////////////////////////////////////////////////////////////
 /// File Buffer
 ////////////////////////////////////////////////////////////////////////////////
-class file_buffer
+class BLACK_LABEL_SHARED_LIBRARY file_buffer
 {
 public:
 	typedef container::darray<char> buffer_type;
-
 	
-	file_buffer( const char* path_to_file );
-	file_buffer( const char* path_to_file, null_terminated_type );
+	file_buffer( const std::string& path_to_file )
+	{ load_file(path_to_file.c_str()); }
+	file_buffer( const std::string& path_to_file, null_terminated_type nt )
+	{ load_file(path_to_file.c_str(), nt); }
+	file_buffer( const char* path_to_file )
+	{ load_file(path_to_file); }
+	file_buffer( const char* path_to_file, null_terminated_type nt )
+	{ load_file(path_to_file, nt); }
 
 	buffer_type::size_type size() const 
 	{ return buffer.capacity(); }
 	const buffer_type::value_type* data() const
 	{ return buffer.data(); }
 
+#pragma warning(push)
+#pragma warning(disable : 4251)
 	buffer_type buffer;
+#pragma warning(pop)
+	
+
+
+protected:
+	void load_file( const char* path_to_file );
+	void load_file( const char* path_to_file, null_terminated_type );
 };
 
 } // namespace file_buffer

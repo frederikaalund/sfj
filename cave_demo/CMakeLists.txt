@@ -20,6 +20,15 @@ include(${PROJECT_SOURCE_DIR}/../cmake/common.cmake)
 
 
 ##############################################################################
+## Definitions
+##############################################################################
+if(MSVC)
+	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+endif()
+
+
+
+##############################################################################
 ## Directories
 ##############################################################################
 set(HPP_DIR ${PROJECT_SOURCE_DIR}/${PROJECT_NAME_LOWERCASE_UNDERSCORES})
@@ -37,7 +46,7 @@ include_directories(${PROJECT_SOURCE_DIR})
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.46.1 REQUIRED date_time system chrono thread program_options)
+find_package(Boost 1.50.0 REQUIRED date_time system chrono thread program_options filesystem log_setup log)
 include_directories(${Boost_INCLUDE_DIRS})
 
 ## Boost Lockfree
@@ -49,7 +58,7 @@ include_directories(${Boost_Lockfree_ROOT})
 
 ## Black Label
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake)
-find_package(BlackLabel REQUIRED "log 0.1" "thread_pool 0.1")
+find_package(BlackLabel REQUIRED "renderer 0.1" "thread_pool 0.1" "file_system_watcher 0.1" "file_buffer 0.1")
 include_directories(${BlackLabel_INCLUDE_DIRS})
 
 ## GLM
@@ -58,6 +67,46 @@ if(NOT GLM_ROOT)
 	message(FATAL_ERROR "Please set GLM_ROOT to the root directory of GLM. GLM is available at:\n  http://glm.g-truc.net/download.html")
 endif()
 include_directories(${GLM_ROOT})
+
+## OpenGL
+find_package(OpenGL)
+
+## SFML
+set(SFML_STATIC_LIBRARIES TRUE)
+find_package(SFML REQUIRED system window)
+include_directories(${SFML_INCLUDE_DIR})
+
+
+
+
+
+## GLEW
+find_package(GLEW)
+add_definitions(-DGLEW_STATIC)
+include_directories(${GLEW_INCLUDE_PATH})
+
+## ZLIB
+find_package(ZLIB)
+include_directories(${ZLIB_INCLUDE_DIR})
+
+## ASSIMP
+set(ASSIMP_INCLUDE_DIR "ASSIMP_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
+if(NOT ASSIMP_INCLUDE_DIR)
+	message(FATAL_ERROR "Please set ASSIMP_INCLUDE_DIR to the include directory of ASSIMP. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+endif()
+include_directories(${ASSIMP_INCLUDE_DIR})
+
+set(ASSIMP_LIBRARY_RELEASE "ASSIMP_LIBRARY_RELEASE-NOTFOUND" CACHE FILEPATH "The release version of the library.")
+if(NOT ASSIMP_LIBRARY_RELEASE)
+	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_RELEASE to the release version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+endif()
+set(ASSIMP_LIBRARY_DEBUG "ASSIMP_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "The debug version of the library.")
+if(NOT ASSIMP_LIBRARY_DEBUG)
+	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_DEBUG to the debug version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+endif()
+set(ASSIMP_LIBRARIES debug ${ASSIMP_LIBRARY_DEBUG} optimized ${ASSIMP_LIBRARY_RELEASE})
+
+
 
 
 
@@ -90,9 +139,15 @@ target_link_libraries(
 	${TARGET_NAME}
 	${Boost_LIBRARIES}
 	${BlackLabel_LIBRARIES}
+	${OPENGL_gl_LIBRARY}
+	${SFML_LIBRARIES}
+	
+	${GLEW_LIBRARY}
+	${ZLIB_LIBRARY}
+	${ASSIMP_LIBRARIES}
 	)
 
-
+	
 
 ##############################################################################
 ## Target Properties

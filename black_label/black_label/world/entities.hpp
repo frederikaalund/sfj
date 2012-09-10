@@ -1,6 +1,7 @@
 #ifndef BLACK_LABEL_WORLD_ENTITIES_HPP
 #define BLACK_LABEL_WORLD_ENTITIES_HPP
 
+#include <black_label/container/svector.hpp>
 #include <black_label/utility/boost_atomic_extensions.hpp>
 
 #include <algorithm>
@@ -18,11 +19,13 @@ namespace black_label
 namespace world
 {
 
-template<typename model_type, typename transformation_type, typename id_type>
+template<typename model_type, typename transformation_type>
 class entities
 {
 public:
-	typedef id_type size_type;
+	typedef std::size_t size_type;
+	typedef container::svector<model_type> model_container;
+	typedef typename model_container::size_type model_id_type;
 
 
 
@@ -33,67 +36,95 @@ public:
 	class iterator_base : public boost::iterator_facade<
 		iterator_base<value>, 
 		value, 
-		boost::random_access_traversal_tag>
+		boost::random_access_traversal_tag,
+		value,
+		size_type>
 	{
 	public:
 		iterator_base() {}
-		iterator_base( value* node ) 
-			: node(node) {}
+		iterator_base( value id ) : id_(id) {}
 		template<typename other_value>
 		iterator_base( 
 			const iterator_base<other_value>& other,
 			typename std::enable_if<std::is_convertible<other_value*, value*>::value>::type* = nullptr )
-			: node(other.node) {}
+			: id_(other.id_) {}
+
+	protected:
+		size_type id_;
 
 	private:
 		friend boost::iterator_core_access;
+		template<typename value> friend class iterator_base;
 
-		value& dereference() const
-		{ return *node; }
+		value dereference() const
+		{ return id_; }
 
 		template<typename other_value>
 		bool equal( const iterator_base<other_value>& other ) const
-		{ return this->node == other.node; }
+		{ return id_ == other.id_; }
 
-		void increment() { ++node; }
-		void decrement() { --node; }
-		void advance( difference_type n ) { node += n; }
+		void increment() { ++id_; }
+		void decrement() { --id_; }
+		void advance( difference_type n ) { id_ += n; }
 
 		template<typename other_value>
 		difference_type distance_to( const iterator_base<other_value>& other ) const
-		{ return other.node - node; }
-
-		value* node;
+		{ return other.id_ - id_; }
 	};
-	typedef iterator_base<model_type> iterator;
-	typedef iterator_base<const model_type> const_iterator;
+
+	typedef iterator_base<size_type> iterator;
+	typedef iterator_base<const size_type> const_iterator;
+
+	typedef transformation_type* transformation_iterator;
+	typedef const transformation_type* const_transformation_iterator;
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Entity
-////////////////////////////////////////////////////////////////////////////////
-	class entity
+////////////////////////////////////////////////////////////////////////////////	
+	template<typename iterator_type>
+	class entity_base : public iterator_type
 	{
 	public:
-		entity( const entities& entities, size_type id ) 
-			: entities(entities), id(id) {}
+		entity_base( entities& entities, iterator_type entity ) 
+			: entities_(entities), iterator_type(entity) {}
 
-		model_type& model() 
-		{ return entities.models[id]; }
-		transformation_type& transformation() 
-		{ return entities.transformations[id]; }
+		typename iterator_type::value_type id() const { return **this; }
 
-		operator model_type&()
-		{ return model(); }
-		operator transformation_type&()
-		{ return transformation(); }
-		operator size_type()
-		{ return id; }
+		model_type& model() const
+		{ return entities_.model_for_entity(id()); }
+		model_id_type& model_id() const
+		{ return entities_.model_ids[id()]; }
+		transformation_type& transformation() const
+		{ return entities_.transformations[id()]; }
 
-		const entities& entities;
-		const size_type id;
+	protected:
+		entities& entities_;
 	};
+
+	template<typename iterator_type>
+	class const_entity_base : public iterator_type
+	{
+	public:
+		const_entity_base( const entities& entities, iterator_type entity ) 
+			: entities_(entities), iterator_type(entity) {}
+
+		typename iterator_type::value_type id() const { return **this; }
+
+		const model_type& model() const
+		{ return entities_.model_for_entity(id()); }
+		const model_id_type& model_id() const
+		{ return entities_.model_ids[id()]; }
+		const transformation_type& transformation() const
+		{ return entities_.transformations[id()]; }
+
+	protected:
+		const entities& entities_;
+	};
+
+	typedef entity_base<iterator> entity;
+	typedef const_entity_base<const_iterator> const_entity;
 
 
 
@@ -103,111 +134,60 @@ public:
 	class group
 	{
 	public:
+		typedef container::svector<size_type> member_id_container;
+
+		typedef member_id_container::iterator iterator;
+		typedef member_id_container::const_iterator const_iterator;
+
+		typedef entity_base<iterator> entity;
+		typedef const_entity_base<const_iterator> const_entity;
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Iterator
+/// Group
 ////////////////////////////////////////////////////////////////////////////////
-		template<typename value, typename group_type, typename model_type_, typename transformation_type_>
-		class iterator_base : public boost::iterator_facade<
-			iterator_base<value, group_type, model_type_, transformation_type>, 
-			value,
-			boost::random_access_traversal_tag>
-		{
-		public:
-			iterator_base() {}
-			iterator_base( group_type* group, size_type* node ) 
-				: group(group), node(node) {}
-			template<typename other_value, typename other_group_type, typename other_model_type_, typename other_transformation_type_>
-			iterator_base( 
-				const iterator_base<other_value, other_group_type, other_model_type_, other_transformation_type_>& other,
-				typename std::enable_if<std::is_convertible<other_value*, value*>::value>::type* = nullptr )
-				: group(other.group), node(other.node) {}
-
-			model_type_& model() const
-			{ return group->entities.models[group->member_ids[*node]]; }
-			transformation_type_& transformation() const
-			{ return group->entities.transformations[group->member_ids[*node]]; }
-			size_type& id() const
-			{ return group->member_ids[*node]; }
-
-			operator model_type_&() const
-			{ return model(); }
-			operator transformation_type_&() const
-			{ return transformation(); }
-			operator size_type() const
-			{ return id(); }
-
-
-
-		private:
-			friend boost::iterator_core_access;
-
-			value& dereference() const
-			{ return entity(group->entities, group->member_ids[*node]); }
-
-			template<typename other_value, typename other_group_type, typename other_model_type_, typename other_transformation_type_>
-			bool equal( const iterator_base<other_value, other_group_type, other_model_type_, other_transformation_type_>& other ) const
-			{ return this->node == other.node; }
-
-			void increment() { ++node; }
-			void decrement() { --node; }
-			void advance( difference_type n ) { node += n; }
-
-			template<typename other_value, typename other_group_type, typename other_model_type_, typename other_transformation_type_>
-			difference_type distance_to( const iterator_base<other_value, other_group_type, other_model_type_, other_transformation_type_>& other ) const
-			{ return other.node - node; }
-
-			group_type* group;
-			size_type* node;
-		};
-		typedef iterator_base<entity, group, model_type, transformation_type>
-			iterator;
-		typedef iterator_base<const entity, const group, const model_type, const transformation_type>
-			const_iterator;
-
-
-
 		group( entities& entities ) 
 			: entities(entities)
-			, capacity(entities.capacity)
-			, size(0)
-			, member_ids(new size_type[capacity])
+			, member_ids(entities.capacity)
 		{}
 		~group()
 		{
-			std::for_each(&member_ids[0], &member_ids[size], 
+			std::for_each(member_ids.cbegin(), member_ids.cend(), 
 				[this] ( size_type entity ) { this->entities.remove(entity); });
 		}
 
-		entity create(
+		typename entities::iterator create(
 			const model_type& model = model_type(), 
 			const transformation_type& transformation = transformation_type() )
 		{ 
-			return entity(
-				entities, 
-				member_ids[size++] = entities.create(model, transformation)); 
+			member_ids.push_back(entities.create(model, transformation));
+			return entities::iterator(member_ids.back());
 		}
 
 		void remove( size_type id )
 		{
 			entities.remove(id);
-			*std::find(&member_ids[0], &member_ids[size], id) = 
-				member_ids[--size];
+			*std::find(member_ids.cbegin(), member_ids.cend(), id) = 
+				member_ids.back();
+			member_ids.pop_back()
 		}
-		void remove( entity entity ) { remove(entity.id); }
+		void remove( typename entities::iterator entity ) { remove(entity.id()); }
 
-		iterator begin() { return iterator(this, member_ids.get()); };
-		iterator end() { return iterator(this, &member_ids[size]); };
-		const_iterator cbegin() const
-		{ return const_iterator(this, member_ids.get()); };
-		const_iterator cend() const
-		{ return const_iterator(this, &member_ids[size]); };
+		iterator begin() { return member_ids.begin(); };
+		iterator end() { return member_ids.end(); };
+		const_iterator cbegin() const { return member_ids.cbegin(); };
+		const_iterator cend() const	{ return member_ids.cend(); };
+
+		entity ebegin() { return entity(this->entities, begin()); };
+		entity eend() { return entity(this->entities, end()); };
+		const_entity cebegin() const 
+		{ return group::const_entity(this->entities, cbegin()); };
+		const_entity ceend() const
+		{ return const_entity(this->entities, cend()); };
 
 		entities& entities;
-		size_type capacity, size;
-		std::unique_ptr<size_type[]> member_ids;
+		member_id_container member_ids;
 	};
 
 
@@ -215,27 +195,27 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 /// Entities
 ////////////////////////////////////////////////////////////////////////////////
-	entities() {}
-
 	friend void swap( entities& lhs, entities& rhs )
 	{
 		using std::swap;
+		swap(lhs.models, rhs.models);
 		swap(lhs.capacity, rhs.capacity);
 		swap(lhs.size, rhs.size);
 		swap(lhs.id_size, rhs.id_size);
-		swap(lhs.models, rhs.models);
+		swap(lhs.model_ids, rhs.model_ids);
 		swap(lhs.transformations, rhs.transformations);
 		swap(lhs.ids, rhs.ids);
 	}
 
-	entities( size_type capacity )
-		: capacity(capacity)
+	entities( model_container& models, size_type capacity = 0 )
+		: models(models)
+		, capacity(capacity)
 		, size(0)
 		, id_size(0)
-		, models(new model_type[capacity])
+		, model_ids(new model_id_type[capacity])
 		, transformations(new transformation_type[capacity])
 		, ids(new size_type[capacity])
-	{ for (size_type id = 0; id < capacity; ++id) ids[id] = id; }
+	{ size_type id = 0; std::generate(ids.get(), &ids[capacity], [&id](){ return id++; }); }
 	entities( entities&& other ) { swap(*this, other); }
 
 	entities& operator=( entities rhs ) { swap(*this, rhs); return *this; }
@@ -246,7 +226,15 @@ public:
 	{
 		entities::size_type id = ids[size++ % capacity];
 
-		models[id] = model;
+		auto existing_model = std::find(models.cbegin(), models.cend(), model);
+		if (models.cend() != existing_model)
+			model_ids[id] = existing_model - models.cbegin();
+		else
+		{
+			models.push_back(model);
+			model_ids[id] = models.end() - 1 - models.cbegin();
+		}
+		
 		transformations[id] = transformation;
 
 		return id;
@@ -254,20 +242,47 @@ public:
 
 	void remove( size_type id ) { ids[id_size++ % capacity] = id; }
 
-	iterator models_begin() { return iterator(models.get()); };
-	iterator models_end() { return iterator(&models[size]); };
+	model_type& model_for_entity( size_type id )
+	{ return models[model_ids[id]]; }
+	const model_type& model_for_entity( size_type id ) const
+	{ return models[model_ids[id]]; }
 
-	const_iterator models_cbegin() const
-	{ return const_iterator(models.get()); };
-	const_iterator models_cend() const 
-	{ return const_iterator(&models[size]); };
+	std::vector<size_type> entities_for_model( 
+		const model_id_type id ) const
+	{
+		std::vector<size_type> entity_ids;
+		std::for_each(cbegin(), cend(), [&] ( size_type entity_id ) {
+			if (id == model_ids[entity_id]) entity_ids.push_back(entity_id);
+		});
+		return std::move(entity_ids);
+	}
+
+
+	iterator begin() { return iterator(0); }
+	iterator end() { return iterator(size); }
+	const_iterator cbegin() const { return const_iterator(0); }
+	const_iterator cend() const { return const_iterator(size); }
+
+	entity ebegin() { return entity(*this, begin()); }
+	entity eend() { return entity(*this, end()); }
+	const_entity cebegin() const { return const_entity(*this, cbegin()); }
+	const_entity ceend() const { return const_entity(*this, cend()); }
+
+	transformation_iterator transformations_begin() { return transformations.get(); };
+	transformation_iterator transformations_end() { return &transformations[size]; };
+	const_transformation_iterator transformations_cbegin() const { return transformations.get(); };
+	const_transformation_iterator transformations_cend() const { return &transformations[size]; };
+
+	model_container& models;
 
 	size_type capacity;
 	boost::atomic<size_type> size, id_size;
 
-	std::unique_ptr<model_type[]> models;
+	std::unique_ptr<model_id_type[]> model_ids;
 	std::unique_ptr<transformation_type[]> transformations;
 	std::unique_ptr<size_type[]> ids;
+
+
 
 protected:
 	entities( const entities& other );

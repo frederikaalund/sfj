@@ -19,6 +19,15 @@ include(${PROJECT_SOURCE_DIR}/../cmake/common.cmake)
 
 
 ##############################################################################
+## Definitions
+##############################################################################
+if(MSVC)
+	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+endif()
+
+
+
+##############################################################################
 ## Directories
 ##############################################################################
 set(HPP_DIR ${PROJECT_SOURCE_DIR}/${PROJECT_NAME_LOWERCASE_UNDERSCORES})
@@ -46,7 +55,7 @@ find_package(BlackLabel REQUIRED "file_buffer 0.1")
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.49.0 REQUIRED date_time system chrono thread unit_test_framework)
+find_package(Boost 1.50.0 REQUIRED date_time system chrono thread unit_test_framework)
 include_directories(${Boost_INCLUDE_DIRS})
 
 ## Boost Lockfree
@@ -65,18 +74,28 @@ include_directories(${GLM_ROOT})
 
 ## GLEW
 find_package(GLEW)
+add_definitions(-DGLEW_STATIC)
 include_directories(${GLEW_INCLUDE_PATH})
 
-## GLUT
+## OpenGL
 find_package(OpenGL)
 
 ## ASSIMP
-set(ASSIMP_ROOT "ASSIMP_ROOT-NOTFOUND" CACHE PATH "The root directory of ASSIMP.")
-if(NOT ASSIMP_ROOT)
-	message(FATAL_ERROR "Please set ASSIMP_ROOT to the root directory of ASSIMP. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+set(ASSIMP_INCLUDE_DIR "ASSIMP_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
+if(NOT ASSIMP_INCLUDE_DIR)
+	message(FATAL_ERROR "Please set ASSIMP_INCLUDE_DIR to the include directory of ASSIMP. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
 endif()
-include_directories(${ASSIMP_ROOT}/include)
-set(ASSIMP_LIBRARIES debug ${ASSIMP_ROOT}/lib/debug/assimp.lib optimized ${ASSIMP_ROOT}/lib/release/assimp.lib)
+include_directories(${ASSIMP_INCLUDE_DIR})
+
+set(ASSIMP_LIBRARY_RELEASE "ASSIMP_LIBRARY_RELEASE-NOTFOUND" CACHE FILEPATH "The release version of the library.")
+if(NOT ASSIMP_LIBRARY_RELEASE)
+	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_RELEASE to the release version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+endif()
+set(ASSIMP_LIBRARY_DEBUG "ASSIMP_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "The debug version of the library.")
+if(NOT ASSIMP_LIBRARY_DEBUG)
+	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_DEBUG to the debug version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
+endif()
+set(ASSIMP_LIBRARIES debug ${ASSIMP_LIBRARY_DEBUG} optimized ${ASSIMP_LIBRARY_RELEASE})
 
 
 
@@ -155,19 +174,14 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 		##############################################################################
 		## Type
 		##############################################################################
-		if(${TARGET_NAME} STREQUAL thread_pool OR ${TARGET_NAME} STREQUAL renderer)
+		string(TOUPPER ${TARGET_NAME} TARGET_NAME_CAPITALIZED)
+		set(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED} CACHE BOOL "Build ${TARGET_NAME} as a static library.")
+		if(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED})
+			set(TARGET_LIBRARY_TYPE STATIC)
+			set(TARGET_TARGET_TYPE ARCHIVE)
+		else()
 			set(TARGET_LIBRARY_TYPE SHARED)
 			set(TARGET_TARGET_TYPE LIBRARY)
-		else()
-			string(TOUPPER ${TARGET_NAME} TARGET_NAME_CAPITALIZED)
-			set(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED} CACHE BOOL "Build ${TARGET_NAME} as a static library.")
-			if(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED})
-				set(TARGET_LIBRARY_TYPE STATIC)
-				set(TARGET_TARGET_TYPE ARCHIVE)
-			else()
-				set(TARGET_LIBRARY_TYPE SHARED)
-				set(TARGET_TARGET_TYPE LIBRARY)
-			endif()
 		endif()
 	
 	
@@ -193,6 +207,9 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 		elseif(${TARGET_NAME} STREQUAL renderer)
 			target_link_libraries(
 				${TARGET_NAME}
+				${Boost_SYSTEM_LIBRARIES}
+				${Boost_THREAD_LIBRARIES}
+				${Boost_LOG_LIBRARIES}
 				${BlackLabel_FILE_BUFFER_LIBRARIES}
 				${ASSIMP_LIBRARIES}
 				${GLEW_LIBRARY}

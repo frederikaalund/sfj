@@ -9,6 +9,8 @@
 #include <black_label/utility/boost_atomic_extensions.hpp>
 
 #include <boost/lockfree/fifo.hpp>
+#define BOOST_THREAD_VERSION 2
+#define BOOST_THREAD_DONT_PROVIDE_DEPRECATED_FEATURES_SINCE_V3_0_0
 #include <boost/thread.hpp>
 #include <boost/thread/condition_variable.hpp>
 
@@ -26,48 +28,49 @@ public:
 	~thread_pool();
 
 	void thread_pool::schedule( const task& task );
-	//void thread_pool::schedule( task& task ); // TODO: Externally managed task.
+	void thread_pool::schedule( task* task );
 	void join();
 	void current_thread_id();
 
 
 
 private:
+#pragma warning(disable : 4251)
 ////////////////////////////////////////////////////////////////////////////////
 /// Task Group
 ////////////////////////////////////////////////////////////////////////////////
-	struct task_group
+	class task_group
 	{
+	public:
 		typedef boost::lockfree::fifo<task*> task_queue_type;
 
 		task_group() : weight(0) {}
 
-		void add( task* task );
-		bool next( task*& task );
-		void process( task* task );
+		void add( task* task ) { weight += task->weight; tasks.enqueue(task); }
+		bool next( task*& task ) { return tasks.dequeue(task); }
+		void process( task* task ) { (*task)(); weight -= task->weight; }
 
 		task_queue_type tasks;
 		boost::atomic<task::weight_type> weight;
 	};
-
-	friend struct task_group;
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Worker
 ////////////////////////////////////////////////////////////////////////////////
-	struct worker 
+	class worker 
 	{
+	public:
 		worker() 	
 			: pool(pool)
 			, about_to_wait(false)
 			, work(true)
 		{}
 
-		void add_task( task* task );
-		void start();
-		void stop();
+		void add_task( task* task ) { tasks.add(task); wake(); }
+		void start() { work = true; (*this)(); }
+		void stop() { work = false; wake(); }
 		void wake();
 
 		void operator()();
@@ -85,20 +88,21 @@ private:
 
 	typedef container::darray<worker> worker_container;
 
+	void digest_task( task* task );
+	void add( task* task );
+	void processed_task( task* task );
+	void resolve_dependencies( task* task );
 	void stop_workers();
 	void wait_for_workers_to_stop();
-	void resolve_dependencies( task* task );
-	void processed_task( task* task );
-	void add( task* task );
+
+	
 
 	worker_container workers;
 	boost::thread_group worker_threads;
 	boost::atomic<int> scheduled_task_count;
 	boost::mutex waiting_for_workers;
 	boost::condition_variable all_tasks_are_processed;
-
-private:
-	void thread_pool::schedule( task* task );
+#pragma warning(default : 4251)
 };
 
 } // namespace thread_pool

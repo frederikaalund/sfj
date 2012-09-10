@@ -1,6 +1,8 @@
 #ifndef BLACK_LABEL_UTILITY_ALGORITHM_HPP
 #define BLACK_LABEL_UTILITY_ALGORITHM_HPP
 
+#include <algorithm>
+
 
 
 namespace black_label
@@ -18,13 +20,13 @@ namespace utility
 /// most of the time anyways. E.g. when concurrency is involved.
 ////////////////////////////////////////////////////////////////////////////////
 template<typename iterator, typename predicate>
-iterator min_element( iterator begin, iterator end, predicate predicate )
+iterator min_element( iterator first, iterator last, predicate predicate )
 { 
-	iterator result = begin;
-	if (begin != end)
-		while (++begin != end)
-			if (predicate(*begin, *result))
-				result = begin;
+	iterator result = first;
+	if (first != last)
+		while (++first != last)
+			if (predicate(*first, *result))
+				result = first;
 	return result;
 }
 

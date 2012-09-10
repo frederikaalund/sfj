@@ -28,31 +28,25 @@ namespace thread_pool
 /// concurrently. Optionally, a successor task is scheduled once every sub task
 /// has been processed.
 ////////////////////////////////////////////////////////////////////////////////
-class task
+class BLACK_LABEL_SHARED_LIBRARY task
 {
 public:
 	typedef int weight_type;
 
-	friend void swap( task& lhs, task& rhs )
-	{
-		using std::swap;
-		swap(lhs.function, rhs.function);
-		swap(lhs.thread_affinity, rhs.thread_affinity);
-		swap(lhs.weight, rhs.weight);
-		swap(lhs.owner, rhs.owner);
-		swap(lhs.sub_tasks, rhs.sub_tasks);
-		swap(lhs.successor, rhs.successor);
-		swap(lhs.sub_tasks_left, rhs.sub_tasks_left);
-	}
+	friend class thread_pool;
 
-	task() : owner(nullptr), successor(nullptr), sub_tasks_left(0) {}
+
+
+	BLACK_LABEL_SHARED_LIBRARY friend void swap( task& lhs, task& rhs );
+
+	task() : predecessor(nullptr), successor(nullptr), sub_tasks_left(0) {}
 
 	template<typename F>
 	task( const F& function ) 
 		: function(function)
 		, thread_affinity(NOT_A_THREAD_ID)
 		, weight(1)
-		, owner(nullptr)
+		, predecessor(nullptr)
 		, successor(nullptr)
 		, sub_tasks_left(0)
 	{}
@@ -63,7 +57,7 @@ public:
 		: function(other.function)
 		, thread_affinity(other.thread_affinity)
 		, weight(other.weight)
-		, owner(other.owner)
+		, predecessor(other.predecessor)
 		, sub_tasks(other.sub_tasks)
 		, successor((other.successor) ? new task(*other.successor) : nullptr)
 		, sub_tasks_left(other.sub_tasks_left.load())
@@ -72,61 +66,68 @@ public:
 	task& operator=( task other ) { swap(*this, other); return *this; }
 	void operator()() { function(); }
 
+
+
+private:
+#pragma warning(disable : 4251)
+	static task* DUMMY_TASK;
+
+
+
 	bool is_group_task() const { return !sub_tasks.empty(); }
+	bool is_root() const { return !predecessor || DUMMY_TASK == predecessor; }
+	bool is_owned_by_thread_pool() const { return DUMMY_TASK == predecessor; }
 
-	void register_sub_tasks()
-	{
-		std::for_each(sub_tasks.begin(), sub_tasks.end(), 
-			[this]( task& sub_task )
-		{
-			sub_task.owner = this;
-			sub_task.register_sub_tasks();
-		});
+	void give_ownership_to_thread_pool() { predecessor = DUMMY_TASK; }
+	void restore_task_hierarchy();
+	void reset_task_counts();
+	task& last_successor();
 
-		if (successor)
-		{
-			successor->owner = this;
-			successor->register_sub_tasks();
-		}
-
-		sub_tasks_left.store(sub_tasks.size());
-	}
-
-
-
-	BLACK_LABEL_SHARED_LIBRARY friend task operator|( task&& lhs, task&& rhs );
-	BLACK_LABEL_SHARED_LIBRARY friend task operator>>( task&& lhs, task&& rhs );
-
-	BLACK_LABEL_SHARED_LIBRARY friend task operator|( const task& lhs, const task& rhs );
-	BLACK_LABEL_SHARED_LIBRARY friend task operator>>( const task& lhs, const task& rhs );
-
-	BLACK_LABEL_SHARED_LIBRARY friend task& operator|=( task& lhs, task&& rhs );
-	BLACK_LABEL_SHARED_LIBRARY friend task& operator>>=( task& lhs, task&& rhs );
-
-
+	
 
 	// Single task properties
 	std::function<void()> function;
 	thread_id_type thread_affinity;
 	weight_type weight;
-
-	task* owner; // Owning group task
+	task* predecessor;
 
 	// Group task properties
 	std::vector<task> sub_tasks; // Processed concurrently.
 	std::unique_ptr<task> successor; // Processed after all sub_tasks are processed.
 	boost::atomic<int> sub_tasks_left;
+#pragma warning(default : 4251)
 
-protected:
-	task& last_successor()
-	{
-		// Find sub_task's successor chain's end
-		task* result = this;
-		while (result->successor)
-			result = result->successor.get();
-		return *result;
-	}
-private:
+
+
+public:
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task in_parallel( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task in_parallel( const task& lhs, const task& rhs );
+	task& in_parallel( task&& rhs );
+	task& in_parallel( const task& rhs );
+
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task operator|( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task operator|( const task& lhs, const task& rhs );
+	task& operator|=( task&& rhs );
+	task& operator|=( const task& rhs );
+
+
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task in_succession( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task in_succession( const task& lhs, const task& rhs );
+	task& in_succession( task&& rhs );
+	task& in_succession( const task& rhs );
+
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task operator>>( const task& lhs, const task& rhs );
+	BLACK_LABEL_SHARED_LIBRARY 
+		friend task operator>>( task&& lhs, task&& rhs );
+	task& operator>>=( task&& rhs );
+	task& operator>>=( const task& rhs );
 };
 
 } // namespace thread_pool

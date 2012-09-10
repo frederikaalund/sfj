@@ -1,6 +1,7 @@
 #ifndef BLACK_LABEL_CONTAINER_DARRAY_HPP
 #define BLACK_LABEL_CONTAINER_DARRAY_HPP
 
+#include <algorithm>
 #include <cstddef>
 #include <type_traits>
 
@@ -25,8 +26,10 @@ public:
 	typedef T value_type;
 	typedef std::size_t size_type;
 	typedef std::ptrdiff_t difference_type;
-	typedef T& reference;
-	typedef const T& const_reference;
+	typedef value_type& reference;
+	typedef const value_type& const_reference;
+	typedef value_type* pointer;
+	typedef const value_type* const_pointer;
 
 
 
@@ -37,7 +40,9 @@ public:
 	class iterator_base : public boost::iterator_facade<
 		iterator_base<value>, 
 		value, 
-		boost::random_access_traversal_tag>
+		boost::random_access_traversal_tag,
+		value&,
+		difference_type>
 	{
 	public:
 		iterator_base() {}
@@ -51,6 +56,7 @@ public:
 
 	private:
 		friend boost::iterator_core_access;
+		template<typename value> friend class iterator_base;
 
 		value& dereference() const
 		{ return *node; }
@@ -71,6 +77,9 @@ public:
 	};
 	typedef iterator_base<T> iterator;
 	typedef iterator_base<const T> const_iterator;
+	
+	typedef std::reverse_iterator<iterator> reverse_iterator;
+	typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
 
 
@@ -93,6 +102,11 @@ public:
 	darray( size_type capacity ) 
 		: capacity_(capacity)
 		, data_(new T[capacity]) {}
+	template<typename input_iterator>
+	darray( input_iterator first, input_iterator last )
+		: capacity_(last-first)
+		, data_((0 < capacity_) ? new T[capacity_] : nullptr)
+	{ std::copy(first, last, data_); }
 	~darray() { delete[] data_; }
 
 	darray& operator=( darray other ) { swap(*this, other); return *this; }
@@ -101,15 +115,20 @@ public:
 	const_reference operator[]( size_type i ) const { return data_[i]; }
 
 	size_type capacity() const { return capacity_; }
-	T* data() { return data_; }
-	const T* data() const { return data_; }
+	pointer data() { return data_; }
+	const_pointer data() const { return data_; }
+
+	bool empty() const { return size_type(0) == capacity_; }
 
 	iterator begin() { return iterator(data_); }
 	iterator end() { return iterator(&data_[capacity_]); }
 	const_iterator cbegin() const { return const_iterator(data_); }
 	const_iterator cend() const { return const_iterator(&data_[capacity_]); }
 
-
+	reference front() { return data_[0]; }
+	reference back() { return data_[capacity_ - 1]; }
+	const_reference front() const { return data_[0]; }
+	const_reference back() const { return data_[capacity_ - 1]; }
 
 protected:
 	size_type capacity_;

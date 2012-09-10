@@ -44,33 +44,20 @@ thread_pool::~thread_pool()
 
 
 
-void thread_pool::schedule( task* task )
-{
-	typedef black_label::thread_pool::task task_type;
-
-	// Distribute sub tasks.
-	if (task->is_group_task())
-		for_each(task->sub_tasks.begin(), task->sub_tasks.end(),
-			[this] ( task_type& sub_task ) { schedule(&sub_task); });
-	// Schedule task.
-	else if (task->function)
-	{
-		scheduled_task_count++;
-		add(task);
-	}
-	// Task was empty - clean up after it.
-	else
-		resolve_dependencies(task);
-}
-
 void thread_pool::schedule( const task& task )
 {
-	// Make a lingering copy for internal use.
+	// Make a copy for internal use.
 	typedef black_label::thread_pool::task task_type;
 	task_type* task_copy = new task_type(task);
-	task_copy->register_sub_tasks();
+	task_copy->give_ownership_to_thread_pool();
+	task_copy->restore_task_hierarchy();
 
-	schedule(task_copy);
+	digest_task(task_copy);
+}
+void thread_pool::schedule( task* task )
+{
+	task->restore_task_hierarchy();
+	digest_task(task);
 }
 
 void thread_pool::join()
@@ -83,50 +70,28 @@ void thread_pool::join()
 
 void thread_pool::current_thread_id()
 {
-	boost::thread::id id = boost::this_thread::get_id();
-	
+	//boost::thread::id id = boost::this_thread::get_id();
 }
 
-void thread_pool::stop_workers()
-{
-	for (auto worker = workers.begin(); workers.end() != worker; ++worker)
-		worker->stop();
-}
 
-void thread_pool::wait_for_workers_to_stop()
-{
-	worker_threads.join_all();
-}
 
-void thread_pool::resolve_dependencies( task* task )
+void thread_pool::digest_task( task* task )
 {
-	if (task->owner)
+	typedef black_label::thread_pool::task task_type;
+
+	// Distribute sub tasks.
+	if (task->is_group_task())
+		for_each(task->sub_tasks.begin(), task->sub_tasks.end(),
+			[this] ( task_type& sub_task ) { digest_task(&sub_task); });
+	// Schedule task.
+	else if (task->function)
 	{
-		int sub_tasks_left = --task->owner->sub_tasks_left;
-
-		if (0 == sub_tasks_left)
-		{
-			if (task->owner->successor)
-				schedule(task->owner->successor.get());
-			else
-				resolve_dependencies(task->owner);
-		}
-		else if (-1 == sub_tasks_left)
-			resolve_dependencies(task->owner);
+		scheduled_task_count++;
+		add(task);
 	}
-	// Delete the internal lingering copy.
+	// Task was empty - clean up after it.
 	else
-		delete task;
-}
-
-void thread_pool::processed_task( task* task )
-{
-	resolve_dependencies(task);
-
-	if (0 < --scheduled_task_count) return;
-	
-	lock_guard<mutex> lock(waiting_for_workers);
-	all_tasks_are_processed.notify_all();
+		resolve_dependencies(task);
 }
 
 void thread_pool::add( task* task )
@@ -140,29 +105,48 @@ void thread_pool::add( task* task )
 
 	// Add task to least burdened worker.
 	min_element(workers.begin(), workers.end(), [] ( worker& lhs, worker& rhs )
-		{ return lhs.tasks.weight < rhs.tasks.weight; })->add_task(task);
+	{ return lhs.tasks.weight < rhs.tasks.weight; })->add_task(task);
 }
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Task Group
-////////////////////////////////////////////////////////////////////////////////
-void thread_pool::task_group::add( task* task )
+void thread_pool::processed_task( task* task )
 {
-	weight += task->weight;
-	tasks.enqueue(task);
+	resolve_dependencies(task);
+
+	if (0 < --scheduled_task_count) return;
+
+	lock_guard<mutex> lock(waiting_for_workers);
+	all_tasks_are_processed.notify_all();
 }
 
-bool thread_pool::task_group::next( task*& task )
+void thread_pool::resolve_dependencies( task* task )
 {
-	return tasks.dequeue(task);
+	if (!task->is_root())
+	{
+		int sub_tasks_left = --task->predecessor->sub_tasks_left;
+
+		if (0 == sub_tasks_left)
+		{
+			if (task->predecessor->successor)
+				digest_task(task->predecessor->successor.get());
+			else
+				resolve_dependencies(task->predecessor);
+		}
+		else if (-1 == sub_tasks_left)
+			resolve_dependencies(task->predecessor);
+	}
+	else if (task->is_owned_by_thread_pool())
+		delete task;
 }
 
-void thread_pool::task_group::process( task* task )
+void thread_pool::stop_workers()
 {
-	(*task)();
-	weight -= task->weight;
+	for (auto worker = workers.begin(); workers.end() != worker; ++worker)
+		worker->stop();
+}
+
+void thread_pool::wait_for_workers_to_stop()
+{
+	worker_threads.join_all();
 }
 
 
@@ -170,30 +154,12 @@ void thread_pool::task_group::process( task* task )
 ////////////////////////////////////////////////////////////////////////////////
 /// Worker
 ////////////////////////////////////////////////////////////////////////////////
-void thread_pool::worker::start()
-{
-	work = true;
-	(*this)();
-}
-
-void thread_pool::worker::stop()
-{
-	work = false;
-	wake();
-}
-
 void thread_pool::worker::wake()
 {
 	if (!about_to_wait) return;
 
 	lock_guard<mutex> lock(waiting);
 	work_to_do.notify_one();
-}
-
-void thread_pool::worker::add_task( task* task )
-{
-	tasks.add(task);
-	wake();
 }
 
 void thread_pool::worker::operator()()

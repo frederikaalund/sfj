@@ -1,6 +1,8 @@
 #ifndef BLACK_LABEL_RENDERER_CAMERA_HPP
 #define BLACK_LABEL_RENDERER_CAMERA_HPP
 
+#include <black_label/shared_library/utility.hpp>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
@@ -12,40 +14,46 @@ namespace black_label
 namespace renderer
 {
 
-class camera
+class BLACK_LABEL_SHARED_LIBRARY camera
 {
 public:
 	camera() {}
 
-	camera( const glm::vec3 eye, const glm::vec3 target, const glm::vec3 up )
-		: eye(eye), target(target), up(up) { update_matrix(); }
+	camera( const glm::vec3 eye, const glm::vec3 target, const glm::vec3 sky )
+		: eye(eye)
+		, target(target)
+		, sky(sky), fovy(45.0f)
+		, z_near(1.0f)
+		, z_far(10000.0f)
+	{ on_camera_moved(); }
 
-	void update_matrix() { matrix = glm::lookAt(eye, target, up); }
+	void strafe( glm::vec3 delta_in_camera_space );
+	void pan( float azimuth_delta, float inclination_delta );
 
-	void strafe( glm::vec3 delta_in_camera_space )
-	{
-		glm::mat3 matrix_sub3x3(matrix);
-		glm::vec3 delta_in_world_space(
-			glm::vec3(delta_in_camera_space[0], 0.0f, delta_in_camera_space[2])
-			* matrix_sub3x3 - up*delta_in_camera_space[1]);
-		eye -= delta_in_world_space;
-		target -= delta_in_world_space;
-		update_matrix();
-	}
+	void on_camera_moved();
+	void on_window_resized( int width, int height );
 
-	void pan( float azimuth_delta, float inclination_delta )
-	{
-		glm::vec3 heading = target-eye;
-		glm::vec3 side = glm::cross(heading, up);
-		target += glm::rotate(heading, azimuth_delta, up)
-			+ glm::rotate(heading, inclination_delta, side) - 2.0f*heading;
-		update_matrix();
-	}
+	glm::vec3 forward() { return glm::vec3(-view_matrix[0][2], -view_matrix[1][2], -view_matrix[2][2]); }
+	glm::vec3 right() { return glm::vec3(view_matrix[0][0], view_matrix[1][0], view_matrix[2][0]); }
+	glm::vec3 up() { return glm::vec3(view_matrix[0][1], view_matrix[1][1], view_matrix[2][1]); }
 
-	glm::mat4 matrix;
-	glm::vec3 eye, target, up;
-protected:
-private:
+
+
+#pragma warning(disable : 4251)
+
+	glm::mat4 view_matrix, projection_matrix, view_projection_matrix;
+	glm::vec3 eye, target, sky;
+
+	glm::ivec2 window;
+	glm::vec2 window_f;
+	
+	float 
+		fovy,
+		aspect_ratio,
+		z_near,
+		z_far;
+
+#pragma warning(default : 4251)
 };
 
 } // namespace renderer

@@ -1,3 +1,4 @@
+#define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/file_buffer.hpp>
 
 #include <fstream>
@@ -11,7 +12,7 @@ namespace black_label
 namespace file_buffer
 {
 
-file_buffer::file_buffer( const char* path_to_file )
+void file_buffer::load_file( const char* path_to_file )
 {
 	ifstream shader_source(path_to_file, ios::ate | ios::binary);
 	if (!shader_source.is_open()) return;
@@ -22,7 +23,7 @@ file_buffer::file_buffer( const char* path_to_file )
 	shader_source.read(buffer.data(), buffer.capacity());
 }
 
-file_buffer::file_buffer( const char* path_to_file, null_terminated_type )
+void file_buffer::load_file( const char* path_to_file, null_terminated_type )
 {
 	ifstream shader_source(path_to_file, ios::ate | ios::binary);
 	if (!shader_source.is_open()) return;

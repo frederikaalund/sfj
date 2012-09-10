@@ -39,7 +39,9 @@ public:
 		, dimensions(other.dimensions)
 		, position(other.position)
 		, data(new float[dimensions*dimensions*dimensions])
-	{ std::copy(other.data.get(), &other.data[dimensions*dimensions*dimensions], data.get()); }
+	{ 
+		//std::copy(other.data.get(), &other.data[dimensions*dimensions*dimensions], data.get());
+	}
 	scalar_field( float size, int dimensions, glm::vec3 position ) 
 		: size(size)
 		, dimensions(dimensions)

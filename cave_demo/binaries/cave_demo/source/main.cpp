@@ -1,8 +1,5 @@
 #include <cave_demo/application.hpp>
 
-#include <memory>
-#include <iostream>
-
 
 
 using namespace black_label::world;
@@ -11,65 +8,55 @@ using namespace cave_demo;
 
 
 
-void wait()
+glm::mat4 make_mat4( float scale, float x, float y, float z )
 {
-	srand(535435);
-	int max = rand()%2500;
-	for (int i = 0; i < max; ++i)
-		while(0 < rand()) int i = 2;
+	auto m = glm::mat4(); m[3][0] = x; m[3][1] = y; m[3][2] = z;
+	return std::move(m);
 }
 
 
 
 int main( int argc, char const* argv[] )
 {	
-	application demo(argc, argv); // TODO: Check for exceptions
-
+	application demo(argc, argv);
+	
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// World Test
 ////////////////////////////////////////////////////////////////////////////////
-	world& world = demo.world;
+	world::entities_type::group environment(demo.world.static_entities);
 
-	// Create some entities, then delete one, then create another one
-	world::generic_type::size_type first_id = 
-		world.static_entities.create("cube");
-	world.static_entities.create("cube");
-	world.static_entities.remove(first_id);
-	world.static_entities.create("cube");
+	environment.create("scene_2.dae", glm::mat4());
+	environment.create("scene_2.dae", make_mat4(1.0f, 0.0f, 0.0f, -10.0f));
+	environment.create("sphere.nff", make_mat4(1.0f, 0.0f, 0.0f, -500.0f));
+	environment.create("inverted_cube.obj", make_mat4(5000.0f, 0.0f, 0.0f, -2500.0f));
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Thread Pool Test
-////////////////////////////////////////////////////////////////////////////////
-	thread_pool& thread_pool = demo.thread_pool;
-
-	// Allocate data
-	int size = 1000*1000;
-	std::unique_ptr<float[]>
-		number1s(new float[size]),
-		number2s(new float[size]),
-		number3s(new float[size]);
-
-	using std::cout;
-	using std::endl;
+	demo.renderer.report_dirty_models(
+		demo.world.models.cbegin(),
+		demo.world.models.cend());
 	
-	task task_1 = ([&](){wait();cout<<"A1 ";} | [&](){wait();cout<<"A2 ";}) 
-		>> ([&](){wait();cout<<"B1 ";} | [&](){wait();cout<<"B2 ";} | [&](){wait();cout<<"B3 ";})
-		>> [&](){wait();cout<<"C1 ";};
-	
-	task task_2 = ([&](){wait();cout<<"E1 ";} | [&](){wait();cout<<"E2 ";})
-		>> ([&](){wait();cout<<"F1 ";} | [&](){wait();cout<<"F2 ";});
+	demo.renderer.report_dirty_static_entities(
+		environment.cbegin(),
+		environment.cend());
 		
-	task task_3 = [&](){wait();cout<<"D1 ";} >> [&](){wait();cout<<"D2 ";};
+
+
+	for (auto entity = environment.cebegin(); environment.ceend() != entity; ++entity)
+	{
+		auto& test1 = entity.model();
+		auto& test2 = entity.transformation();
+		auto test3 = entity.id();
+		auto test4 = *entity;
+	}
 	
 
-	// Schedule a task
-	thread_pool.schedule(task_1);
-	// Blocks until all tasks have been processed
-	thread_pool.join();
+
+////////////////////////////////////////////////////////////////////////////////
+/// Loop
+////////////////////////////////////////////////////////////////////////////////
+	while (demo.window_is_open())
+		demo.update();
 
 
 	

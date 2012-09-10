@@ -1,8 +1,16 @@
 #define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/renderer.hpp>
 
+#include <black_label/file_buffer.hpp>
+#include <black_label/renderer/storage/cpu/model.hpp>
+
+#include <cstdlib>
 #include <utility>
+#include <fstream>
 #include <iostream>
+
+#include <boost/crc.hpp>
+#include <boost/log/common.hpp>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -10,9 +18,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
-#include <assimp.hpp>
-#include <aiScene.h>
-#include <aiPostProcess.h>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 using namespace std;
 
@@ -24,42 +32,19 @@ namespace renderer
 {
 
 using namespace storage;
+using namespace utility;
 
 
 
-void swap( renderer& lhs, renderer& rhs )
-{
-	using std::swap;
-	swap(lhs.world, rhs.world);
-	swap(lhs.camera, rhs.camera);
-	swap(lhs.static_models, rhs.static_models);
-	swap(lhs.dynamic_models, rhs.dynamic_models);
-	swap(lhs.sorted_statics, rhs.sorted_statics);
-	swap(lhs.ubershader, rhs.ubershader);
-	swap(lhs.blur_horizontal, rhs.blur_horizontal);
-	swap(lhs.blur_vertical, rhs.blur_vertical);
-	swap(lhs.tone_mapper, rhs.tone_mapper);
-	swap(lhs.main_render, rhs.main_render);
-	swap(lhs.bloom1, rhs.bloom1);
-	swap(lhs.bloom2, rhs.bloom2);
-	swap(lhs.framebuffer, rhs.framebuffer);
-}
-
-renderer::renderer( 
-	const world::world* world, 
-	black_label::renderer::camera&& camera ) 
-	: world(world), camera(camera)
-	, static_models(new model[world->static_entities.capacity])
-	, dynamic_models(new model[world->dynamic_entities.capacity])
-	, sorted_statics(world->static_entities.capacity)
+renderer::glew_setup::glew_setup()
 {
 	GLenum glew_error = glewInit();
 
 	if (GLEW_OK != glew_error)
 		throw runtime_error("Glew failed to initialize.");
 
-	if (!GLEW_VERSION_2_0)
-		throw runtime_error("Requires OpenGL version 2.0 or above.");
+	if (!GLEW_VERSION_2_1)
+		throw runtime_error("Requires OpenGL version 2.1 or above.");
 
 	if (!GLEW_EXT_framebuffer_object)
 		throw runtime_error("Requires the framebuffer_object extension.");
@@ -67,6 +52,9 @@ renderer::renderer(
 	if (!GLEW_EXT_framebuffer_blit)
 		throw runtime_error("Requires the framebuffer_blit extension.");
 	
+	if (!GLEW_EXT_texture_buffer_object)
+		throw runtime_error("Requires the texture_buffer_object extension.");
+
 	if (!GLEW_ARB_texture_float)
 		throw runtime_error("Requires the texture_float extension.");
 
@@ -77,9 +65,22 @@ renderer::renderer(
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
 	if (2 > max_draw_buffers)
 		throw runtime_error("Requires at least 2 draw buffers.");
+}
 
 
 
+renderer::renderer( 
+	const world_type& world, 
+	black_label::renderer::camera&& camera ) 
+	: world(world), camera(camera)
+	, models(new gpu::model[world.static_entities.models.capacity()])
+	, sorted_statics(world.static_entities.capacity)
+	, lights(1024 * 10)
+#pragma warning(push)
+#pragma warning(disable : 4355)
+	, light_grid(64, this->camera, lights)
+#pragma warning(pop)
+{
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
@@ -87,24 +88,25 @@ renderer::renderer(
 
 
 
-	ubershader = storage::program("test.vertex", nullptr, "test.fragment");
-	std::cout << ubershader.get_aggregated_info_log() << std::endl;
-	blur_horizontal = storage::program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
-	std::cout << blur_horizontal.get_aggregated_info_log() << std::endl;
-	blur_vertical = storage::program("tone_mapper.vertex", nullptr, "blur_vertical.fragment");
-	std::cout << blur_vertical.get_aggregated_info_log() << std::endl;
-	tone_mapper = storage::program("tone_mapper.vertex", nullptr, "tone_mapper.fragment");
-	std::cout << tone_mapper.get_aggregated_info_log() << std::endl;
+	{
+		BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);
+
+		ubershader = program("test.vertex", nullptr, "test.fragment");
+		BOOST_LOG_SEV(log, info) << ubershader.get_aggregated_info_log();
+		blur_horizontal = program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
+		BOOST_LOG_SEV(log, info) << blur_horizontal.get_aggregated_info_log();
+		blur_vertical = program("tone_mapper.vertex", nullptr, "blur_vertical.fragment");
+		BOOST_LOG_SEV(log, info) << blur_vertical.get_aggregated_info_log();
+		tone_mapper = program("tone_mapper.vertex", nullptr, "tone_mapper.fragment");
+		BOOST_LOG_SEV(log, info) << tone_mapper.get_aggregated_info_log();
+	}
 
 
 
 	glGenFramebuffersEXT(1, &framebuffer);
 	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, framebuffer);
 
-	GLuint depth_renderbuffer;
 	glGenRenderbuffersEXT(1, &depth_renderbuffer);
-	glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, depth_renderbuffer);
-	glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, 800, 800);
 
 	glGenTextures(1, &main_render);
 	glBindTexture(GL_TEXTURE_2D, main_render);
@@ -112,8 +114,6 @@ renderer::renderer(
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 800, 800, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 	glGenTextures(1, &bloom1);
 	glBindTexture(GL_TEXTURE_2D, bloom1);
@@ -121,8 +121,6 @@ renderer::renderer(
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 800, 800, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 	glGenTextures(1, &bloom2);
 	glBindTexture(GL_TEXTURE_2D, bloom2);
@@ -130,41 +128,87 @@ renderer::renderer(
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 800, 800, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 
 
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-		GL_TEXTURE_2D, main_render, 0);
-
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT,
-		GL_TEXTURE_2D, bloom1, 0);
-
-	glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, 
-		GL_RENDERBUFFER_EXT, depth_renderbuffer);
-
-	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT};
-	glDrawBuffersARB(2, draw_buffer);
-
-
-
-	GLenum framebuffer_status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-	if (GL_FRAMEBUFFER_COMPLETE != framebuffer_status)
-		throw runtime_error("The framebuffer is not complete.");
+	int viewport_data[4];
+	glGetIntegerv(GL_VIEWPORT, viewport_data);
+	on_window_resized(viewport_data[2], viewport_data[3]);
 }
 
 
 
-bool renderer::load_static_model( id_type entity_id )
+
+void renderer::update_lights()
 {
-	bool is_initial_load = !static_models[entity_id].is_loaded();
+	lights.clear();
 
+	auto& entities = world.static_entities;
+	for (auto entity = entities.cebegin(); entities.ceend() != entity; ++entity)
+	{
+		auto& model = models[entity.model_id()];
+		auto& transformation = entity.transformation();
+		if (model.has_lights())
+			for_each(model.lights.cbegin(), model.lights.cend(), [&] ( const light& light ) {
+				this->lights.push_back(black_label::renderer::light(
+					glm::vec3(transformation * glm::vec4(light.position, 1.0f)),
+					light.radius,
+					light.color));
+			});
+	}
+
+	lights.push_back(light(glm::vec3(0.0f, 5.0f, 0.0f), 10.0f, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f)));
+}
+
+
+
+void renderer::import_model( model_id_type model_id )
+{
+	const string& model_path = world.static_entities.models[model_id];
+	auto& model = models[model_id];
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// A checksum of the model file is useful when checking for changes.
+////////////////////////////////////////////////////////////////////////////////
+	file_buffer::file_buffer model_file(model_path);
+	boost::crc_32_type::value_type checksum;
+	{
+		boost::crc_32_type crc;
+		crc.process_bytes(model_file.data(), model_file.size());
+		checksum = crc.checksum();
+	}
+	if (model.is_loaded() && model.model_file_checksum() == checksum) return;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// The BLM file format is not standard but it imports quickly.
+////////////////////////////////////////////////////////////////////////////////
+	const string blm_path = model_path + ".blm";
+	{
+		ifstream blm_file(blm_path, ifstream::binary);
+		if (blm_file.is_open() 
+			&& gpu::model::peek_model_file_checksum(blm_file) == checksum)
+		{
+			blm_file >> model;
+			BOOST_LOG_SEV(log, info) << "Imported model \"" << blm_path << "\"";
+			
+			if (model.has_lights()) update_lights();
+			return;
+		}
+	}
+	
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// In any case, Assimp will load most other files for us.
+////////////////////////////////////////////////////////////////////////////////
 	Assimp::Importer importer;
-	const string& model_path = world->static_entities.models[entity_id];
-
-	const aiScene* scene = importer.ReadFile(
-		model_path, 
+	const aiScene* scene = importer.ReadFileFromMemory(
+		model_file.data(), 
+		model_file.size(),
 		aiProcess_CalcTangentSpace       | 
 		aiProcess_GenNormals			 |
 		aiProcess_Triangulate            |
@@ -172,33 +216,30 @@ bool renderer::load_static_model( id_type entity_id )
 		aiProcess_PreTransformVertices   |
 		aiProcess_SortByPType);
 	
-	// If the import failed, report it
-	if (!scene)
+	// If Assimp fails, we give up.
+	if (!scene)	
 	{
-		string test = importer.GetErrorString();
-		int asd = 2;
-		//DoTheErrorLogging( importer.GetErrorString());
+		BOOST_LOG_SEV(log, warning) << importer.GetErrorString();
+		return;
 	}
 
+	storage::cpu::model cpu_model(checksum);
+	model.clear();
+
+	vector<unsigned int> indices;
 	for (unsigned int m = 0; scene->mNumMeshes > m; ++m)
 	{
-		// Mesh
 		aiMesh* ai_mesh = scene->mMeshes[m];
-
-		// Vertices
 		auto ai_vertices = ai_mesh->mVertices;
-
-		// Normals
 		auto ai_normals = ai_mesh->mNormals;
-
-		// Indices
 		auto ai_faces = ai_mesh->mFaces;
 
 		const static int indices_per_face = 3;
-		vector<unsigned int> indices;
-		indices.reserve(ai_mesh->mNumFaces*indices_per_face);
+		indices.clear();
+		indices.reserve(ai_mesh->mNumFaces * indices_per_face);
 		for (auto f = ai_faces; &ai_faces[ai_mesh->mNumFaces] != f; ++f)
 		{
+			// Assimp's triangulation should ensure the following.
 			assert(indices_per_face == f->mNumIndices);
 
 			indices.insert(indices.end(), 
@@ -206,61 +247,87 @@ bool renderer::load_static_model( id_type entity_id )
 				&f->mIndices[f->mNumIndices]);
 		}
 
-		// Material
 		aiMaterial* ai_material = scene->mMaterials[ai_mesh->mMaterialIndex];
 
 		aiColor3D diffuse_color;
 		ai_material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse_color);
 
-		// Load model
-		static_models[entity_id] = model(GL_TRIANGLES, 
+		material material;
+		material.diffuse.r = diffuse_color.r;
+		material.diffuse.g = diffuse_color.g;
+		material.diffuse.b = diffuse_color.b;
+
+		ai_material->Get(AI_MATKEY_OPACITY, material.alpha);
+
+		cpu::mesh cpu_mesh(
+			std::move(material),
+			GL_TRIANGLES,
 			reinterpret_cast<float*>(ai_vertices), 
 			reinterpret_cast<float*>(&ai_vertices[ai_mesh->mNumVertices]), 
 			reinterpret_cast<float*>(&ai_normals[0]), 
 			indices.begin()._Ptr,
 			indices.end()._Ptr);
-
-		color& diffuse = static_models[entity_id].material.diffuse;
-		diffuse.r = diffuse_color.r;
-		diffuse.g = diffuse_color.g;
-		diffuse.b = diffuse_color.b;
-
-		ai_material->Get(AI_MATKEY_OPACITY, 
-			static_models[entity_id].material.alpha);
+		
+		model.push_back(gpu::mesh(cpu_mesh));
+		cpu_model.push_back(std::move(cpu_mesh));
 	}
 
-	return is_initial_load;
-}
-
-template<typename loader_type>
-int renderer::load_models( 
-	dirty_id_container& ids_to_load, 
-	container::svector<id_type>& loaded_ids, 
-	const loader_type& loader )
-{
-	int loaded_models_count = 0;
-
-	id_type id_to_load;
-	while (ids_to_load.dequeue(id_to_load))
+	for (unsigned int l = 0; scene->mNumLights > l; ++l)
 	{
-		if (loader(id_to_load))
-			loaded_ids.push_back(id_to_load);
-		++loaded_models_count;
-	}
+		aiLight* ai_light = scene->mLights[l];
 
-	return loaded_models_count;
+		auto position = glm::vec3(ai_light->mPosition[0], ai_light->mPosition[1], ai_light->mPosition[2]);
+		auto color = glm::vec4(1.0f*std::rand()/RAND_MAX, 1.0f*std::rand()/RAND_MAX, 1.0f*std::rand()/RAND_MAX, 1.0f);
+
+		auto light = black_label::renderer::light(position, 1.2f*std::rand()/RAND_MAX, color);
+
+		model.lights.push_back(light);
+		cpu_model.lights.push_back(light);
+	}
+	if (model.has_lights()) update_lights();
+
+	BOOST_LOG_SEV(log, info) << "Imported model \"" << model_path << "\"";
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Assimp processes models slowly so we export a BLM model file to save Assimp
+/// its efforts in the future.
+////////////////////////////////////////////////////////////////////////////////
+	ofstream blm_file(blm_path, std::ofstream::binary);
+	if (blm_file.is_open())
+	{
+		blm_file << cpu_model;
+		BOOST_LOG_SEV(log, info) << "Exported model \"" << blm_path << "\"";
+	}
 }
+
+
 
 void renderer::render_frame()
 {
+
 ////////////////////////////////////////////////////////////////////////////////
-/// Model loading
+/// Model Loading
 ////////////////////////////////////////////////////////////////////////////////
-	
-	// Statics
-	if (load_models(dirty_static_entities, sorted_statics,
-		[this] ( id_type id ) { return this->load_static_model(id); }))
-	{ sort(sorted_statics.begin(), sorted_statics.end()); }
+	{
+		model_id_type model;
+		while (dirty_models.dequeue(model)) import_model(model);
+	}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Scene Sorting
+////////////////////////////////////////////////////////////////////////////////
+	{
+		entity_id_type entity;
+		while (dirty_static_entities.dequeue(entity))
+			if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity)
+				== sorted_statics.cend())
+				sorted_statics.push_back(entity);
+		sort(sorted_statics.begin(), sorted_statics.end());
+	}
 
 
 
@@ -271,43 +338,65 @@ void renderer::render_frame()
 	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
 		GL_TEXTURE_2D, main_render, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	
 	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+
+	
+////////////////////////////////////////////////////////////////////////////////
+/// Tiled Shading
+////////////////////////////////////////////////////////////////////////////////
+	light_grid.update();
+	light_grid.bind(ubershader.id);
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Rendering
 ////////////////////////////////////////////////////////////////////////////////	
-	auto view_projection_matrix = 
-		glm::perspective(45.0f, 1.0f, 1.0f, 10000.0f) * camera.matrix;
-
 	ubershader.use();
-	
-
+	/*
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, main_render);
+	glUniform1i(glGetUniformLocation(ubershader.id, "main_render"), 0);
+	*/
 
 	// Statics
-	for (auto id = sorted_statics.begin(); sorted_statics.end() != id; ++id)
+	std::for_each(sorted_statics.cbegin(), sorted_statics.cend(), 
+		[&] ( const entity_id_type id )
 	{
-		auto& model = static_models[*id];
-		auto& transformation = world->static_entities.transformations[*id];
-
-		glColor4f(
-			model.material.diffuse.r, 
-			model.material.diffuse.g, 
-			model.material.diffuse.b,
-			model.material.alpha);
+		auto& model = models[this->world.static_entities.model_ids[id]];
+		auto& model_matrix = this->world.static_entities.transformations[id];
 
 		glUniformMatrix3fv(
 			glGetUniformLocation(ubershader.id, "normal_matrix"),
-			1, GL_FALSE, glm::value_ptr(glm::inverseTranspose(glm::mat3() * glm::mat3(transformation))));
+			1, GL_FALSE, glm::value_ptr(glm::inverseTranspose(glm::mat3(model_matrix))));
 
 		glUniformMatrix4fv(
 			glGetUniformLocation(ubershader.id, "model_view_projection_matrix"),
-			1, GL_FALSE, glm::value_ptr(view_projection_matrix * transformation));
+			1, GL_FALSE, glm::value_ptr(this->camera.view_projection_matrix * model_matrix));
+
+		glUniformMatrix4fv(
+			glGetUniformLocation(ubershader.id, "model_matrix"),
+			1, GL_FALSE, glm::value_ptr(model_matrix));
 
 		model.render();
-	}
+	});
+
+
+
+	/*
+	glBegin(GL_QUADS);
+	glVertex3f(1.0f, 1.0f, 0.0f);
+	glVertex3f(-1.0f, 1.0f, 0.0f);
+	glVertex3f(-1.0f, -1.0f, 0.0f);
+	glVertex3f(1.0f, -1.0f, 0.0f);
+	glEnd();
+	*/
+	
+
 
 	/*
 ////////////////////////////////////////////////////////////////////////////////
@@ -376,5 +465,91 @@ void renderer::render_frame()
 	glFinish();
 }
 
+void renderer::on_window_resized( int width, int height )
+{
+	camera.on_window_resized(width, height);
+	light_grid.on_window_resized(width, height);
+
+	glViewport(0, 0, width, height);
+
+
+	glUseProgram(ubershader.id);
+	glUniform1i(glGetUniformLocation(ubershader.id, "tile_size"), light_grid.tile_size());
+	glUniform2i(glGetUniformLocation(ubershader.id, "window_dimensions"), camera.window.x, camera.window.y);
+	glUniform2i(glGetUniformLocation(ubershader.id, "grid_dimensions"), light_grid.tiles_x(), light_grid.tiles_y());
+
+
+	glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, depth_renderbuffer);
+	glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, width, height);
+
+	glBindTexture(GL_TEXTURE_2D, main_render);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+	glBindTexture(GL_TEXTURE_2D, bloom1);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+	glBindTexture(GL_TEXTURE_2D, bloom2);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+		GL_TEXTURE_2D, main_render, 0);
+
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT,
+		GL_TEXTURE_2D, bloom1, 0);
+
+	glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, 
+		GL_RENDERBUFFER_EXT, depth_renderbuffer);
+
+
+	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT};
+	glDrawBuffersARB(2, draw_buffer);
+
+
+	GLenum framebuffer_status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+	if (GL_FRAMEBUFFER_COMPLETE != framebuffer_status)
+		throw runtime_error("The framebuffer is not complete.");
+}
+
 } // namespace renderer
 } // namespace black_label
+
+
+
+/*
+auto world_to_window_coordinates = [&] ( glm::vec3 v ) -> glm::vec3
+{
+	auto v_clip = view_projection_matrix * glm::vec4(v, 1.0f);
+	auto v_ndc = glm::vec3(v_clip / v_clip.w);
+	return glm::vec3((v_ndc.x+1.0f)*width_f*0.5f, (v_ndc.y+1.0f)*height_f*0.5f, v_ndc.z);
+};
+	
+auto sphere_in_frustrum = [&] ( const glm::vec3& p, float radius ) -> bool
+{
+	float d1,d2;
+	float az,ax,ay,zz1,zz2;
+		
+	glm::vec3 v = p - this->camera.eye;
+
+	az = glm::dot(v, this->camera.forward());
+	if (az > z_far + radius || az < z_near - radius)
+		return false;
+
+	ax = glm::dot(v, this->camera.right());
+	zz1 = az * tan_alpha * aspect_ratio;
+	d1 = sphere_factor_x * radius;
+	if (ax > zz1+d1 || ax < -zz1-d1)
+		return false;
+
+	ay = glm::dot(v, this->camera.up());
+	zz2 = az * tan_alpha;
+	d2 = sphere_factor_y * radius;
+	if (ay > zz2+d2 || ay < -zz2-d2)
+		return false;
+
+	return true;
+};
+*/

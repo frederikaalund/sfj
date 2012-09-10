@@ -91,11 +91,10 @@ BOOST_AUTO_TEST_CASE(complicated_hierarchy_2)
 BOOST_AUTO_TEST_SUITE_END()
 	
 
-
+	
 ////////////////////////////////////////////////////////////////////////////////
 /// Stress
 ////////////////////////////////////////////////////////////////////////////////
-
 BOOST_FIXTURE_TEST_SUITE(stress, fixture)
 
 #define STRESS_1_ITERATIONS 10000
@@ -113,7 +112,6 @@ BOOST_AUTO_TEST_CASE(stress_1)
 #define STRESS_2_ITERATIONS 10000
 BOOST_AUTO_TEST_CASE(stress_2)
 {
-	t.sub_tasks.reserve(STRESS_2_ITERATIONS);
 	for (int i = 0; STRESS_2_ITERATIONS > i; ++i)
 		t |= [this](){ a++; };
 
