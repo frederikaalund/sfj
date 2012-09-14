@@ -178,7 +178,13 @@ public:
 	friend void swap( model& lhs, model& rhs )
 	{
 		using std::swap;
-		swap(lhs.meshes, rhs.meshes);
+    
+    auto lhs_i = lhs.meshes.begin();
+    auto rhs_i = rhs.meshes.begin();
+    while (lhs.meshes.end() != lhs_i)
+      swap(*lhs_i++, *rhs_i++);
+		//swap(lhs.meshes, rhs.meshes);
+    
 		swap(lhs.meshes_size, rhs.meshes_size);
 		swap(lhs.model_file_checksum_, rhs.model_file_checksum_);
 	}
@@ -212,8 +218,8 @@ public:
 	static checksum_type peek_model_file_checksum( std::basic_istream<char_type>& stream )
 	{
 		checksum_type checksum;
-		std::basic_istream<char_type>::pos_type position_before = stream.tellg();
-		stream.seekg(std::basic_istream<char_type>::pos_type(0));
+		typename std::basic_istream<char_type>::pos_type position_before = stream.tellg();
+		stream.seekg(typename std::basic_istream<char_type>::pos_type(0));
 		stream.read(reinterpret_cast<char_type*>(&checksum), sizeof(checksum_type));
 		stream.seekg(position_before);
 		return checksum;

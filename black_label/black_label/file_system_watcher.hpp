@@ -9,6 +9,8 @@
 #include <black_label/file_system_watcher/types_and_constants.hpp>
 #include <black_label/shared_library/utility.hpp>
 
+#include <vector>
+
 
 
 namespace black_label
@@ -36,11 +38,10 @@ public:
 	// file_system_watcher are undefined except for the destructor.
 	void release_resources();
 
-	// This member is not thread-safe
-#pragma warning(push)
-#pragma warning(disable : 4251)
+	// This member is not thread-safe  
+MSVC_PUSH_WARNINGS(4251)
 	path_container_type modified_paths;
-#pragma warning(pop)
+MSVC_POP_WARNINGS()
 
 
 

@@ -20,12 +20,12 @@ namespace utility
 /// most of the time anyways. E.g. when concurrency is involved.
 ////////////////////////////////////////////////////////////////////////////////
 template<typename iterator, typename predicate>
-iterator min_element( iterator first, iterator last, predicate predicate )
+iterator min_element( iterator first, iterator last, predicate predicate_ )
 { 
 	iterator result = first;
 	if (first != last)
 		while (++first != last)
-			if (predicate(*first, *result))
+			if (predicate_(*first, *result))
 				result = first;
 	return result;
 }

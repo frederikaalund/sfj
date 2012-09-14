@@ -28,11 +28,10 @@ namespace renderer
 class BLACK_LABEL_SHARED_LIBRARY renderer
 {
 
-#pragma warning(push)
-#pragma warning(disable : 4251)
+MSVC_PUSH_WARNINGS(4251)
 private:
 	struct glew_setup { glew_setup(); } glew_setup;
-#pragma warning(pop)
+MSVC_POP_WARNINGS()
 
 
 
@@ -78,7 +77,7 @@ protected:
 
 
 private:
-#pragma warning(disable : 4251)
+MSVC_PUSH_WARNINGS(4251)
 
 	typedef boost::lockfree::fifo<model_id_type> dirty_model_id_container;
 	typedef boost::lockfree::fifo<entity_id_type> dirty_entity_id_container;
@@ -108,7 +107,7 @@ private:
 
 	glm::mat4 projection_matrix;
 
-#pragma warning(default : 4251)
+MSVC_POP_WARNINGS()
 };
 
 } // namespace renderer

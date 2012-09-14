@@ -17,6 +17,43 @@ namespace black_label
 {
 namespace thread_pool
 {
+  class task;
+} // namespace thread_pool
+} // namespace black_label
+
+// The following operators and functions are declared in the global namespace
+// to be compatible with clang 4.0. When declared in thread_pool::black_label,
+// clang fails to implicitly convert lambdas into tasks to match the function
+// signatures. In VS2010 this is not a problem. I don't know which compiler is
+// working according to the standard.
+
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task in_parallel( black_label::thread_pool::task&& lhs, black_label::thread_pool::task&& rhs );
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task in_parallel( const black_label::thread_pool::task& lhs, const black_label::thread_pool::task& rhs );
+
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task operator|( black_label::thread_pool::task&& lhs, black_label::thread_pool::task&& rhs );
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task operator|( const black_label::thread_pool::task& lhs, const black_label::thread_pool::task& rhs );
+
+
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task in_succession( black_label::thread_pool::task&& lhs, black_label::thread_pool::task&& rhs );
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task in_succession( const black_label::thread_pool::task& lhs, const black_label::thread_pool::task& rhs );
+
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task operator>>( const black_label::thread_pool::task& lhs, const black_label::thread_pool::task& rhs );
+BLACK_LABEL_SHARED_LIBRARY
+black_label::thread_pool::task operator>>( black_label::thread_pool::task&& lhs, black_label::thread_pool::task&& rhs );
+
+
+
+namespace black_label
+{
+namespace thread_pool
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 /// task
@@ -42,8 +79,8 @@ public:
 	task() : predecessor(nullptr), successor(nullptr), sub_tasks_left(0) {}
 
 	template<typename F>
-	task( const F& function ) 
-		: function(function)
+	task( F function )
+    : function(function)
 		, thread_affinity(NOT_A_THREAD_ID)
 		, weight(1)
 		, predecessor(nullptr)
@@ -69,7 +106,7 @@ public:
 
 
 private:
-#pragma warning(disable : 4251)
+MSVC_PUSH_WARNINGS(4251)
 	static task* DUMMY_TASK;
 
 
@@ -95,39 +132,45 @@ private:
 	std::vector<task> sub_tasks; // Processed concurrently.
 	std::unique_ptr<task> successor; // Processed after all sub_tasks are processed.
 	boost::atomic<int> sub_tasks_left;
-#pragma warning(default : 4251)
+MSVC_POP_WARNINGS()
 
 
 
 public:
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task in_parallel( task&& lhs, task&& rhs );
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task in_parallel( const task& lhs, const task& rhs );
 	task& in_parallel( task&& rhs );
 	task& in_parallel( const task& rhs );
 
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task operator|( task&& lhs, task&& rhs );
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task operator|( const task& lhs, const task& rhs );
 	task& operator|=( task&& rhs );
 	task& operator|=( const task& rhs );
 
 
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task in_succession( task&& lhs, task&& rhs );
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task in_succession( const task& lhs, const task& rhs );
 	task& in_succession( task&& rhs );
 	task& in_succession( const task& rhs );
 
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task operator>>( const task& lhs, const task& rhs );
-	BLACK_LABEL_SHARED_LIBRARY 
-		friend task operator>>( task&& lhs, task&& rhs );
 	task& operator>>=( task&& rhs );
 	task& operator>>=( const task& rhs );
+  
+  
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::in_parallel)( task&& lhs, task&& rhs );
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::in_parallel)( const task& lhs, const task& rhs );
+  
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::operator|)( task&& lhs, task&& rhs );
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::operator|)( const task& lhs, const task& rhs );
+  
+  
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::in_succession)( task&& lhs, task&& rhs );
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::in_succession)( const task& lhs, const task& rhs );
+  
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::operator>>)( const task& lhs, const task& rhs );
+  BLACK_LABEL_SHARED_LIBRARY
+  friend task (::operator>>)( task&& lhs, task&& rhs );
 };
 
 } // namespace thread_pool

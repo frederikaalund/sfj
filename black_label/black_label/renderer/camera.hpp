@@ -37,10 +37,10 @@ public:
 	glm::vec3 right() { return glm::vec3(view_matrix[0][0], view_matrix[1][0], view_matrix[2][0]); }
 	glm::vec3 up() { return glm::vec3(view_matrix[0][1], view_matrix[1][1], view_matrix[2][1]); }
 
+  
 
-
-#pragma warning(disable : 4251)
-
+MSVC_PUSH_WARNINGS(4251)
+  
 	glm::mat4 view_matrix, projection_matrix, view_projection_matrix;
 	glm::vec3 eye, target, sky;
 
@@ -53,7 +53,7 @@ public:
 		z_near,
 		z_far;
 
-#pragma warning(default : 4251)
+MSVC_POP_WARNINGS()
 };
 
 } // namespace renderer

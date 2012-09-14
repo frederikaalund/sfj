@@ -239,6 +239,8 @@ void application::process_keyboard_event( const sf::Event& event )
 	case sf::Keyboard::C:
 		{ strafe[1] -= increment*direction; }
 		break;
+  default:
+    break;
 	}
 }
 

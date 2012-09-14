@@ -79,6 +79,7 @@ include_directories(${GLEW_INCLUDE_PATH})
 
 ## OpenGL
 find_package(OpenGL)
+include_directories(${OPENGL_INCLUDE_DIR})
 
 ## ASSIMP
 set(ASSIMP_INCLUDE_DIR "ASSIMP_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")

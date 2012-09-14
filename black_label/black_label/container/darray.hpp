@@ -56,7 +56,7 @@ public:
 
 	private:
 		friend boost::iterator_core_access;
-		template<typename value> friend class iterator_base;
+		template<typename other_value> friend class iterator_base;
 
 		value& dereference() const
 		{ return *node; }

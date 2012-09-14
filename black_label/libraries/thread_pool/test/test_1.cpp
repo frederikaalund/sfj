@@ -50,6 +50,8 @@ BOOST_AUTO_TEST_SUITE_END()
 ////////////////////////////////////////////////////////////////////////////////
 BOOST_FIXTURE_TEST_SUITE(complicated_hierarchy, fixture)
 
+
+
 BOOST_AUTO_TEST_CASE(complicated_hierarchy_1)
 {
 	pool.schedule(
@@ -82,7 +84,7 @@ BOOST_AUTO_TEST_CASE(complicated_hierarchy_2)
 		// a(441), b(-21), c(44)
 		);
 	pool.join();
-	
+
 	BOOST_CHECK_EQUAL(a, 441);
 	BOOST_CHECK_EQUAL(b, -21);
 	BOOST_CHECK_EQUAL(c, 44);
@@ -97,7 +99,7 @@ BOOST_AUTO_TEST_SUITE_END()
 ////////////////////////////////////////////////////////////////////////////////
 BOOST_FIXTURE_TEST_SUITE(stress, fixture)
 
-#define STRESS_1_ITERATIONS 10000
+#define STRESS_1_ITERATIONS 1000
 BOOST_AUTO_TEST_CASE(stress_1)
 {
 	for (int i = 0; STRESS_1_ITERATIONS > i; ++i)

@@ -63,10 +63,7 @@ void light_grid::update()
 {
 	float
 		alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f,
-		tan_alpha = tan(alpha),
-		sphere_factor_y = 1.0f / cos(alpha),
-		beta = atan(tan_alpha * camera.aspect_ratio),
-		sphere_factor_x = 1.0f / cos(beta);
+    tan_alpha = tan(alpha);
 
 
 

@@ -67,42 +67,6 @@ task& task::last_successor()
 
 
 
-task in_parallel( task&& lhs, task&& rhs )
-{ 
-	task result;
-
-	if (lhs.is_group_task() && !lhs.successor)
-		result.sub_tasks.insert(result.sub_tasks.end(), lhs.sub_tasks.cbegin(), 
-			lhs.sub_tasks.cend());
-	else
-		result.sub_tasks.push_back(std::move(lhs));
-		
-	if (rhs.is_group_task() && !rhs.successor)
-		result.sub_tasks.insert(result.sub_tasks.end(), rhs.sub_tasks.cbegin(), 
-			rhs.sub_tasks.cend());
-	else
-		result.sub_tasks.push_back(std::move(rhs));
-
-	return result;
-}
-task in_parallel( const task& lhs, const task& rhs )
-{ 
-	task result;
-
-	if (lhs.is_group_task() && !lhs.successor)
-		result.sub_tasks.insert(result.sub_tasks.end(), lhs.sub_tasks.cbegin(), 
-		lhs.sub_tasks.cend());
-	else
-		result.sub_tasks.push_back(lhs);
-
-	if (rhs.is_group_task() && !rhs.successor)
-		result.sub_tasks.insert(result.sub_tasks.end(), rhs.sub_tasks.cbegin(), 
-		rhs.sub_tasks.cend());
-	else
-		result.sub_tasks.push_back(rhs);
-
-	return result;
-}
 task& task::in_parallel( task&& rhs )
 { 
 	if (rhs.is_group_task() && !rhs.successor)
@@ -124,39 +88,12 @@ task& task::in_parallel( const task& rhs )
 	return *this;
 }
 
-task operator|( task&& lhs, task&& rhs )
-{ return in_parallel(std::move(lhs), std::move(rhs)); }
-task operator|( const task& lhs, const task& rhs )
-{ return in_parallel(lhs, rhs); }
 task& task::operator|=( task&& rhs )
 { return in_parallel(std::move(rhs)); }
 task& task::operator|=( const task& rhs )
 { return in_parallel(rhs); }
 
-task in_succession( task&& lhs, task&& rhs )
-{
-	task result = std::move(lhs);
-	task& end = result.last_successor();
-
-	// Make predecessor a sub task if necessary
-	if (!end.is_group_task())
-		end.sub_tasks.push_back(end);
-
-	end.successor.reset(new task(std::move(rhs)));
-	return result;
-}
-task in_succession( const task& lhs, const task& rhs )
-{
-	task result = lhs;
-	task& end = result.last_successor();
-
-	// Make predecessor a sub task if necessary
-	if (!end.is_group_task())
-		end.sub_tasks.push_back(end);
-
-	end.successor.reset(new task(rhs));
-	return result;
-}
+  
 task& task::in_succession( task&& rhs )
 {
 	task& end = this->last_successor();
@@ -180,10 +117,6 @@ task& task::in_succession( const task& rhs )
 	return *this;
 }
 
-task operator>>( task&& lhs, task&& rhs )
-{ return in_succession(std::move(lhs), std::move(rhs)); }
-task operator>>( const task& lhs, const task& rhs )
-{ return in_succession(lhs, rhs); }
 task& task::operator>>=( task&& rhs )
 { return in_succession(std::move(rhs)); }
 task& task::operator>>=( const task& rhs )
@@ -191,3 +124,83 @@ task& task::operator>>=( const task& rhs )
 
 } // namespace thread_pool
 } // namespace black_label
+
+
+
+using namespace black_label::thread_pool;
+
+
+
+task in_parallel( task&& lhs, task&& rhs )
+{
+	task result;
+  
+	if (lhs.is_group_task() && !lhs.successor)
+		result.sub_tasks.insert(result.sub_tasks.end(), lhs.sub_tasks.cbegin(),
+                            lhs.sub_tasks.cend());
+	else
+		result.sub_tasks.push_back(std::move(lhs));
+  
+	if (rhs.is_group_task() && !rhs.successor)
+		result.sub_tasks.insert(result.sub_tasks.end(), rhs.sub_tasks.cbegin(),
+                            rhs.sub_tasks.cend());
+	else
+		result.sub_tasks.push_back(std::move(rhs));
+  
+	return result;
+}
+task in_parallel( const task& lhs, const task& rhs )
+{
+	task result;
+  
+	if (lhs.is_group_task() && !lhs.successor)
+		result.sub_tasks.insert(result.sub_tasks.end(), lhs.sub_tasks.cbegin(),
+                            lhs.sub_tasks.cend());
+	else
+		result.sub_tasks.push_back(lhs);
+  
+	if (rhs.is_group_task() && !rhs.successor)
+		result.sub_tasks.insert(result.sub_tasks.end(), rhs.sub_tasks.cbegin(),
+                            rhs.sub_tasks.cend());
+	else
+		result.sub_tasks.push_back(rhs);
+  
+	return result;
+}
+
+task operator|( task&& lhs, task&& rhs )
+{ return in_parallel(std::move(lhs), std::move(rhs)); }
+task operator|( const task& lhs, const task& rhs )
+{ return in_parallel(lhs, rhs); }
+
+
+
+task in_succession( task&& lhs, task&& rhs )
+{
+	task result = std::move(lhs);
+	task& end = result.last_successor();
+  
+	// Make predecessor a sub task if necessary
+	if (!end.is_group_task())
+		end.sub_tasks.push_back(end);
+  
+	end.successor.reset(new task(std::move(rhs)));
+	return result;
+}
+task in_succession( const task& lhs, const task& rhs )
+{
+	task result = lhs;
+	task& end = result.last_successor();
+  
+	// Make predecessor a sub task if necessary
+	if (!end.is_group_task())
+		end.sub_tasks.push_back(end);
+  
+	end.successor.reset(new task(rhs));
+	return result;
+}
+
+task operator>>( task&& lhs, task&& rhs )
+{ return in_succession(std::move(lhs), std::move(rhs)); }
+task operator>>( const task& lhs, const task& rhs )
+{ return in_succession(lhs, rhs); }

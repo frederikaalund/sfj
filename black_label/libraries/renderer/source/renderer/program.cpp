@@ -4,8 +4,11 @@
 #include <black_label/file_buffer.hpp>
 
 #include <GL/glew.h>
+#ifndef APPLE
 #include <GL/gl.h>
-
+#else
+#include <OpenGL/gl.h>
+#endif
 
 
 namespace black_label

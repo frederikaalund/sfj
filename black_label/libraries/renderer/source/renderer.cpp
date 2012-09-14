@@ -13,7 +13,11 @@
 #include <boost/log/common.hpp>
 
 #include <GL/glew.h>
+#ifndef APPLE
 #include <GL/gl.h>
+#else
+#include <OpenGL/gl.h>
+#endif
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -60,7 +64,7 @@ renderer::glew_setup::glew_setup()
 
 	if (!GLEW_ARB_draw_buffers)
 		throw runtime_error("Requires the draw_buffers extension.");
-	
+
 	GLint max_draw_buffers;
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
 	if (2 > max_draw_buffers)
@@ -72,14 +76,14 @@ renderer::glew_setup::glew_setup()
 renderer::renderer( 
 	const world_type& world, 
 	black_label::renderer::camera&& camera ) 
-	: world(world), camera(camera)
+	: camera(camera)
+  , world(world)
 	, models(new gpu::model[world.static_entities.models.capacity()])
 	, sorted_statics(world.static_entities.capacity)
 	, lights(1024 * 10)
-#pragma warning(push)
-#pragma warning(disable : 4355)
+MSVC_PUSH_WARNINGS(4355)
 	, light_grid(64, this->camera, lights)
-#pragma warning(pop)
+MSVC_POP_WARNINGS()
 {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -265,8 +269,8 @@ void renderer::import_model( model_id_type model_id )
 			reinterpret_cast<float*>(ai_vertices), 
 			reinterpret_cast<float*>(&ai_vertices[ai_mesh->mNumVertices]), 
 			reinterpret_cast<float*>(&ai_normals[0]), 
-			indices.begin()._Ptr,
-			indices.end()._Ptr);
+			indices.data(),
+			&indices[indices.size()]);
 		
 		model.push_back(gpu::mesh(cpu_mesh));
 		cpu_model.push_back(std::move(cpu_mesh));
@@ -527,6 +531,16 @@ auto world_to_window_coordinates = [&] ( glm::vec3 v ) -> glm::vec3
 	return glm::vec3((v_ndc.x+1.0f)*width_f*0.5f, (v_ndc.y+1.0f)*height_f*0.5f, v_ndc.z);
 };
 	
+ 
+ 
+ 
+ float
+ alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f,
+ tan_alpha = tan(alpha),
+ sphere_factor_y = 1.0f / cos(alpha),
+ beta = atan(tan_alpha * camera.aspect_ratio),
+ sphere_factor_x = 1.0f / cos(beta);
+ 
 auto sphere_in_frustrum = [&] ( const glm::vec3& p, float radius ) -> bool
 {
 	float d1,d2;

@@ -86,6 +86,9 @@ if(WIN32)
 elseif(UNIX)
 	add_definitions("-DUNIX")
 endif()
+if(APPLE)
+	add_definitions("-DAPPLE")
+endif()
 
 
 

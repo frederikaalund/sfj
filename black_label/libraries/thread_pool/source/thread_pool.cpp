@@ -120,22 +120,33 @@ void thread_pool::processed_task( task* task )
 
 void thread_pool::resolve_dependencies( task* task )
 {
-	if (!task->is_root())
-	{
-		int sub_tasks_left = --task->predecessor->sub_tasks_left;
+  while (task)
+  {
+    if (!task->is_root())
+    {
+      int sub_tasks_left = --task->predecessor->sub_tasks_left;
 
-		if (0 == sub_tasks_left)
-		{
-			if (task->predecessor->successor)
-				digest_task(task->predecessor->successor.get());
-			else
-				resolve_dependencies(task->predecessor);
-		}
-		else if (-1 == sub_tasks_left)
-			resolve_dependencies(task->predecessor);
-	}
-	else if (task->is_owned_by_thread_pool())
-		delete task;
+      if (0 == sub_tasks_left)
+      {
+        if (task->predecessor->successor)
+          digest_task(task->predecessor->successor.get());
+        else
+        {
+          task = task->predecessor;
+          continue;
+        }
+      }
+      else if (-1 == sub_tasks_left)
+      {
+        task = task->predecessor;
+        continue;
+      }
+    }
+    else if (task->is_owned_by_thread_pool())
+      delete task;
+    
+    task = nullptr;
+  }
 }
 
 void thread_pool::stop_workers()

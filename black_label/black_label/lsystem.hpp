@@ -1,5 +1,5 @@
 // Version 0.1
-#ifndef BLACK_LABEL_LSYSTEM_HPP
+#if defined BLACK_LABEL_LSYSTEM_HPP && BLACK_LABEL_COMPILE_LSYSTEM
 #define BLACK_LABEL_LSYSTEM_HPP
 
 #include <string>
@@ -18,7 +18,7 @@ namespace black_label
 namespace lsystem
 {
 
-struct z_gradient_type {};
+  struct z_gradient_type { z_gradient_type() {} };
 const z_gradient_type z_gradient;
 
 class scalar_field

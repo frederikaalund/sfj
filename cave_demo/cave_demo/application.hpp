@@ -21,7 +21,6 @@ class application
 private:
 	typedef boost::log::sources::severity_logger<black_label::utility::severity_level> log_type;
 	log_type log;
-	sf::Window window;
 
 
 
@@ -47,6 +46,8 @@ public:
 
 	bool window_is_open() { return window.isOpen(); }
 
+  sf::Window window;
+  
 	black_label::thread_pool::thread_pool thread_pool;
 	black_label::world::world world;
 	black_label::renderer::renderer renderer;

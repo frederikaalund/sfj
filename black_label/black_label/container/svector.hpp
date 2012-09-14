@@ -23,6 +23,15 @@ template<typename T>
 class svector : public darray<T>
 {
 public:
+  typedef darray<T> base;
+  typedef typename base::size_type size_type;
+  typedef typename base::reference reference;
+  typedef typename base::const_reference const_reference;
+  typedef typename base::iterator iterator;
+  typedef typename base::const_iterator const_iterator;
+  
+  
+  
 	friend void swap( svector& rhs, svector& lhs )
 	{
 		using std::swap;
@@ -31,14 +40,14 @@ public:
 		swap(rhs.size_, lhs.size_);
 	}
 
-	svector() : darray(), size_(0) {}
-	svector( svector&& other ) : darray(), size_(0) { swap(*this, other); }
+	svector() : darray<T>(), size_(0) {}
+	svector( svector&& other ) : darray<T>(), size_(0) { swap(*this, other); }
 	svector( const svector& other ) 
-		: darray(other)
+		: darray<T>(other)
 		, size_(other.size_)
-	{ std::copy(other.cbegin(), other.cend(), data_); }
-	svector( size_type capacity ) 
-		: darray(capacity)
+	{ std::copy(other.cbegin(), other.cend(), base::data_); }
+	svector( size_type capacity )
+		: darray<T>(capacity)
 		, size_(0) {}
 
 	svector& operator=( svector other ) { swap(*this, other); return *this; }
@@ -46,16 +55,16 @@ public:
 	size_type size() const { return size_; }
 	bool empty() const { return 0 == size_; }
 
-	iterator end() { return iterator(&data_[size_]); }
-	const_iterator cend() const { return const_iterator(&data_[size_]); }
+	iterator end() { return iterator(&base::data_[size_]); }
+	const_iterator cend() const { return const_iterator(&base::data_[size_]); }
 
-	reference back() { return data_[size_ - 1]; }
-	const_reference back() const { return data_[size_ - 1]; }
+	reference back() { return base::data_[size_ - 1]; }
+	const_reference back() const { return base::data_[size_ - 1]; }
 
-	void push_back( const T& value ) { data_[size_++] = value; }
-	void push_back( T&& value ) { data_[size_++] = std::move(value); }
+	void push_back( const T& value ) { base::data_[size_++] = value; }
+	void push_back( T&& value ) { base::data_[size_++] = std::move(value); }
 
-	void pop_back() { pop_back<T>(*this); }
+	void pop_back() { pop_back_<T>(*this); }
 	
 	void clear() { clear_<T>(*this); }
 
@@ -81,17 +90,17 @@ protected:
 
 private:
 	template<typename T_> static
-	typename std::enable_if<!std::has_trivial_destructor<T_>::value>::type
+	typename std::enable_if<!std::is_trivially_destructible<T_>::value>::type
 	pop_back_( svector<T_>& sv )
 	{ sv.back().~T_(); --sv.size_; }
 
 	template<typename T_> static
-	typename std::enable_if<std::has_trivial_destructor<T_>::value>::type
+	typename std::enable_if<std::is_trivially_destructible<T_>::value>::type
 	pop_back_( svector<T_>& sv ) { --sv.size_; } 
 
 
 	template<typename T_> static
-	typename std::enable_if<!std::has_trivial_destructor<T_>::value>::type
+	typename std::enable_if<!std::is_trivially_destructible<T_>::value>::type
 	clear_( svector<T_>& sv )
 	{
 		for (auto i = sv.begin(); sv.end() != i; ++i)
@@ -100,8 +109,8 @@ private:
 	}
 
 	template<typename T_> static
-	typename std::enable_if<std::has_trivial_destructor<T_>::value>::type
-	clear_( svector<T_>& sv ) { sv.size_ = svector<T_>::size_type(0); } 
+	typename std::enable_if<std::is_trivially_destructible<T_>::value>::type
+	clear_( svector<T_>& sv ) { sv.size_ = typename svector<T_>::size_type(0); }
 };
 
 } // namespace container

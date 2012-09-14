@@ -76,9 +76,17 @@ set(SFML_STATIC_LIBRARIES TRUE)
 find_package(SFML REQUIRED system window)
 include_directories(${SFML_INCLUDE_DIR})
 
+## SFML Dependencies
+if(APPLE)
+	find_library(OSX_COREFOUNDATION_LIBRARY CoreFoundation)
+	find_library(OSX_COCOA_LIBRARY Cocoa)
+	find_library(OSX_IOKIT_LIBRARY IOKit)
+	find_library(OSX_CARBON_LIBRARY Carbon)
+endif()
 
 
 
+## Black Label Dependencies
 
 ## GLEW
 find_package(GLEW)
@@ -140,7 +148,12 @@ target_link_libraries(
 	${Boost_LIBRARIES}
 	${BlackLabel_LIBRARIES}
 	${OPENGL_gl_LIBRARY}
+	
 	${SFML_LIBRARIES}
+	${OSX_COREFOUNDATION_LIBRARY}
+	${OSX_COCOA_LIBRARY}
+	${OSX_IOKIT_LIBRARY}
+	${OSX_CARBON_LIBRARY}
 	
 	${GLEW_LIBRARY}
 	${ZLIB_LIBRARY}

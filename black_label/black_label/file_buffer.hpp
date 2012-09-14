@@ -17,7 +17,7 @@ namespace file_buffer
 ////////////////////////////////////////////////////////////////////////////////
 /// Types and Constants
 ////////////////////////////////////////////////////////////////////////////////
-struct null_terminated_type {};
+struct null_terminated_type { null_terminated_type() {} };
 const null_terminated_type null_terminated;
 
 
@@ -44,12 +44,11 @@ public:
 	const buffer_type::value_type* data() const
 	{ return buffer.data(); }
 
-#pragma warning(push)
-#pragma warning(disable : 4251)
+MSVC_PUSH_WARNINGS(4251)
 	buffer_type buffer;
-#pragma warning(pop)
-	
+MSVC_POP_WARNINGS()
 
+  
 
 protected:
 	void load_file( const char* path_to_file );

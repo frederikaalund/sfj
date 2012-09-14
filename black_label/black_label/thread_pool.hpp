@@ -27,15 +27,15 @@ public:
 	thread_pool();
 	~thread_pool();
 
-	void thread_pool::schedule( const task& task );
-	void thread_pool::schedule( task* task );
+	void schedule( const task& task );
+	void schedule( task* task );
 	void join();
 	void current_thread_id();
 
 
 
 private:
-#pragma warning(disable : 4251)
+MSVC_PUSH_WARNINGS(4251)
 ////////////////////////////////////////////////////////////////////////////////
 /// Task Group
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,8 +62,8 @@ private:
 	class worker 
 	{
 	public:
-		worker() 	
-			: pool(pool)
+		worker()
+			: pool()
 			, about_to_wait(false)
 			, work(true)
 		{}
@@ -102,7 +102,7 @@ private:
 	boost::atomic<int> scheduled_task_count;
 	boost::mutex waiting_for_workers;
 	boost::condition_variable all_tasks_are_processed;
-#pragma warning(default : 4251)
+MSVC_POP_WARNINGS()
 };
 
 } // namespace thread_pool

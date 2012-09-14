@@ -1,3 +1,4 @@
+/*
 #include <black_label/lsystem.hpp>
 
 #include <algorithm>
@@ -384,7 +385,7 @@ void turtle_interpretation::interpret()
 
 
 
-
+*/
 /*
 	for (auto s = test_lsystem.result.begin(); test_lsystem.result.end() != s; ++s)
 	{

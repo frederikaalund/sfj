@@ -7,3 +7,17 @@
 #else
 	#define BLACK_LABEL_SHARED_LIBRARY 
 #endif
+
+
+
+#ifdef MSVC
+  #define MSVC_PUSH_WARNINGS(warnings) \
+  _Pragma("warning(push)") \
+  _Pragma("warning(disable : (warnings))")
+
+  #define MSVC_POP_WARNINGS() \
+  _Pragma("warning(pop)")
+#else
+  #define MSVC_PUSH_WARNINGS(warnings)
+  #define MSVC_POP_WARNINGS()
+#endif

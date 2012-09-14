@@ -41,6 +41,8 @@ public:
 		size_type>
 	{
 	public:
+    typedef size_type difference_type;
+    
 		iterator_base() {}
 		iterator_base( value id ) : id_(id) {}
 		template<typename other_value>
@@ -54,7 +56,7 @@ public:
 
 	private:
 		friend boost::iterator_core_access;
-		template<typename value> friend class iterator_base;
+		template<typename other_value> friend class iterator_base;
 
 		value dereference() const
 		{ return id_; }
@@ -108,7 +110,7 @@ public:
 	{
 	public:
 		const_entity_base( const entities& entities, iterator_type entity ) 
-			: entities_(entities), iterator_type(entity) {}
+			: iterator_type(entity), entities_(entities) {}
 
 		typename iterator_type::value_type id() const { return **this; }
 
@@ -170,7 +172,7 @@ public:
 			entities.remove(id);
 			*std::find(member_ids.cbegin(), member_ids.cend(), id) = 
 				member_ids.back();
-			member_ids.pop_back()
+			member_ids.pop_back();
 		}
 		void remove( typename entities::iterator entity ) { remove(entity.id()); }
 
