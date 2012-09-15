@@ -23,7 +23,10 @@ using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 /// Shader
 ////////////////////////////////////////////////////////////////////////////////
-shader::shader( shader_type type, const char* path_to_shader )
+shader::shader( 
+	shader_type type, 
+	const char* path_to_shader, 
+	const char* preprocessor_commands )
 {
 	status.set(is_tried_instantiated_bit);
 
@@ -37,10 +40,10 @@ shader::shader( shader_type type, const char* path_to_shader )
 	}
 	status.set(shader_file_found_bit);
 	
-	const GLchar* source_code_data = source_code.data();
+	const GLchar* source_code_data[] = { preprocessor_commands, source_code.data() };
 	
 	id = glCreateShader(type);
-	glShaderSource(id, 1, &source_code_data, nullptr);
+	glShaderSource(id, 2, source_code_data, nullptr);
 	glCompileShader(id);
 	
 	GLint compile_status;
@@ -78,15 +81,16 @@ string shader::get_info_log()
 program::program( 
 	const char* path_to_vertex_shader, 
 	const char* path_to_geometry_shader, 
-	const char* path_to_fragment_shader )
-	: vertex(GL_VERTEX_SHADER, path_to_vertex_shader)
+	const char* path_to_fragment_shader,
+	const char* preprocessor_commands )
+	: vertex(GL_VERTEX_SHADER, path_to_vertex_shader, preprocessor_commands)
 {
 	id = glCreateProgram();
 
 	if (path_to_geometry_shader)
-		geometry = shader(GL_GEOMETRY_SHADER, path_to_geometry_shader);
+		geometry = shader(GL_GEOMETRY_SHADER, path_to_geometry_shader, preprocessor_commands);
 	if (path_to_fragment_shader)
-		fragment = shader(GL_FRAGMENT_SHADER, path_to_fragment_shader);
+		fragment = shader(GL_FRAGMENT_SHADER, path_to_fragment_shader, preprocessor_commands);
 
 	if (vertex.is_complete()) glAttachShader(id, vertex.id);
 	if (geometry.is_complete()) glAttachShader(id, geometry.id);

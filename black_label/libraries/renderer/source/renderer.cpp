@@ -26,6 +26,12 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+
+
+#define USE_TILED_SHADING
+
+
+
 using namespace std;
 
 
@@ -47,31 +53,13 @@ renderer::glew_setup::glew_setup()
 	if (GLEW_OK != glew_error)
 		throw runtime_error("Glew failed to initialize.");
 
-	if (!GLEW_VERSION_2_1)
-		throw runtime_error("Requires OpenGL version 2.1 or above.");
-
-	if (!GLEW_EXT_framebuffer_object)
-		throw runtime_error("Requires the framebuffer_object extension.");
-
-	if (!GLEW_EXT_framebuffer_blit)
-		throw runtime_error("Requires the framebuffer_blit extension.");
-	
-	if (!GLEW_EXT_texture_buffer_object)
-		throw runtime_error("Requires the texture_buffer_object extension.");
-
-	if (!GLEW_ARB_texture_float)
-		throw runtime_error("Requires the texture_float extension.");
-
-	if (!GLEW_ARB_draw_buffers)
-		throw runtime_error("Requires the draw_buffers extension.");
+	if (!GLEW_VERSION_3_2)
+		throw runtime_error("Requires OpenGL version 3.2 or above.");
 
 	GLint max_draw_buffers;
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
 	if (2 > max_draw_buffers)
 		throw runtime_error("Requires at least 2 draw buffers.");
-
-	GLint max_uniform_block_size;
-	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &max_uniform_block_size);
 }
 
 
@@ -88,6 +76,11 @@ MSVC_PUSH_WARNINGS(4355)
 	, light_grid(64, this->camera, lights)
 MSVC_POP_WARNINGS()
 {
+	glGenBuffers(1, &lights_buffer);
+	glGenTextures(1, &lights_texture);
+
+
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
@@ -96,9 +89,15 @@ MSVC_POP_WARNINGS()
 
 
 	{
+#ifdef USE_TILED_SHADING
+#define UBERSHADER_TILED_SHADING_DEFINE "#define USE_TILED_SHADING\n"
+#else
+#define UBERSHADER_TILED_SHADING_DEFINE
+#endif
+
 		BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);
 
-		ubershader = program("test.vertex", nullptr, "test.fragment");
+		ubershader = program("test.vertex.glsl", nullptr, "test.fragment.glsl", "#version 150\n" UBERSHADER_TILED_SHADING_DEFINE);
 		BOOST_LOG_SEV(log, info) << ubershader.get_aggregated_info_log();
 		blur_horizontal = program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
 		BOOST_LOG_SEV(log, info) << blur_horizontal.get_aggregated_info_log();
@@ -110,10 +109,10 @@ MSVC_POP_WARNINGS()
 
 
 
-	glGenFramebuffersEXT(1, &framebuffer);
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, framebuffer);
+	glGenFramebuffers(1, &framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
-	glGenRenderbuffersEXT(1, &depth_renderbuffer);
+	glGenRenderbuffers(1, &depth_renderbuffer);
 
 	glGenTextures(1, &main_render);
 	glBindTexture(GL_TEXTURE_2D, main_render);
@@ -143,6 +142,13 @@ MSVC_POP_WARNINGS()
 	on_window_resized(viewport_data[2], viewport_data[3]);
 }
 
+renderer::~renderer()
+{
+	glDeleteBuffers(1, &lights_buffer);
+	glDeleteTextures(1, &lights_texture);
+
+	// TODO: Rest.
+}
 
 
 
@@ -165,6 +171,12 @@ void renderer::update_lights()
 	}
 
 	lights.push_back(light(glm::vec3(0.0f, 5.0f, 0.0f), 10.0f, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f)));
+
+	if (!lights.empty())
+	{
+		glBindBuffer(GL_TEXTURE_BUFFER, lights_buffer);
+		glBufferData(GL_TEXTURE_BUFFER, lights.size() * sizeof(light), lights.data(), GL_STREAM_DRAW);
+	}
 }
 
 
@@ -273,7 +285,7 @@ void renderer::import_model( model_id_type model_id )
 			reinterpret_cast<float*>(&ai_vertices[ai_mesh->mNumVertices]), 
 			reinterpret_cast<float*>(&ai_normals[0]), 
 			indices.data(),
-			&indices[indices.size()]);
+			&indices.back()+1);
 		
 		model.push_back(gpu::mesh(cpu_mesh));
 		cpu_model.push_back(std::move(cpu_mesh));
@@ -317,46 +329,47 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Model Loading
 ////////////////////////////////////////////////////////////////////////////////
-	{
-		model_id_type model;
-		while (dirty_models.dequeue(model)) import_model(model);
-	}
+	for (model_id_type model; dirty_models.dequeue(model);) import_model(model);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Scene Sorting
 ////////////////////////////////////////////////////////////////////////////////
-	{
-		entity_id_type entity;
-		while (dirty_static_entities.dequeue(entity))
-			if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity)
-				== sorted_statics.cend())
-				sorted_statics.push_back(entity);
-		sort(sorted_statics.begin(), sorted_statics.end());
-	}
+	for (entity_id_type entity; dirty_static_entities.dequeue(entity);)
+		if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity)
+			== sorted_statics.cend())
+			sorted_statics.push_back(entity);
+	sort(sorted_statics.begin(), sorted_statics.end());
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Frame setup
 ////////////////////////////////////////////////////////////////////////////////
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, framebuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, main_render, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_BUFFER, lights_texture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, lights_buffer);
+	glUniform1i(glGetUniformLocation(ubershader.id, "lights"), 1);
+	glUniform1i(glGetUniformLocation(ubershader.id, "lights_size"), lights.size());
+	
 
 	
 ////////////////////////////////////////////////////////////////////////////////
 /// Tiled Shading
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef USE_TILED_SHADING
 	light_grid.update();
 	light_grid.bind(ubershader.id);
+#endif
 
 
 
@@ -409,7 +422,7 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Bloom Blur
 ////////////////////////////////////////////////////////////////////////////////
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, bloom2, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
@@ -428,7 +441,7 @@ void renderer::render_frame()
 
 	
 
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, bloom1, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -450,7 +463,7 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Tone Mapping
 ////////////////////////////////////////////////////////////////////////////////
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	tone_mapper.use();
@@ -486,8 +499,8 @@ void renderer::on_window_resized( int width, int height )
 	glUniform2i(glGetUniformLocation(ubershader.id, "grid_dimensions"), light_grid.tiles_x(), light_grid.tiles_y());
 
 
-	glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, depth_renderbuffer);
-	glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, width, height);
+	glBindRenderbuffer(GL_RENDERBUFFER, depth_renderbuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
 
 	glBindTexture(GL_TEXTURE_2D, main_render);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0,
@@ -502,21 +515,21 @@ void renderer::on_window_resized( int width, int height )
 		GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, main_render, 0);
 
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT,
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
 		GL_TEXTURE_2D, bloom1, 0);
 
-	glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, 
-		GL_RENDERBUFFER_EXT, depth_renderbuffer);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, 
+		GL_RENDERBUFFER, depth_renderbuffer);
 
 
-	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT};
+	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
 	glDrawBuffersARB(2, draw_buffer);
 
 
-	GLenum framebuffer_status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+	GLenum framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (GL_FRAMEBUFFER_COMPLETE != framebuffer_status)
 		throw runtime_error("The framebuffer is not complete.");
 }

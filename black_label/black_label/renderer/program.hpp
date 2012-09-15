@@ -39,7 +39,10 @@ public:
 	}
 	shader() : id(invalid_id) {}
 	shader( shader&& other ) : id(invalid_id) { swap(*this, other); }
-	shader( shader_type type, const char* path_to_shader );
+	shader( 
+		shader_type type, 
+		const char* path_to_shader, 
+		const char* preprocessor_commands = "" );
 	BLACK_LABEL_SHARED_LIBRARY ~shader();
 
 	shader& operator =( shader lhs ) { swap(*this, lhs); return *this; }
@@ -88,7 +91,8 @@ public:
 	explicit program( 
 		const char* path_to_vertex_shader,
 		const char* path_to_geometry_shader = nullptr,
-		const char* path_to_fragment_shader = nullptr );
+		const char* path_to_fragment_shader = nullptr,
+		const char* preprocessor_commands = "" );
 	BLACK_LABEL_SHARED_LIBRARY ~program();
 
 	program& operator =( program lhs ) { swap(*this, lhs); return *this; }

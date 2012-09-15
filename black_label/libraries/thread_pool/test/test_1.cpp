@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_SUITE_END()
 ////////////////////////////////////////////////////////////////////////////////
 BOOST_FIXTURE_TEST_SUITE(stress, fixture)
 
-#define STRESS_1_ITERATIONS 1000
+#define STRESS_1_ITERATIONS 10000
 BOOST_AUTO_TEST_CASE(stress_1)
 {
 	for (int i = 0; STRESS_1_ITERATIONS > i; ++i)

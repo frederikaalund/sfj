@@ -192,7 +192,7 @@ application::application( int argc, char const* argv[] )
 	: configuration(log, argc, argv)
 	, window(sf::VideoMode(800, 800), "OpenGL", 
 		sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize, 
-		sf::ContextSettings(32, 0, 0, 2, 1))
+		sf::ContextSettings(32, 0, 0, 3, 2))
 	, world(configuration.world_configuration)
 	, renderer(world, camera(glm::vec3(100.0f, 100.0f, 0.0f), 
 		glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)))

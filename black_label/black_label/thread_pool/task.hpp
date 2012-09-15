@@ -91,37 +91,7 @@ public:
 	task( task&& other ) : predecessor(nullptr), successor(nullptr) 
 	{ swap(*this, other); }
 
-	task( const task& other )
-		: function(other.function)
-		, thread_affinity(other.thread_affinity)
-		, weight(other.weight)
-		, predecessor(other.predecessor)
-		, sub_tasks(other.sub_tasks)
-		, sub_tasks_left(other.sub_tasks_left.load())
-	{
-		if (!other.is_root()) 
-		{
-			successor = nullptr;
-			return;
-		}
-
-		task
-			* t1 = this,
-			* t2 = other.successor;
-		while (t2)
-		{
-			t1->successor = new task();
-			t1->successor->function = t2->function;
-			t1->successor->thread_affinity = t2->thread_affinity;
-			t1->successor->weight = t2->weight;
-			t1->successor->predecessor = t1;
-			t1->successor->sub_tasks = t2->sub_tasks;
-
-			t1 = t1->successor;
-			t2 = t2->successor;
-		}
-		t1->successor = nullptr;
-	}
+	task( const task& other );
 
 	~task();
 
@@ -131,6 +101,16 @@ public:
 
 
 private:
+	task( const task* other, task* predecessor )
+		: function(other->function)
+		, thread_affinity(other->thread_affinity)
+		, weight(other->weight)
+		, predecessor(predecessor)
+		, sub_tasks(other->sub_tasks)
+	{}
+	
+
+
 MSVC_PUSH_WARNINGS(4251)
 	static task* DUMMY_TASK;
 
@@ -176,26 +156,26 @@ public:
 	task& operator>>=( const task& rhs );
   
   
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::in_parallel)( task&& lhs, task&& rhs );
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::in_parallel)( const task& lhs, const task& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::in_parallel)( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::in_parallel)( const task& lhs, const task& rhs );
   
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::operator|)( task&& lhs, task&& rhs );
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::operator|)( const task& lhs, const task& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::operator|)( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::operator|)( const task& lhs, const task& rhs );
   
   
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::in_succession)( task&& lhs, task&& rhs );
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::in_succession)( const task& lhs, const task& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::in_succession)( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::in_succession)( const task& lhs, const task& rhs );
   
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::operator>>)( const task& lhs, const task& rhs );
-  BLACK_LABEL_SHARED_LIBRARY
-  friend task (::operator>>)( task&& lhs, task&& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::operator>>)( const task& lhs, const task& rhs );
+	BLACK_LABEL_SHARED_LIBRARY
+	friend task (::operator>>)( task&& lhs, task&& rhs );
 };
 
 } // namespace thread_pool
