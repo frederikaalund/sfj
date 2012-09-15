@@ -50,6 +50,7 @@ renderer::glew_setup::glew_setup()
 {
   glewExperimental = GL_TRUE;
 	GLenum glew_error = glewInit();
+  glGetError(); // Unfortunately, GLEW produces an error for 3.2 contexts. Calling glGetError() dismisses it.
   
 	if (GLEW_OK != glew_error)
 		throw runtime_error("Glew failed to initialize.");
@@ -80,7 +81,7 @@ MSVC_POP_WARNINGS()
 	glGenBuffers(1, &lights_buffer);
 	glGenTextures(1, &lights_texture);
 
-
+  
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -117,13 +118,16 @@ MSVC_POP_WARNINGS()
 
 	glGenRenderbuffers(1, &depth_renderbuffer);
 
+
+  
 	glGenTextures(1, &main_render);
+
 	glBindTexture(GL_TEXTURE_2D, main_render);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+  
 	glGenTextures(1, &bloom1);
 	glBindTexture(GL_TEXTURE_2D, bloom1);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -363,7 +367,7 @@ void renderer::render_frame()
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, lights_buffer);
 	glUniform1i(glGetUniformLocation(ubershader.id, "lights"), 1);
 	glUniform1i(glGetUniformLocation(ubershader.id, "lights_size"), lights.size());
-	
+
 
 	
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,6 +394,7 @@ void renderer::render_frame()
 	std::for_each(sorted_statics.cbegin(), sorted_statics.cend(), 
 		[&] ( const entity_id_type id )
 	{
+        auto glerr_1 = glGetError();
 		auto& model = models[this->world.static_entities.model_ids[id]];
 		auto& model_matrix = this->world.static_entities.transformations[id];
 
@@ -404,11 +409,14 @@ void renderer::render_frame()
 		glUniformMatrix4fv(
 			glGetUniformLocation(ubershader.id, "model_matrix"),
 			1, GL_FALSE, glm::value_ptr(model_matrix));
-
-		model.render();
+    auto glerr_2 = glGetError();
+		model.render(ubershader.id);
+    
+    auto glerr_3 = glGetError();
+    auto asd = 2;
 	});
 
-
+  
 
 	/*
 	glBegin(GL_QUADS);

@@ -64,24 +64,27 @@ mesh::~mesh()
 
 
 
-void mesh::render() const
+void mesh::render( program::id_type program_id ) const
 {
-	glColor4f(
+  auto glerr_1 = glGetError();
+
+	glUniform4f(glGetUniformLocation(program_id, "color"),
 		material.diffuse.r, 
 		material.diffuse.g, 
 		material.diffuse.b,
 		material.alpha);
-
+  auto glerr_2 = glGetError();
 	glBindBuffer(GL_ARRAY_BUFFER, vertex_vbo);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, 0, 0);
+    auto glerr_3 = glGetError();
+	glEnableVertexAttribArray(0);
+    auto glerr_4 = glGetError();
+	glEnableVertexAttribArray(1);
+    auto glerr_5 = glGetError();
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    auto glerr_6 = glGetError();
 	if (normal_size)
-	{
-		glEnableClientState(GL_NORMAL_ARRAY);
-		glNormalPointer(GL_FLOAT, 0, reinterpret_cast<GLvoid*>(normal_size));
-	}
-
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(normal_size));
+		  auto glerr_7 = glGetError();
 	if (has_indices())
 	{
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_vbo);
@@ -89,8 +92,9 @@ void mesh::render() const
 	}
 	else
 		glDrawArrays(render_mode, 0, draw_count);
-	
-	glDisableClientState(GL_VERTEX_ARRAY);
+  
+  auto glerr_8 = glGetError();
+  auto asd = 2;
 }
 
 void mesh::load(
