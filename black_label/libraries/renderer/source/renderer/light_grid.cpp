@@ -186,35 +186,35 @@ void light_grid::update()
 
 	if (!lights.empty())
 	{
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, lights_buffer);
-		glBufferData(GL_TEXTURE_BUFFER_EXT, lights.size() * sizeof(light), lights.data(), GL_STREAM_DRAW);
+		glBindBuffer(GL_TEXTURE_BUFFER, lights_buffer);
+		glBufferData(GL_TEXTURE_BUFFER, lights.size() * sizeof(light), lights.data(), GL_STREAM_DRAW);
 	}
 
 	if (!index_list.empty())
 	{
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, index_list_buffer);
-		glBufferData(GL_TEXTURE_BUFFER_EXT, index_list.size() * sizeof(int), index_list.data(), GL_STREAM_DRAW);
+		glBindBuffer(GL_TEXTURE_BUFFER, index_list_buffer);
+		glBufferData(GL_TEXTURE_BUFFER, index_list.size() * sizeof(int), index_list.data(), GL_STREAM_DRAW);
 	}
 
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, grid_buffer);
-	glBufferData(GL_TEXTURE_BUFFER_EXT, grid.capacity() * sizeof(grid_data), grid.data(), GL_STREAM_DRAW);
+	glBindBuffer(GL_TEXTURE_BUFFER, grid_buffer);
+	glBufferData(GL_TEXTURE_BUFFER, grid.capacity() * sizeof(grid_data), grid.data(), GL_STREAM_DRAW);
 }
 
 void light_grid::bind( program::id_type program_id ) const
 {
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, lights_texture);
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_R32F, lights_buffer);
+	glBindTexture(GL_TEXTURE_BUFFER, lights_texture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, lights_buffer);
 	glUniform1i(glGetUniformLocation(program_id, "lights"), 1);
 
 	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, index_list_texture);
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_R32I, index_list_buffer);
+	glBindTexture(GL_TEXTURE_BUFFER, index_list_texture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, index_list_buffer);
 	glUniform1i(glGetUniformLocation(program_id, "light_index_list"), 2);
 
 	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, grid_texture);
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_RG32I, grid_buffer);
+	glBindTexture(GL_TEXTURE_BUFFER, grid_texture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32I, grid_buffer);
 	glUniform1i(glGetUniformLocation(program_id, "light_grid"), 3);
 }
 
