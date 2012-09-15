@@ -43,6 +43,7 @@ public:
 
 
 	renderer( const world_type& world, camera&& camera );
+	~renderer();
 
 	void render_frame();
 
@@ -103,7 +104,8 @@ MSVC_PUSH_WARNINGS(4251)
 	light_grid light_grid;
 
 	program ubershader, blur_horizontal, blur_vertical, tone_mapper;
-	unsigned int framebuffer, depth_renderbuffer, main_render, bloom1, bloom2;
+	unsigned int framebuffer, depth_renderbuffer, main_render, bloom1, bloom2, 
+		lights_buffer, lights_texture;
 
 	glm::mat4 projection_matrix;
 

@@ -54,7 +54,7 @@ private:
 	index_list_type index_list;
 
 	unsigned int index_list_buffer, index_list_texture, 
-		grid_buffer, grid_texture, lights_buffer, lights_texture;
+		grid_buffer, grid_texture;
 
 	black_label::renderer::camera& camera;
 	const light_container& lights;

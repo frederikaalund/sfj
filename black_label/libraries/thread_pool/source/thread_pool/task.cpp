@@ -8,6 +8,10 @@ namespace black_label
 namespace thread_pool
 {
 
+using std::for_each;
+
+
+
 task* task::DUMMY_TASK = reinterpret_cast<task*>(1);
 
 
@@ -24,63 +28,67 @@ void swap( task& lhs, task& rhs )
 	swap(lhs.sub_tasks_left, rhs.sub_tasks_left);
 }
 
+task::task( const task& other ) : function(other.function)
+	, thread_affinity(other.thread_affinity)
+	, weight(other.weight)
+	, predecessor(other.predecessor)
+	, sub_tasks(other.sub_tasks)
+	, sub_tasks_left(other.sub_tasks_left.load())
+{
+	if (!other.is_root()) { successor = nullptr; return; }
+	
+	auto this_ = this;
+	for (auto other_ = other.successor; other_; this_ = this_->successor, other_ = other_->successor)
+		this_->successor = new task(other_, this_);
+	this_->successor = nullptr;
+}
+
 task::~task()
 {
+	static const auto reset_predecessor = [] ( task& t ) { t.predecessor = nullptr; };
+
 	if (!is_root()) return;
 
-	std::for_each(sub_tasks.begin(), sub_tasks.end(), 
-		[] ( task& sub_task ) {	sub_task.predecessor = nullptr;	});
+	for_each(sub_tasks.begin(), sub_tasks.end(), reset_predecessor);
 
 	while (successor)
 	{
-		task* temporary = successor->successor;
+		task* deletee = successor; successor = successor->successor;
 
-		successor->predecessor = this;
-		std::for_each(successor->sub_tasks.begin(), successor->sub_tasks.end(), 
-			[] ( task& sub_task ) {	sub_task.predecessor = nullptr;	});
-		delete successor;
-
-		successor = temporary;
+		for_each(deletee->sub_tasks.begin(), deletee->sub_tasks.end(), reset_predecessor);
+		deletee->predecessor = this;
+		delete deletee;
 	}
 }
-
 
 
 
 void task::restore_task_hierarchy()
 {
-	std::for_each(sub_tasks.begin(), sub_tasks.end(), 
-		[this]( task& sub_task )
+	static const auto restore_hierarchy_for_sub_tasks = [] ( task* t )
 	{
-		sub_task.predecessor = this;
-		sub_task.restore_task_hierarchy();
-	});
+		for_each(t->sub_tasks.begin(), t->sub_tasks.end(), [&] ( task& sub_t )
+		{ sub_t.predecessor = t; sub_t.restore_task_hierarchy(); });
+		t->sub_tasks_left.store(t->sub_tasks.size());
+	};
 
-	task* t = this;
-	while (t->successor)
+	restore_hierarchy_for_sub_tasks(this);
+
+	for (task* task = this; task->successor; task = task->successor)
 	{
-		t->successor->predecessor = t;
-		std::for_each(t->successor->sub_tasks.begin(), t->successor->sub_tasks.end(), 
-			[&]( task& sub_task )
-		{
-			sub_task.predecessor = t->successor;
-			sub_task.restore_task_hierarchy();
-		});
-		t->successor->sub_tasks_left.store(t->successor->sub_tasks.size());
-		t = t->successor;
+		task->successor->predecessor = task;
+		restore_hierarchy_for_sub_tasks(task->successor);
 	}
-
-	sub_tasks_left.store(sub_tasks.size());
 }
 
 void task::reset_task_counts()
 {
-	std::for_each(sub_tasks.begin(), sub_tasks.end(), 
+	for_each(sub_tasks.begin(), sub_tasks.end(), 
 		[this]( task& sub_task )
-	{ sub_task.restore_task_hierarchy(); });
+	{ sub_task.reset_task_counts(); });
 
 	if (successor)
-		successor->restore_task_hierarchy();
+		successor->reset_task_counts();
 
 	sub_tasks_left.store(sub_tasks.size());
 }

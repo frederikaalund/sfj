@@ -26,6 +26,12 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+
+
+#define USE_TILED_SHADING
+
+
+
 using namespace std;
 
 
@@ -47,9 +53,9 @@ renderer::glew_setup::glew_setup()
   
 	if (GLEW_OK != glew_error)
 		throw runtime_error("Glew failed to initialize.");
-  
+
 	if (!GLEW_VERSION_3_2)
-		throw runtime_error("Requires OpenGL version 2.1 or above.");
+		throw runtime_error("Requires OpenGL version 3.2 or above.");
 
 	GLint max_draw_buffers;
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
@@ -71,6 +77,11 @@ MSVC_PUSH_WARNINGS(4355)
 	, light_grid(64, this->camera, lights)
 MSVC_POP_WARNINGS()
 {
+	glGenBuffers(1, &lights_buffer);
+	glGenTextures(1, &lights_texture);
+
+
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
@@ -79,16 +90,24 @@ MSVC_POP_WARNINGS()
 
 
 	{
+#ifdef USE_TILED_SHADING
+#define UBERSHADER_TILED_SHADING_DEFINE "#define USE_TILED_SHADING\n"
+#else
+#define UBERSHADER_TILED_SHADING_DEFINE
+#endif
+
 		BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);
 
-		ubershader = program("test.vertex", nullptr, "test.fragment");
+		ubershader = program("test.vertex.glsl", nullptr, "test.fragment.glsl", "#version 150\n" UBERSHADER_TILED_SHADING_DEFINE);
 		BOOST_LOG_SEV(log, info) << ubershader.get_aggregated_info_log();
+    /*
 		blur_horizontal = program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
 		BOOST_LOG_SEV(log, info) << blur_horizontal.get_aggregated_info_log();
 		blur_vertical = program("tone_mapper.vertex", nullptr, "blur_vertical.fragment");
 		BOOST_LOG_SEV(log, info) << blur_vertical.get_aggregated_info_log();
 		tone_mapper = program("tone_mapper.vertex", nullptr, "tone_mapper.fragment");
 		BOOST_LOG_SEV(log, info) << tone_mapper.get_aggregated_info_log();
+     */
 	}
 
 
@@ -126,6 +145,13 @@ MSVC_POP_WARNINGS()
 	on_window_resized(viewport_data[2], viewport_data[3]);
 }
 
+renderer::~renderer()
+{
+	glDeleteBuffers(1, &lights_buffer);
+	glDeleteTextures(1, &lights_texture);
+
+	// TODO: Rest.
+}
 
 
 
@@ -148,6 +174,12 @@ void renderer::update_lights()
 	}
 
 	lights.push_back(light(glm::vec3(0.0f, 5.0f, 0.0f), 10.0f, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f)));
+
+	if (!lights.empty())
+	{
+		glBindBuffer(GL_TEXTURE_BUFFER, lights_buffer);
+		glBufferData(GL_TEXTURE_BUFFER, lights.size() * sizeof(light), lights.data(), GL_STREAM_DRAW);
+	}
 }
 
 
@@ -256,7 +288,7 @@ void renderer::import_model( model_id_type model_id )
 			reinterpret_cast<float*>(&ai_vertices[ai_mesh->mNumVertices]), 
 			reinterpret_cast<float*>(&ai_normals[0]), 
 			indices.data(),
-			&indices[indices.size()]);
+			&indices.back()+1);
 		
 		model.push_back(gpu::mesh(cpu_mesh));
 		cpu_model.push_back(std::move(cpu_mesh));
@@ -300,24 +332,18 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Model Loading
 ////////////////////////////////////////////////////////////////////////////////
-	{
-		model_id_type model;
-		while (dirty_models.dequeue(model)) import_model(model);
-	}
+	for (model_id_type model; dirty_models.dequeue(model);) import_model(model);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Scene Sorting
 ////////////////////////////////////////////////////////////////////////////////
-	{
-		entity_id_type entity;
-		while (dirty_static_entities.dequeue(entity))
-			if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity)
-				== sorted_statics.cend())
-				sorted_statics.push_back(entity);
-		sort(sorted_statics.begin(), sorted_statics.end());
-	}
+	for (entity_id_type entity; dirty_static_entities.dequeue(entity);)
+		if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity)
+			== sorted_statics.cend())
+			sorted_statics.push_back(entity);
+	sort(sorted_statics.begin(), sorted_statics.end());
 
 
 
@@ -332,14 +358,21 @@ void renderer::render_frame()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_BUFFER, lights_texture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, lights_buffer);
+	glUniform1i(glGetUniformLocation(ubershader.id, "lights"), 1);
+	glUniform1i(glGetUniformLocation(ubershader.id, "lights_size"), lights.size());
+	
 
 	
 ////////////////////////////////////////////////////////////////////////////////
 /// Tiled Shading
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef USE_TILED_SHADING
 	light_grid.update();
 	light_grid.bind(ubershader.id);
+#endif
 
 
 
@@ -392,7 +425,7 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Bloom Blur
 ////////////////////////////////////////////////////////////////////////////////
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, bloom2, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
@@ -411,7 +444,7 @@ void renderer::render_frame()
 
 	
 
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+	glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, bloom1, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -433,7 +466,7 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Tone Mapping
 ////////////////////////////////////////////////////////////////////////////////
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	tone_mapper.use();
@@ -490,6 +523,7 @@ void renderer::on_window_resized( int width, int height )
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
 		GL_TEXTURE_2D, bloom1, 0);
+
 
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
 		GL_RENDERBUFFER, depth_renderbuffer);
