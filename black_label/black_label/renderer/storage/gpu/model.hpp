@@ -129,7 +129,7 @@ public:
 
 
 	int draw_count;
-	unsigned int vertex_vbo, index_vbo;
+	unsigned int vertex_vbo, index_vbo, vao;
 	int normal_size;
 	render_mode_type render_mode;
 	material material;
