@@ -99,12 +99,14 @@ MSVC_POP_WARNINGS()
 
 		ubershader = program("test.vertex.glsl", nullptr, "test.fragment.glsl", "#version 150\n" UBERSHADER_TILED_SHADING_DEFINE);
 		BOOST_LOG_SEV(log, info) << ubershader.get_aggregated_info_log();
+		/*
 		blur_horizontal = program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
 		BOOST_LOG_SEV(log, info) << blur_horizontal.get_aggregated_info_log();
 		blur_vertical = program("tone_mapper.vertex", nullptr, "blur_vertical.fragment");
 		BOOST_LOG_SEV(log, info) << blur_vertical.get_aggregated_info_log();
 		tone_mapper = program("tone_mapper.vertex", nullptr, "tone_mapper.fragment");
 		BOOST_LOG_SEV(log, info) << tone_mapper.get_aggregated_info_log();
+		*/
 	}
 
 
@@ -402,7 +404,7 @@ void renderer::render_frame()
 			glGetUniformLocation(ubershader.id, "model_matrix"),
 			1, GL_FALSE, glm::value_ptr(model_matrix));
 
-		model.render();
+		model.render(ubershader.id);
 	});
 
 

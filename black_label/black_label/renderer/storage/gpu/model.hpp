@@ -4,6 +4,7 @@
 #include <black_label/file_buffer.hpp>
 #include <black_label/renderer/light.hpp>
 #include <black_label/renderer/material.hpp>
+#include <black_label/renderer/program.hpp>
 #include <black_label/renderer/storage/cpu/model.hpp>
 #include <black_label/shared_library/utility.hpp>
 #include <black_label/utility/algorithm.hpp>
@@ -83,7 +84,7 @@ public:
 	bool is_loaded() const { return invalid_vbo != vertex_vbo; }
 	bool has_indices() const { return invalid_vbo != index_vbo; }
 
-	void render() const;
+	void render( program::id_type program_id ) const;
 
 	template<typename char_type>
 	friend std::basic_istream<char_type>& operator>>( 
@@ -154,7 +155,7 @@ public:
 	void push_back_keyframe( mesh&& mesh ) 
 	{ keyframes[size++] = std::move(mesh); }
 
-	void render( int keyframe ) { keyframes[keyframe].render(); };
+	void render( int keyframe, program::id_type program_id ) { keyframes[keyframe].render(program_id); };
 
 	int capacity, size;
 	std::unique_ptr<mesh[]> keyframes;
@@ -201,10 +202,10 @@ public:
 	checksum_type model_file_checksum() const { return model_file_checksum_; }
 
 	void push_back( mesh&& mesh ) { meshes[meshes_size++] = std::move(mesh); }
-	void render() 
+	void render( program::id_type program_id ) 
 	{
 		std::for_each(meshes.cbegin(), meshes.cbegin() + meshes_size, 
-			[] ( const mesh& mesh ){ mesh.render(); });
+			[&] ( const mesh& mesh ){ mesh.render(program_id); });
 	}
 
 	void clear()

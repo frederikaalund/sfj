@@ -64,24 +64,21 @@ mesh::~mesh()
 
 
 
-void mesh::render() const
+void mesh::render( program::id_type program_id ) const
 {
-	glColor4f(
+	glUniform4f(glGetUniformLocation(program_id, "color"), 
 		material.diffuse.r, 
 		material.diffuse.g, 
 		material.diffuse.b,
 		material.alpha);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vertex_vbo);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, 0, 0);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 	if (normal_size)
-	{
-		glEnableClientState(GL_NORMAL_ARRAY);
-		glNormalPointer(GL_FLOAT, 0, reinterpret_cast<GLvoid*>(normal_size));
-	}
-
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(normal_size));
+		
 	if (has_indices())
 	{
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_vbo);
@@ -89,8 +86,6 @@ void mesh::render() const
 	}
 	else
 		glDrawArrays(render_mode, 0, draw_count);
-	
-	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void mesh::load(

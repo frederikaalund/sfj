@@ -96,6 +96,9 @@ program::program(
 	if (geometry.is_complete()) glAttachShader(id, geometry.id);
 	if (fragment.is_complete()) glAttachShader(id, fragment.id);
 
+	glBindAttribLocation(id, 0, "position");
+	glBindAttribLocation(id, 1, "normal");
+
 	glLinkProgram(id);
 }
 
