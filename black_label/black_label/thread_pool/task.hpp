@@ -88,7 +88,8 @@ public:
 		, sub_tasks_left(0)
 	{}
 
-	task ( task&& other ) { swap(*this, other); }
+	task( task&& other ) : predecessor(nullptr), successor(nullptr) 
+	{ swap(*this, other); }
 
 	task( const task& other )
 		: function(other.function)
@@ -96,9 +97,33 @@ public:
 		, weight(other.weight)
 		, predecessor(other.predecessor)
 		, sub_tasks(other.sub_tasks)
-		, successor((other.successor) ? new task(*other.successor) : nullptr)
 		, sub_tasks_left(other.sub_tasks_left.load())
-	{}
+	{
+		if (!other.is_root()) 
+		{
+			successor = nullptr;
+			return;
+		}
+
+		task
+			* t1 = this,
+			* t2 = other.successor;
+		while (t2)
+		{
+			t1->successor = new task();
+			t1->successor->function = t2->function;
+			t1->successor->thread_affinity = t2->thread_affinity;
+			t1->successor->weight = t2->weight;
+			t1->successor->predecessor = t1;
+			t1->successor->sub_tasks = t2->sub_tasks;
+
+			t1 = t1->successor;
+			t2 = t2->successor;
+		}
+		t1->successor = nullptr;
+	}
+
+	~task();
 
 	task& operator=( task other ) { swap(*this, other); return *this; }
 	void operator()() { function(); }
@@ -130,7 +155,7 @@ MSVC_PUSH_WARNINGS(4251)
 
 	// Group task properties
 	std::vector<task> sub_tasks; // Processed concurrently.
-	std::unique_ptr<task> successor; // Processed after all sub_tasks are processed.
+	task* successor; // Processed after all sub_tasks are processed.
 	boost::atomic<int> sub_tasks_left;
 MSVC_POP_WARNINGS()
 

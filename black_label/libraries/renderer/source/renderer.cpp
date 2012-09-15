@@ -69,6 +69,9 @@ renderer::glew_setup::glew_setup()
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
 	if (2 > max_draw_buffers)
 		throw runtime_error("Requires at least 2 draw buffers.");
+
+	GLint max_uniform_block_size;
+	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &max_uniform_block_size);
 }
 
 

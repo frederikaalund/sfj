@@ -90,6 +90,13 @@ if(APPLE)
 	add_definitions("-DAPPLE")
 endif()
 
+if(MSVC)
+	add_definitions("-DMSVC")
+	add_definitions("-DMSVC_VERSION=${MSVC_VERSION}")
+elseif(XCODE_VERSION)
+	add_definitions("-DXCODE")
+endif()
+
 
 
 ################################################################################

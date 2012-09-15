@@ -129,7 +129,7 @@ void thread_pool::resolve_dependencies( task* task )
       if (0 == sub_tasks_left)
       {
         if (task->predecessor->successor)
-          digest_task(task->predecessor->successor.get());
+          digest_task(task->predecessor->successor);
         else
         {
           task = task->predecessor;

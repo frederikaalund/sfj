@@ -24,6 +24,27 @@ void swap( task& lhs, task& rhs )
 	swap(lhs.sub_tasks_left, rhs.sub_tasks_left);
 }
 
+task::~task()
+{
+	if (!is_root()) return;
+
+	std::for_each(sub_tasks.begin(), sub_tasks.end(), 
+		[] ( task& sub_task ) {	sub_task.predecessor = nullptr;	});
+
+	while (successor)
+	{
+		task* temporary = successor->successor;
+
+		successor->predecessor = this;
+		std::for_each(successor->sub_tasks.begin(), successor->sub_tasks.end(), 
+			[] ( task& sub_task ) {	sub_task.predecessor = nullptr;	});
+		delete successor;
+
+		successor = temporary;
+	}
+}
+
+
 
 
 void task::restore_task_hierarchy()
@@ -35,10 +56,18 @@ void task::restore_task_hierarchy()
 		sub_task.restore_task_hierarchy();
 	});
 
-	if (successor)
+	task* t = this;
+	while (t->successor)
 	{
-		successor->predecessor = this;
-		successor->restore_task_hierarchy();
+		t->successor->predecessor = t;
+		std::for_each(t->successor->sub_tasks.begin(), t->successor->sub_tasks.end(), 
+			[&]( task& sub_task )
+		{
+			sub_task.predecessor = t->successor;
+			sub_task.restore_task_hierarchy();
+		});
+		t->successor->sub_tasks_left.store(t->successor->sub_tasks.size());
+		t = t->successor;
 	}
 
 	sub_tasks_left.store(sub_tasks.size());
@@ -61,7 +90,7 @@ task& task::last_successor()
 	// Find sub_task's successor chain's end
 	task* result = this;
 	while (result->successor)
-		result = result->successor.get();
+		result = result->successor;
 	return *result;
 }
 
@@ -102,7 +131,7 @@ task& task::in_succession( task&& rhs )
 	if (!end.is_group_task())
 		end.sub_tasks.push_back(end);
 
-	end.successor.reset(new task(std::move(rhs)));
+	end.successor = new task(std::move(rhs));
 	return *this;
 }
 task& task::in_succession( const task& rhs )
@@ -113,7 +142,7 @@ task& task::in_succession( const task& rhs )
 	if (!end.is_group_task())
 		end.sub_tasks.push_back(end);
 
-	end.successor.reset(new task(rhs));
+	end.successor = new task(rhs);
 	return *this;
 }
 
@@ -184,7 +213,7 @@ task in_succession( task&& lhs, task&& rhs )
 	if (!end.is_group_task())
 		end.sub_tasks.push_back(end);
   
-	end.successor.reset(new task(std::move(rhs)));
+	end.successor = new task(std::move(rhs));
 	return result;
 }
 task in_succession( const task& lhs, const task& rhs )
@@ -196,7 +225,7 @@ task in_succession( const task& lhs, const task& rhs )
 	if (!end.is_group_task())
 		end.sub_tasks.push_back(end);
   
-	end.successor.reset(new task(rhs));
+	end.successor = new task(rhs);
 	return result;
 }
 

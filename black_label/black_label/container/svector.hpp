@@ -89,18 +89,25 @@ protected:
 
 
 private:
+
+#if MSVC && MSVC_VERSION <= 1600
+	#define IS_TRIVIALLY_DESTRUCTIBLE std::has_trivial_destructor
+#else
+	#define IS_TRIVIALLY_DESTRUCTIBLE std::is_trivially_destructible
+#endif
+
 	template<typename T_> static
-	typename std::enable_if<!std::is_trivially_destructible<T_>::value>::type
+	typename std::enable_if<!IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
 	pop_back_( svector<T_>& sv )
 	{ sv.back().~T_(); --sv.size_; }
 
 	template<typename T_> static
-	typename std::enable_if<std::is_trivially_destructible<T_>::value>::type
+	typename std::enable_if<IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
 	pop_back_( svector<T_>& sv ) { --sv.size_; } 
 
 
 	template<typename T_> static
-	typename std::enable_if<!std::is_trivially_destructible<T_>::value>::type
+	typename std::enable_if<!IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
 	clear_( svector<T_>& sv )
 	{
 		for (auto i = sv.begin(); sv.end() != i; ++i)
@@ -109,7 +116,7 @@ private:
 	}
 
 	template<typename T_> static
-	typename std::enable_if<std::is_trivially_destructible<T_>::value>::type
+	typename std::enable_if<IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
 	clear_( svector<T_>& sv ) { sv.size_ = typename svector<T_>::size_type(0); }
 };
 

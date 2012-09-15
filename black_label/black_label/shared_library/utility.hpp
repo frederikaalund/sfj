@@ -12,11 +12,11 @@
 
 #ifdef MSVC
   #define MSVC_PUSH_WARNINGS(warnings) \
-  _Pragma("warning(push)") \
-  _Pragma("warning(disable : (warnings))")
+  __pragma(warning(push)) \
+  __pragma(warning(disable : warnings))
 
   #define MSVC_POP_WARNINGS() \
-  _Pragma("warning(pop)")
+  __pragma(warning(pop))
 #else
   #define MSVC_PUSH_WARNINGS(warnings)
   #define MSVC_POP_WARNINGS()
