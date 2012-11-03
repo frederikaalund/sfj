@@ -194,8 +194,9 @@ application::application( int argc, char const* argv[] )
 		sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize, 
 		sf::ContextSettings(32, 0, 0, 3, 2))
 	, world(configuration.world_configuration)
-	, renderer(world, camera(glm::vec3(100.0f, 100.0f, 0.0f), 
-		glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
+	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), 
+		glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
+	, dynamics(world)
 	, fsw("D:/sfj/cave_demo/stage/binaries", FILTER_WRITE)
 	, increment(0.3f)
 	, strafe(0.0f)
@@ -302,8 +303,10 @@ void application::update_window()
 		}	
 	}
 
+	dynamics.update();
 	renderer.camera.strafe(strafe);
 	renderer.render_frame();
+	//renderer.render_frame_();
 	window.display();
 
 	static int frames = 0;

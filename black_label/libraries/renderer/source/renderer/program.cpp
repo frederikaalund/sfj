@@ -3,6 +3,10 @@
 
 #include <black_label/file_buffer.hpp>
 
+#include <sstream>
+
+#include <boost/math/constants/constants.hpp>
+
 #include <GL/glew.h>
 #ifndef APPLE
 #include <GL/gl.h>
@@ -40,10 +44,18 @@ shader::shader(
 	}
 	status.set(shader_file_found_bit);
 	
-	const GLchar* source_code_data[] = { preprocessor_commands, source_code.data() };
+	static const char* numerical_constants = nullptr;
+	if (!numerical_constants)
+	{
+		std::stringstream numerical_constants_stream;
+		numerical_constants_stream << "#define PI " << boost::math::constants::pi<float>() << std::endl;
+		const char* numerical_constants = numerical_constants_stream.str().c_str();
+	}
+
+	const GLchar* source_code_data[] = { preprocessor_commands, numerical_constants, source_code.data() };
 	
 	id = glCreateShader(type);
-	glShaderSource(id, 2, source_code_data, nullptr);
+	glShaderSource(id, 3, source_code_data, nullptr);
 	glCompileShader(id);
 	
 	GLint compile_status;
@@ -98,6 +110,8 @@ program::program(
 
 	glBindAttribLocation(id, 0, "position");
 	glBindAttribLocation(id, 1, "normal");
+	glBindAttribLocation(id, 2, "texture_coordinates");
+	glBindAttribLocation(id, 3, "camera_ray_direction");
 
 	glLinkProgram(id);
 }
@@ -125,7 +139,7 @@ std::string program::get_info_log()
 	{
 		result.resize(info_log_length);
 		glGetProgramInfoLog(id, info_log_length, nullptr, &result[0]);
-		result.erase(result.find_last_not_of('\0')+1);
+		result.erase(result.find_last_not_of('\0') + 1);
 	}
 
 	return result;

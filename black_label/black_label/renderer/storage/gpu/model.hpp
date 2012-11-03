@@ -44,6 +44,7 @@ class mesh
 {
 public:
 	static const unsigned int invalid_vbo = 0;
+	static const unsigned int invalid_texture = 0;
 
 
 
@@ -53,13 +54,17 @@ public:
 		swap(rhs.draw_count, lhs.draw_count);
 		swap(rhs.vertex_vbo, lhs.vertex_vbo);
 		swap(rhs.index_vbo, lhs.index_vbo);
-		swap(rhs.normal_size, lhs.normal_size);
+		swap(rhs.vao, lhs.vao);
 		swap(rhs.render_mode, lhs.render_mode);
 		swap(rhs.material, lhs.material);
+		swap(rhs.diffuse_texture, lhs.diffuse_texture);
 	}
 
-	mesh() : vertex_vbo(invalid_vbo) {}
-	mesh( mesh&& other ) : vertex_vbo(invalid_vbo) { swap(*this, other); }
+	mesh() : vertex_vbo(invalid_vbo), diffuse_texture(invalid_texture) {}
+	mesh( mesh&& other ) 
+		: vertex_vbo(invalid_vbo)
+		, diffuse_texture(invalid_texture)
+	{ swap(*this, other); }
 
 	mesh( const cpu::mesh& cpu_mesh );
 	mesh(
@@ -68,6 +73,7 @@ public:
 		const float* vertices_begin,
 		const float* vertices_end,
 		const float* normals_begin = nullptr,
+		const float* texture_coordinates_begin = nullptr,
 		const unsigned int* indices_begin = nullptr,
 		const unsigned int* indices_end = nullptr );
 
@@ -79,6 +85,7 @@ public:
 		const float* vertices_begin,
 		const float* vertices_end,
 		const float* normals_begin = nullptr,
+		const float* texture_coordinates_begin = nullptr,
 		const unsigned int* indices_begin = nullptr,
 		const unsigned int* indices_end = nullptr );
 	bool is_loaded() const { return invalid_vbo != vertex_vbo; }
@@ -93,33 +100,39 @@ public:
 	{
 		cpu::mesh::vector_container::size_type 
 			vertices_capacity,
-			normals_capacity;
+			normals_capacity,
+			texture_coordinates_capacity;
 		cpu::mesh::index_container::size_type
 			indices_capacity;
 
 		stream.read(reinterpret_cast<char_type*>(&mesh.render_mode), sizeof(render_mode_type));
 		stream.read(reinterpret_cast<char_type*>(&vertices_capacity), sizeof(cpu::mesh::vector_container::size_type));
 		stream.read(reinterpret_cast<char_type*>(&normals_capacity), sizeof(cpu::mesh::vector_container::size_type));
+		stream.read(reinterpret_cast<char_type*>(&texture_coordinates_capacity), sizeof(cpu::mesh::vector_container::size_type));
 		stream.read(reinterpret_cast<char_type*>(&indices_capacity), sizeof(cpu::mesh::index_container::size_type));
 
 		cpu::mesh::vector_container 
 			vertices(vertices_capacity),
-			normals(normals_capacity);
+			normals(normals_capacity),
+			texture_coordinates(texture_coordinates_capacity);
 		cpu::mesh::index_container
 			indices(indices_capacity);
 
 		stream.read(reinterpret_cast<char_type*>(vertices.data()), vertices.capacity() * sizeof(cpu::mesh::vector_container::value_type));
 		if (!normals.empty())
 			stream.read(reinterpret_cast<char_type*>(normals.data()), normals.capacity() * sizeof(cpu::mesh::vector_container::value_type));
+		if (!texture_coordinates.empty())
+			stream.read(reinterpret_cast<char_type*>(texture_coordinates.data()), texture_coordinates.capacity() * sizeof(cpu::mesh::vector_container::value_type));
 		if (!indices.empty())
 			stream.read(reinterpret_cast<char_type*>(indices.data()), indices.capacity() * sizeof(cpu::mesh::index_container::value_type));
 
 		stream >> mesh.material;
 
 		mesh.load(
-			vertices.data(), 
+			vertices.data(),
 			&vertices[vertices.capacity()],
 			(!normals.empty()) ? normals.data() : nullptr,
+			(!texture_coordinates.empty()) ? texture_coordinates.data() : nullptr,
 			(!indices.empty()) ? indices.data() : nullptr,
 			(!indices.empty()) ? &indices[indices.capacity()] : nullptr);
 
@@ -130,9 +143,9 @@ public:
 
 	int draw_count;
 	unsigned int vertex_vbo, index_vbo, vao;
-	int normal_size;
 	render_mode_type render_mode;
 	material material;
+	unsigned int diffuse_texture;
 
 
 
@@ -166,7 +179,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 /// Model
 ////////////////////////////////////////////////////////////////////////////////
-#define BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX 12
+#define BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX 64
 typedef boost::crc_32_type::value_type checksum_type;
 
 class model
@@ -201,6 +214,7 @@ public:
 	bool has_lights() const { return !lights.empty(); }
 	checksum_type model_file_checksum() const { return model_file_checksum_; }
 
+	void add_light( const light& light ) { lights.push_back(light); }
 	void push_back( mesh&& mesh ) { meshes[meshes_size++] = std::move(mesh); }
 	void render( program::id_type program_id ) 
 	{

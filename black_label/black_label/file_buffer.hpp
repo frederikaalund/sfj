@@ -43,6 +43,7 @@ public:
 	{ return buffer.capacity(); }
 	const buffer_type::value_type* data() const
 	{ return buffer.data(); }
+	bool empty() const { return nullptr == data(); }
 
 MSVC_PUSH_WARNINGS(4251)
 	buffer_type buffer;

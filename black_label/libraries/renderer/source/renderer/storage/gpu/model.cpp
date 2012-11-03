@@ -6,7 +6,10 @@
 
 #include <GL/glew.h>
 
+#include <SFML/Graphics/Image.hpp>
+
 using namespace std;
+using namespace sf;
 
 
 
@@ -24,6 +27,7 @@ mesh::mesh( const cpu::mesh& cpu_mesh )
 	, material(cpu_mesh.material)
 {
 	const float* normals_begin = (!cpu_mesh.normals.empty()) ? cpu_mesh.normals.data() : nullptr;
+	const float* texture_coordinates_begin = (!cpu_mesh.texture_coordinates.empty()) ? cpu_mesh.texture_coordinates.data() : nullptr;
 	const unsigned int* indices_begin = (!cpu_mesh.indices.empty()) ? cpu_mesh.indices.data() : nullptr;
 	const unsigned int* indices_end = (indices_begin) ? &cpu_mesh.indices[cpu_mesh.indices.capacity()] : nullptr;
 
@@ -31,6 +35,7 @@ mesh::mesh( const cpu::mesh& cpu_mesh )
 		cpu_mesh.vertices.data(), 
 		&cpu_mesh.vertices[cpu_mesh.vertices.capacity()],
 		normals_begin,
+		texture_coordinates_begin,
 		indices_begin,
 		indices_end);
 }
@@ -41,6 +46,7 @@ mesh::mesh(
 	const float* vertices_begin,
 	const float* vertices_end,
 	const float* normals_begin,
+	const float* texture_coordinates_begin,
 	const unsigned int* indices_begin,
 	const unsigned int* indices_end )
 	: render_mode(render_mode)
@@ -50,6 +56,7 @@ mesh::mesh(
 		vertices_begin, 
 		vertices_end, 
 		normals_begin, 
+		texture_coordinates_begin,
 		indices_begin, 
 		indices_end);
 }
@@ -73,21 +80,24 @@ void mesh::render( program::id_type program_id ) const
 		material.diffuse.b,
 		material.alpha);
   
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, diffuse_texture);
+	glUniform1i(glGetUniformLocation(program_id, "texture1"), 0);
+
 	glBindVertexArray(vao);
-		  
+
 	if (has_indices())
 		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, 0);
 	else
 		glDrawArrays(render_mode, 0, draw_count);
-  
-  auto glerr_8 = glGetError();
-  auto asd = 2;
 }
 
 void mesh::load(
 	const float* vertices_begin,
 	const float* vertices_end,
 	const float* normals_begin,
+	const float* texture_coordinates_begin,
 	const unsigned int* indices_begin,
 	const unsigned int* indices_end )
 {
@@ -102,16 +112,11 @@ void mesh::load(
 	////////////////////////////////////////////////////////////////////////////////
 	/// Vertices
 	////////////////////////////////////////////////////////////////////////////////
-	draw_count = vertices_end-vertices_begin;
-	GLsizeiptr attribute_size = draw_count*sizeof(float);
-	GLsizeiptr total_size = attribute_size;
-	if (nullptr == normals_begin)
-		normal_size = 0;
-	else
-	{
-		normal_size = attribute_size;
-		total_size *= 2;
-	}
+	draw_count = vertices_end - vertices_begin;
+	GLsizeiptr vertex_size = draw_count * sizeof(float);
+	GLsizeiptr normal_size = (normals_begin) ? vertex_size : 0;
+	GLsizeiptr texture_coordinate_size = (texture_coordinates_begin) ? vertex_size * 2 / 3 : 0;
+	auto total_size = vertex_size + normal_size + texture_coordinate_size;
 
 	glGenBuffers(1, &vertex_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vertex_vbo);
@@ -121,16 +126,26 @@ void mesh::load(
 		nullptr,
 		GL_STATIC_DRAW);
 	
-	glBufferSubData(GL_ARRAY_BUFFER, 0, attribute_size, vertices_begin);
+	GLintptr offset = 0;
+	glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_size, vertices_begin);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); 
 	glEnableVertexAttribArray(0);   
-	if (normal_size)
+	offset += vertex_size;
+	if (normals_begin)
 	{
-		glBufferSubData(GL_ARRAY_BUFFER, attribute_size, normal_size, normals_begin);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(normal_size));
+		glBufferSubData(GL_ARRAY_BUFFER, offset, normal_size, normals_begin);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(offset));
 		glEnableVertexAttribArray(1);
+		offset += normal_size;
 	}
-		
+	if (texture_coordinates_begin)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, offset, texture_coordinate_size, texture_coordinates_begin);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(offset));
+		glEnableVertexAttribArray(2);
+		offset += texture_coordinate_size;
+	}	
+
 
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -164,9 +179,34 @@ void mesh::load(
 
 	glBufferData(
 		GL_ELEMENT_ARRAY_BUFFER, 
-		draw_count*sizeof(unsigned int),
+		draw_count * sizeof(unsigned int),
 		indices_begin,
 		GL_STATIC_DRAW);
+
+
+
+	////////////////////////////////////////////////////////////////////////////////
+	/// Texture
+	////////////////////////////////////////////////////////////////////////////////
+	if (!material.diffuse_texture.empty())
+	{
+		Image image;
+		if (!image.loadFromFile(material.diffuse_texture))
+ 			return;
+
+		image.flipVertically();
+
+		glGenTextures(1, &diffuse_texture);
+		glBindTexture(GL_TEXTURE_2D, diffuse_texture);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.getSize().x, image.getSize().y, 0,
+			GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
+	}
+
 }
 
 } // namespace gpu

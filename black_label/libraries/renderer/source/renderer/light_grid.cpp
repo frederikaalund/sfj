@@ -70,9 +70,11 @@ void light_grid::update()
 
 		int solution_count = 4;
 
+
+
 		auto L = camera.view_matrix * glm::vec4(light.position, 1.0f);
 		auto L_s = L*L;
-		auto r = light.radius;
+		auto r = light.radius(0.001f);
 		auto r_s = r*r;
 		glm::vec3 N, P;
 
@@ -186,15 +188,15 @@ void light_grid::update()
 
 void light_grid::bind( program::id_type program_id ) const
 {
-	glActiveTexture(GL_TEXTURE2);
+	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_BUFFER, index_list_texture);
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, index_list_buffer);
-	glUniform1i(glGetUniformLocation(program_id, "light_index_list"), 2);
+	glUniform1i(glGetUniformLocation(program_id, "light_index_list"), 5);
 
-	glActiveTexture(GL_TEXTURE3);
+	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_BUFFER, grid_texture);
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32I, grid_buffer);
-	glUniform1i(glGetUniformLocation(program_id, "light_grid"), 3);
+	glUniform1i(glGetUniformLocation(program_id, "light_grid"), 6);
 }
 
 } // namespace renderer

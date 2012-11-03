@@ -20,12 +20,13 @@ class world
 {
 public:
 	typedef std::string model_type;
+	typedef std::string dynamics_type;
 	typedef glm::mat4 transformation_type;
 
 	typedef container::svector<model_type> model_container;
 	typedef model_container::size_type model_id_type;
 
-	typedef entities<model_type, transformation_type> entities_type;
+	typedef entities<model_type, dynamics_type, transformation_type> entities_type;
 	typedef entities_type::size_type entity_id_type;
 
 

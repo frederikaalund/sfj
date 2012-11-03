@@ -51,9 +51,11 @@ public:
 		render_mode_type render_mode,
 		vector_container&& vertices,
 		vector_container&& normals,
+		vector_container&& texture_coordinates,
 		index_container&& indices )
 		: vertices(std::move(vertices))
 		, normals(std::move(normals))
+		, texture_coordinates(std::move(texture_coordinates))
 		, indices(std::move(indices))
 		, render_mode(render_mode)
 		, material(material)
@@ -64,10 +66,12 @@ public:
 		float* vertices_begin,
 		float* vertices_end,
 		float* normals_begin = nullptr,
+		float* texture_coordinates_begin = nullptr,
 		unsigned int* indices_begin = nullptr,
 		unsigned int* indices_end = nullptr )
 		: vertices(vertices_begin, vertices_end)
 		, normals((normals_begin) ? vector_container(normals_begin, normals_begin + (vertices_end - vertices_begin)) : vector_container())
+		, texture_coordinates((texture_coordinates_begin) ? vector_container(texture_coordinates_begin, texture_coordinates_begin + (vertices_end - vertices_begin) * 2 / 3) : vector_container())
 		, indices((indices_begin) ? index_container(indices_begin, indices_end) : index_container())
 		, render_mode(render_mode)
 		, material(material)
@@ -80,18 +84,22 @@ public:
 	{
 		vector_container::size_type 
 			vertices_capacity = mesh.vertices.capacity(),
-			normals_capacity = mesh.normals.capacity();
+			normals_capacity = mesh.normals.capacity(),
+			texture_coordinates_capacity = mesh.texture_coordinates.capacity();
 		index_container::size_type
 			indices_capacity = mesh.indices.capacity();
 
 		stream.write(reinterpret_cast<const char_type*>(&mesh.render_mode), sizeof(render_mode_type));
 		stream.write(reinterpret_cast<const char_type*>(&vertices_capacity), sizeof(vector_container::size_type));
 		stream.write(reinterpret_cast<const char_type*>(&normals_capacity), sizeof(vector_container::size_type));
+		stream.write(reinterpret_cast<const char_type*>(&texture_coordinates_capacity), sizeof(vector_container::size_type));
 		stream.write(reinterpret_cast<const char_type*>(&indices_capacity), sizeof(index_container::size_type));
 
 		stream.write(reinterpret_cast<const char_type*>(mesh.vertices.data()), mesh.vertices.capacity() * sizeof(vector_container::value_type));
 		if (!mesh.normals.empty())
 			stream.write(reinterpret_cast<const char_type*>(mesh.normals.data()), mesh.normals.capacity() * sizeof(vector_container::value_type));
+		if (!mesh.texture_coordinates.empty())
+			stream.write(reinterpret_cast<const char_type*>(mesh.texture_coordinates.data()), mesh.texture_coordinates.capacity() * sizeof(vector_container::value_type));
 		if (!mesh.indices.empty())
 			stream.write(reinterpret_cast<const char_type*>(mesh.indices.data()), mesh.indices.capacity() * sizeof(index_container::value_type));
 
@@ -102,7 +110,7 @@ public:
 
 
 
-	vector_container vertices, normals;
+	vector_container vertices, normals, texture_coordinates;
 	index_container indices;
 	render_mode_type render_mode;
 	material material;
@@ -116,7 +124,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 /// Model
 ////////////////////////////////////////////////////////////////////////////////
-#define BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX 12
+#define BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX 64
 typedef boost::crc_32_type::value_type checksum_type;
 
 class model
@@ -131,6 +139,8 @@ public:
 		: meshes_size(0), model_file_checksum_(model_file_checksum) {}
 
 	checksum_type model_file_checksum() const { return model_file_checksum_; }
+
+	void add_light( const light& light ) { lights.push_back(light); }
 
 	void push_back( mesh&& mesh ) { meshes[meshes_size++] = std::move(mesh); }
 

@@ -1,6 +1,7 @@
 #ifndef CAVE_DEMO_APPLICATION_HPP
 #define CAVE_DEMO_APPLICATION_HPP
 
+#include <black_label/dynamics.hpp>
 #include <black_label/file_system_watcher.hpp>
 #include <black_label/utility/log_severity_level.hpp>
 #include <black_label/renderer.hpp>
@@ -51,6 +52,7 @@ public:
 	black_label::thread_pool::thread_pool thread_pool;
 	black_label::world::world world;
 	black_label::renderer::renderer renderer;
+	black_label::dynamics::dynamics dynamics;
 
 
 
