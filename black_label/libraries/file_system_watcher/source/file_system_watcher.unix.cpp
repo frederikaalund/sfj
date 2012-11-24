@@ -7,10 +7,8 @@
 
 
 
-namespace black_label
-{
-namespace file_system_watcher
-{
+namespace black_label {
+namespace file_system_watcher {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// File System Watcher

@@ -10,12 +10,9 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
-namespace storage
-{
+namespace black_label {
+namespace renderer {
+namespace storage {
 
 BLACK_LABEL_SHARED_LIBRARY bool load_fbx( 
 	const boost::filesystem::path& path, 

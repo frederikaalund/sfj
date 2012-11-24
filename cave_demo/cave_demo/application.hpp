@@ -14,8 +14,7 @@
 
 
 
-namespace cave_demo
-{
+namespace cave_demo {
 
 class application
 {

@@ -14,10 +14,8 @@
 
 
 
-namespace black_label
-{
-namespace world
-{
+namespace black_label {
+namespace world {
 
 template<typename model_type, typename dynamics_type, typename transformation_type>
 class entities

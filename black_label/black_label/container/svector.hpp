@@ -8,10 +8,8 @@
 
 
 
-namespace black_label
-{
-namespace container
-{
+namespace black_label {
+namespace container {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// svector
@@ -91,6 +89,9 @@ protected:
 
 
 private:
+
+// TODO: Maybe checking for a trivial destructor is not enough! What happens if a class
+// with a trivial destructor has a MEMBER variable without a trivial destructor?
 
 #if MSVC && MSVC_VERSION <= 1600
 	#define IS_TRIVIALLY_DESTRUCTIBLE std::has_trivial_destructor

@@ -3,10 +3,8 @@
 
 
 
-namespace black_label
-{
-namespace thread_pool
-{
+namespace black_label {
+namespace thread_pool {
 
 using std::for_each;
 

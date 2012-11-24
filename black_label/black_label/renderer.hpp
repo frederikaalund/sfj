@@ -23,10 +23,8 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
+namespace black_label {
+namespace renderer {
 
 class BLACK_LABEL_SHARED_LIBRARY renderer
 {
@@ -96,6 +94,7 @@ MSVC_PUSH_WARNINGS(4251)
 	typedef std::unique_ptr<storage::gpu::model[]> model_container;
 	typedef container::svector<entity_id_type> sorted_entities_container;
 	typedef light_grid::light_container light_container;
+	typedef storage::gpu::texture_2d texture;
 
 	void update_lights();
 	bool import_model( const boost::filesystem::path& path, storage::gpu::model& gpu_model );
@@ -116,10 +115,11 @@ MSVC_PUSH_WARNINGS(4251)
 
 	light_grid light_grid;
 
-	program buffering, ubershader, blur_horizontal, blur_vertical, tone_mapper;
-	unsigned int framebuffer, depth_renderbuffer, main_render, ws_positions,
-		ss_positions, ss_normals, depths, bloom1, bloom2, lights_buffer, 
-		lights_texture;
+	program buffering, null, lighting, blur_horizontal, blur_vertical, tone_mapper;
+	unsigned int framebuffer;
+	texture main_render, depths, shadow_map, wc_normals, albedos, 
+		bloom1, bloom2, random_texture;
+	storage::gpu::texture_buffer<float> gpu_lights;
 
 	glm::mat4 projection_matrix;
 

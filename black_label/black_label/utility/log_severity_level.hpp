@@ -3,10 +3,8 @@
 
 
 
-namespace black_label
-{
-namespace utility
-{
+namespace black_label {
+namespace utility {
 
 enum severity_level
 {

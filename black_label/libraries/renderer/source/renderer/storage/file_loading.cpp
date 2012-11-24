@@ -16,6 +16,7 @@
 #include <OpenGL/gl.h>
 #endif
 
+#define FBXSDK_NEW_API
 #include <fbxsdk.h>
 #include <fbxsdk/fileio/fbxiosettings.h>
 
@@ -25,12 +26,9 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
-namespace storage
-{
+namespace black_label {
+namespace renderer {
+namespace storage {
 
 using namespace utility;
 
@@ -289,25 +287,41 @@ bool load_assimp(
 		}
 
 		aiMaterial* ai_material = scene->mMaterials[ai_mesh->mMaterialIndex];
-
-		aiColor3D diffuse_color;
-		ai_material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse_color);
-
 		material material;
-		material.diffuse.r = diffuse_color.r;
-		material.diffuse.g = diffuse_color.g;
-		material.diffuse.b = diffuse_color.b;
+
+		aiColor3D color;
+		ai_material->Get(AI_MATKEY_COLOR_AMBIENT, color);
+		material.ambient.r = color.r;
+		material.ambient.g = color.g;
+		material.ambient.b = color.b;
+
+		ai_material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+		material.diffuse.r = color.r;
+		material.diffuse.g = color.g;
+		material.diffuse.b = color.b;
+
+		ai_material->Get(AI_MATKEY_COLOR_SPECULAR, color);
+		material.specular.r = color.r;
+		material.specular.g = color.g;
+		material.specular.b = color.b;
+
+		ai_material->Get(AI_MATKEY_COLOR_EMISSIVE, color);
+		material.emissive.r = color.r;
+		material.emissive.g = color.g;
+		material.emissive.b = color.b;
 
 		ai_material->Get(AI_MATKEY_OPACITY, material.alpha);
-
+		ai_material->Get(AI_MATKEY_SHININESS, material.shininess);
 
 		aiString texture_string;
+		if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_AMBIENT, 0), texture_string))
+			material.ambient_texture = std::string(texture_string.data, &texture_string.data[texture_string.length]);
 		if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), texture_string))
-		{
 			material.diffuse_texture = std::string(texture_string.data, &texture_string.data[texture_string.length]);
-		}
-
-
+		if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_SPECULAR, 0), texture_string))
+			material.specular_texture = std::string(texture_string.data, &texture_string.data[texture_string.length]);
+		if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_HEIGHT, 0), texture_string))
+			material.height_texture = std::string(texture_string.data, &texture_string.data[texture_string.length]);
 
 		cpu::mesh cpu_mesh(
 			std::move(material),

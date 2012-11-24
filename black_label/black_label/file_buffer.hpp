@@ -9,10 +9,8 @@
 
 
 
-namespace black_label
-{
-namespace file_buffer
-{
+namespace black_label {
+namespace file_buffer {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Types and Constants

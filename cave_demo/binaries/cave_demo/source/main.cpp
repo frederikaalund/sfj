@@ -34,8 +34,8 @@ int main( int argc, char const* argv[] )
 	//auto scene_2 = environment.create("scene_2.fbx", "scene_2.bullet");
 	//environment.create("scene_2.dae", make_mat4(1.0f, 0.0f, 0.0f, -10.0f));
 	auto sponza = environment.create("sponza.obj", "sponza.bullet");
-	environment.create("default_light.fbx", "", make_mat4(1.0f, 0.0f, 10.0f, 0.0f));
-	environment.create("inverted_cube.obj", "", make_mat4(5000.0f, 0.0f, 0.0f, -2500.0f));
+	environment.create("default_light.fbx", "", make_mat4(1.0f, 500.0, 3500.0f, 600.0f));
+	//environment.create("inverted_cube.obj", "", make_mat4(8000.0f, 0.0f, 0.0f, -4000.0f));
 
 	for (int i = 0; i < 10; ++i)
 	{

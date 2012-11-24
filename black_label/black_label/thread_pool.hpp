@@ -16,10 +16,8 @@
 
 
 
-namespace black_label
-{
-namespace thread_pool
-{
+namespace black_label {
+namespace thread_pool {
 
 class BLACK_LABEL_SHARED_LIBRARY thread_pool
 {

@@ -1,8 +1,13 @@
 #define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/renderer/storage/gpu/model.hpp>
+#include <black_label/utility/log_severity_level.hpp>
+#include <black_label/utility/scoped_stream_suppression.hpp>
 
 #include <cassert>
 #include <string>
+
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
 
 #include <GL/glew.h>
 
@@ -13,14 +18,10 @@ using namespace sf;
 
 
 
-namespace black_label
-{
-namespace renderer
-{
-namespace storage
-{
-namespace gpu
-{
+namespace black_label {
+namespace renderer {
+namespace storage {
+namespace gpu {
 
 mesh::mesh( const cpu::mesh& cpu_mesh )
 	: render_mode(cpu_mesh.render_mode)
@@ -61,34 +62,33 @@ mesh::mesh(
 		indices_end);
 }
 
-mesh::~mesh()
-{
-	if (!is_loaded()) return;
 
-	glDeleteBuffers(1, &vertex_vbo);
-	if (has_indices()) glDeleteBuffers(1, &index_vbo);
-	glDeleteVertexArrays(1, &vao);
+
+void mesh::render( const core_program& program, int& texture_unit ) const
+{
+	if (material)
+	{
+		if (!material.specular_texture.empty())
+		{
+			program.set_uniform("specular_exponent", 1.0f);
+			specular_texture.use(program, "specular_texture", texture_unit);
+		}
+		else
+			program.set_uniform("specular_exponent", 0.0f);
+
+		if (!material.diffuse_texture.empty())
+			diffuse_texture.use(program, "diffuse_texture", texture_unit);
+	}
+
+	render_without_material();
 }
 
-
-
-void mesh::render( program::id_type program_id ) const
+void mesh::render_without_material() const
 {
-	glUniform4f(glGetUniformLocation(program_id, "color"),
-		material.diffuse.r, 
-		material.diffuse.g, 
-		material.diffuse.b,
-		material.alpha);
-  
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, diffuse_texture);
-	glUniform1i(glGetUniformLocation(program_id, "texture1"), 0);
-
-	glBindVertexArray(vao);
+	vertex_array.bind();
 
 	if (has_indices())
-		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, 0);
+		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, nullptr);
 	else
 		glDrawArrays(render_mode, 0, draw_count);
 }
@@ -104,8 +104,8 @@ void mesh::load(
 	////////////////////////////////////////////////////////////////////////////////
 	/// Vertex Array Object
 	////////////////////////////////////////////////////////////////////////////////
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+	vertex_array = gpu::vertex_array(generate);
+	vertex_array.bind();
 
 
 
@@ -118,31 +118,25 @@ void mesh::load(
 	GLsizeiptr texture_coordinate_size = (texture_coordinates_begin) ? vertex_size * 2 / 3 : 0;
 	auto total_size = vertex_size + normal_size + texture_coordinate_size;
 
-	glGenBuffers(1, &vertex_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vertex_vbo);
-	glBufferData(
-		GL_ARRAY_BUFFER, 
-		total_size,
-		nullptr,
-		GL_STATIC_DRAW);
+	
+	
+	vertex_buffer = vertex_buffer_type(total_size);
 	
 	GLintptr offset = 0;
-	glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_size, vertices_begin);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); 
-	glEnableVertexAttribArray(0);   
+	gpu::vertex_array::index_type index = 0;
+	vertex_buffer.update(offset, vertex_size, vertices_begin);
+	vertex_array.add_attribute(index, 3, nullptr);
 	offset += vertex_size;
 	if (normals_begin)
 	{
-		glBufferSubData(GL_ARRAY_BUFFER, offset, normal_size, normals_begin);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(offset));
-		glEnableVertexAttribArray(1);
+		vertex_buffer.update(offset, normal_size, normals_begin);
+		vertex_array.add_attribute(index, 3, reinterpret_cast<const void*>(offset));
 		offset += normal_size;
 	}
 	if (texture_coordinates_begin)
 	{
-		glBufferSubData(GL_ARRAY_BUFFER, offset, texture_coordinate_size, texture_coordinates_begin);
-		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(offset));
-		glEnableVertexAttribArray(2);
+		vertex_buffer.update(offset, texture_coordinate_size, texture_coordinates_begin);
+		vertex_array.add_attribute(index, 2, reinterpret_cast<const void*>(offset));
 		offset += texture_coordinate_size;
 	}	
 
@@ -151,37 +145,13 @@ void mesh::load(
 	////////////////////////////////////////////////////////////////////////////////
 	/// Indices
 	////////////////////////////////////////////////////////////////////////////////
-	if (indices_begin == indices_end)
+	if (indices_begin != indices_end)
 	{
-		index_vbo = invalid_vbo;
-
-		switch (render_mode)
-		{
-		// (2 indices)/(6 floats) = 1/3 indices/float
-		case GL_LINES:
-			{ draw_count /= 3; }
-			break;
-		// (4 indices)/(12 floats) = 1/3 indices/float
-		case GL_QUADS:
-			{ draw_count /= 3; }
-			break;
-		default:
-			{ assert(false); }
-		}
-
-		return;
+		draw_count = indices_end - indices_begin;
+		index_buffer = index_buffer_type(draw_count * sizeof(unsigned int), indices_begin);
 	}
-
-	draw_count = indices_end-indices_begin;
-
-	glGenBuffers(1, &index_vbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_vbo);
-
-	glBufferData(
-		GL_ELEMENT_ARRAY_BUFFER, 
-		draw_count * sizeof(unsigned int),
-		indices_begin,
-		GL_STATIC_DRAW);
+	else
+		draw_count /= 3;
 
 
 
@@ -190,23 +160,41 @@ void mesh::load(
 	////////////////////////////////////////////////////////////////////////////////
 	if (!material.diffuse_texture.empty())
 	{
+		using namespace black_label::utility;
+		boost::log::sources::severity_logger<severity_level> log;
+
 		Image image;
-		if (!image.loadFromFile(material.diffuse_texture))
- 			return;
+		{
+			scoped_stream_suppression suppress(stdout);
+			if (!image.loadFromFile(material.diffuse_texture))
+			{
+				BOOST_LOG_SEV(log, warning) << "Missing texture \"" << material.diffuse_texture << "\"";
+				return;
+			}
+		}
 
-		image.flipVertically();
-
-		glGenTextures(1, &diffuse_texture);
-		glBindTexture(GL_TEXTURE_2D, diffuse_texture);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.getSize().x, image.getSize().y, 0,
-			GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
+		diffuse_texture = texture_2d(MIPMAP, REPEAT, image.getSize().x, image.getSize().y, reinterpret_cast<const texture_2d::srgb_a*>(image.getPixelsPtr()));
+		BOOST_LOG_SEV(log, info) << "Imported texture \"" << material.diffuse_texture << "\"";
 	}
 
+	if (!material.specular_texture.empty())
+	{
+		using namespace black_label::utility;
+		boost::log::sources::severity_logger<severity_level> log;
+
+		Image image;
+		{
+			scoped_stream_suppression suppress(stdout);
+			if (!image.loadFromFile(material.specular_texture))
+			{
+				BOOST_LOG_SEV(log, warning) << "Missing texture \"" << material.specular_texture << "\"";
+				return;
+			}
+		}
+
+		specular_texture = texture_2d(MIPMAP, REPEAT, image.getSize().x, image.getSize().y, reinterpret_cast<const texture_2d::srgb_a*>(image.getPixelsPtr()));
+		BOOST_LOG_SEV(log, info) << "Imported texture \"" << material.specular_texture << "\"";
+	}
 }
 
 } // namespace gpu

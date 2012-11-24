@@ -6,34 +6,32 @@
 #include <black_label/renderer/material.hpp>
 #include <black_label/renderer/program.hpp>
 #include <black_label/renderer/storage/cpu/model.hpp>
+#include <black_label/renderer/storage/gpu/texture.hpp>
+#include <black_label/renderer/storage/gpu/vertex_array.hpp>
 #include <black_label/shared_library/utility.hpp>
 #include <black_label/utility/algorithm.hpp>
 
 #include <algorithm>
-#include <array>
 #include <bitset>
 #include <memory>
 #include <istream>
 #include <ostream>
 
 #include <boost/crc.hpp>
+#include <boost/serialization/access.hpp>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 
 
-namespace black_label
-{
-namespace renderer 
-{
+namespace black_label {
+namespace renderer {
 
 class renderer;
 
-namespace storage 
-{
-namespace gpu
-{
+namespace storage {
+namespace gpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Mesh
@@ -43,8 +41,10 @@ typedef unsigned int render_mode_type;
 class mesh
 {
 public:
-	static const unsigned int invalid_vbo = 0;
-	static const unsigned int invalid_texture = 0;
+	friend class boost::serialization::access;
+
+	typedef buffer<target::array, usage::static_draw> vertex_buffer_type;
+	typedef buffer<target::element_array, usage::static_draw> index_buffer_type;
 
 
 
@@ -52,19 +52,17 @@ public:
 	{
 		using std::swap;
 		swap(rhs.draw_count, lhs.draw_count);
-		swap(rhs.vertex_vbo, lhs.vertex_vbo);
-		swap(rhs.index_vbo, lhs.index_vbo);
-		swap(rhs.vao, lhs.vao);
+		swap(rhs.vertex_buffer, lhs.vertex_buffer);
+		swap(rhs.index_buffer, lhs.index_buffer);
+		swap(rhs.vertex_array, lhs.vertex_array);
 		swap(rhs.render_mode, lhs.render_mode);
 		swap(rhs.material, lhs.material);
 		swap(rhs.diffuse_texture, lhs.diffuse_texture);
+		swap(rhs.specular_texture, lhs.specular_texture);
 	}
 
-	mesh() : vertex_vbo(invalid_vbo), diffuse_texture(invalid_texture) {}
-	mesh( mesh&& other ) 
-		: vertex_vbo(invalid_vbo)
-		, diffuse_texture(invalid_texture)
-	{ swap(*this, other); }
+	mesh() {}
+	mesh( mesh&& other ) { swap(*this, other); }
 
 	mesh( const cpu::mesh& cpu_mesh );
 	mesh(
@@ -77,8 +75,6 @@ public:
 		const unsigned int* indices_begin = nullptr,
 		const unsigned int* indices_end = nullptr );
 
-	BLACK_LABEL_SHARED_LIBRARY ~mesh();
-
 	mesh& operator=( mesh lhs ) { swap(*this, lhs); return *this; }
 
 	void load(
@@ -88,64 +84,40 @@ public:
 		const float* texture_coordinates_begin = nullptr,
 		const unsigned int* indices_begin = nullptr,
 		const unsigned int* indices_end = nullptr );
-	bool is_loaded() const { return invalid_vbo != vertex_vbo; }
-	bool has_indices() const { return invalid_vbo != index_vbo; }
+	bool is_loaded() const { return vertex_buffer.valid(); }
+	bool has_indices() const { return index_buffer.valid(); }
 
-	void render( program::id_type program_id ) const;
+	void render( const core_program& program, int& texture_unit ) const;
+	void render_without_material() const;
 
-	template<typename char_type>
-	friend std::basic_istream<char_type>& operator>>( 
-		std::basic_istream<char_type>& stream, 
-		mesh& mesh )
+
+
+	template<typename archive_type>
+	void serialize( archive_type& archive, unsigned int version )
 	{
-		cpu::mesh::vector_container::size_type 
-			vertices_capacity,
-			normals_capacity,
-			texture_coordinates_capacity;
-		cpu::mesh::index_container::size_type
-			indices_capacity;
+		cpu::mesh::vector_container vertices, normals, texture_coordinates;
+		cpu::mesh::index_container indices;
+		archive & vertices & normals & texture_coordinates & indices
+			& render_mode & material;
 
-		stream.read(reinterpret_cast<char_type*>(&mesh.render_mode), sizeof(render_mode_type));
-		stream.read(reinterpret_cast<char_type*>(&vertices_capacity), sizeof(cpu::mesh::vector_container::size_type));
-		stream.read(reinterpret_cast<char_type*>(&normals_capacity), sizeof(cpu::mesh::vector_container::size_type));
-		stream.read(reinterpret_cast<char_type*>(&texture_coordinates_capacity), sizeof(cpu::mesh::vector_container::size_type));
-		stream.read(reinterpret_cast<char_type*>(&indices_capacity), sizeof(cpu::mesh::index_container::size_type));
-
-		cpu::mesh::vector_container 
-			vertices(vertices_capacity),
-			normals(normals_capacity),
-			texture_coordinates(texture_coordinates_capacity);
-		cpu::mesh::index_container
-			indices(indices_capacity);
-
-		stream.read(reinterpret_cast<char_type*>(vertices.data()), vertices.capacity() * sizeof(cpu::mesh::vector_container::value_type));
-		if (!normals.empty())
-			stream.read(reinterpret_cast<char_type*>(normals.data()), normals.capacity() * sizeof(cpu::mesh::vector_container::value_type));
-		if (!texture_coordinates.empty())
-			stream.read(reinterpret_cast<char_type*>(texture_coordinates.data()), texture_coordinates.capacity() * sizeof(cpu::mesh::vector_container::value_type));
-		if (!indices.empty())
-			stream.read(reinterpret_cast<char_type*>(indices.data()), indices.capacity() * sizeof(cpu::mesh::index_container::value_type));
-
-		stream >> mesh.material;
-
-		mesh.load(
+		load(
 			vertices.data(),
 			&vertices[vertices.capacity()],
 			(!normals.empty()) ? normals.data() : nullptr,
 			(!texture_coordinates.empty()) ? texture_coordinates.data() : nullptr,
 			(!indices.empty()) ? indices.data() : nullptr,
 			(!indices.empty()) ? &indices[indices.capacity()] : nullptr);
-
-		return stream;
 	}
 
 
 
 	int draw_count;
-	unsigned int vertex_vbo, index_vbo, vao;
+	vertex_buffer_type vertex_buffer;
+	index_buffer_type index_buffer;
+	vertex_array vertex_array;
 	render_mode_type render_mode;
 	material material;
-	unsigned int diffuse_texture;
+	texture_2d diffuse_texture, specular_texture;
 
 
 
@@ -168,7 +140,7 @@ public:
 	void push_back_keyframe( mesh&& mesh ) 
 	{ keyframes[size++] = std::move(mesh); }
 
-	void render( int keyframe, program::id_type program_id ) { keyframes[keyframe].render(program_id); };
+	//void render( int keyframe, program::id_type program_id ) { keyframes[keyframe].render(program_id); };
 
 	int capacity, size;
 	std::unique_ptr<mesh[]> keyframes;
@@ -179,7 +151,6 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 /// Model
 ////////////////////////////////////////////////////////////////////////////////
-#define BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX 64
 typedef boost::crc_32_type::value_type checksum_type;
 
 class model
@@ -188,44 +159,44 @@ public:
 	typedef cpu::model::light_container light_container;
 
 	friend class renderer;
+	friend class boost::serialization::access;
+
+
 
 	friend void swap( model& lhs, model& rhs )
 	{
 		using std::swap;
-    
-    auto lhs_i = lhs.meshes.begin();
-    auto rhs_i = rhs.meshes.begin();
-    while (lhs.meshes.end() != lhs_i)
-      swap(*lhs_i++, *rhs_i++);
-		//swap(lhs.meshes, rhs.meshes);
-    
-		swap(lhs.meshes_size, rhs.meshes_size);
+		swap(lhs.meshes, rhs.meshes);
 		swap(lhs.model_file_checksum_, rhs.model_file_checksum_);
 	}
 
-	model() : meshes_size(0) {}
+	model() {}
 	model( model&& other ) { swap(*this, other); }
 	model( checksum_type model_file_checksum ) 
-		: meshes_size(0), model_file_checksum_(model_file_checksum) {}
+		: model_file_checksum_(model_file_checksum) {}
 
 	model& operator=( model rhs ) { swap(*this, rhs); return *this; }
 
-	bool is_loaded() const { return 0 < meshes_size; }
+	bool is_loaded() const { return !meshes.empty(); }
 	bool has_lights() const { return !lights.empty(); }
 	checksum_type model_file_checksum() const { return model_file_checksum_; }
 
 	void add_light( const light& light ) { lights.push_back(light); }
-	void push_back( mesh&& mesh ) { meshes[meshes_size++] = std::move(mesh); }
-	void render( program::id_type program_id ) 
+	void push_back( mesh&& mesh ) { meshes.push_back(std::move(mesh)); }
+	void render( const core_program& program, int& texture_unit ) const
 	{
-		std::for_each(meshes.cbegin(), meshes.cbegin() + meshes_size, 
-			[&] ( const mesh& mesh ){ mesh.render(program_id); });
+		std::for_each(meshes.cbegin(), meshes.cend(), 
+			[&] ( const mesh& mesh ){ mesh.render(program, texture_unit); });
+	}
+	void render_without_material() const
+	{
+		std::for_each(meshes.cbegin(), meshes.cend(), 
+			[&] ( const mesh& mesh ){ mesh.render_without_material(); });
 	}
 
 	void clear()
 	{ 
-		std::generate(meshes.begin(), meshes.begin() + meshes_size, [](){ return mesh(); });
-		meshes_size = 0;
+		std::generate(meshes.begin(), meshes.end(), [](){ return mesh(); });
 		lights.clear();
 	}
 
@@ -240,36 +211,22 @@ public:
 		return checksum;
 	}
 
-	template<typename char_type>
-	friend std::basic_istream<char_type>& operator>>( 
-		std::basic_istream<char_type>& stream, 
-		model& model )
+
+
+	template<typename archive_type>
+	void serialize( archive_type& archive, unsigned int version )
 	{
-		model.clear();
-
-		stream.read(reinterpret_cast<char_type*>(&model.model_file_checksum_), sizeof(checksum_type));
-		stream.read(reinterpret_cast<char_type*>(&model.meshes_size), sizeof(int));
-		
-		std::for_each(model.meshes.begin(), model.meshes.begin() + model.meshes_size, 
-			[&] ( mesh& mesh ) { stream >> mesh; });
-
-		light_container::size_type lights_size;
-		stream.read(reinterpret_cast<char_type*>(&lights_size), sizeof(light_container::size_type));
-		if (0 < lights_size)
-		{
-			model.lights.resize(lights_size);
-			stream.read(reinterpret_cast<char_type*>(model.lights.data()), sizeof(light) * lights_size);
-		}
-
-		return stream;
+		archive.load_binary(&model_file_checksum_, sizeof(checksum_type));
+		archive & meshes & lights;
 	}
+
+
 
 protected:
 	model( const model& other ); // Possible, but did not bother
 
 private:
-	std::array<mesh, BLACK_LABEL_RENDERER_STORAGE_MODEL_MESHES_MAX> meshes;
-	int meshes_size;
+	std::vector<mesh> meshes;
 	light_container lights;
 	checksum_type model_file_checksum_;
 };

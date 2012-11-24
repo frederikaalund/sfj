@@ -9,10 +9,8 @@
 
 
 
-namespace black_label
-{
-namespace container
-{
+namespace black_label {
+namespace container {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// darray

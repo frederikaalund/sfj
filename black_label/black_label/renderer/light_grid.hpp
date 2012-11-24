@@ -6,16 +6,17 @@
 #include <black_label/renderer/camera.hpp>
 #include <black_label/renderer/light.hpp>
 #include <black_label/renderer/program.hpp>
+#include <black_label/renderer/storage/gpu/texture.hpp>
 #include <black_label/shared_library/utility.hpp>
 
 #include <vector>
 
+#include <glm/glm.hpp>
 
 
-namespace black_label
-{
-namespace renderer
-{
+
+namespace black_label {
+namespace renderer {
 
 class light_grid
 {
@@ -29,11 +30,10 @@ public:
 
 
 	light_grid( int tile_size, black_label::renderer::camera& camera, const light_container& lights );
-	~light_grid();
 
 	void on_window_resized( int width, int height );
 	void update();
-	void bind( program::id_type program_id ) const;
+	void use( const core_program& program, int& texture_unit ) const;
 
 	int tile_size() const { return tile_size_; }
 	int tiles_x() const { return tiles_x_; }
@@ -53,8 +53,8 @@ private:
 	grid_type grid;
 	index_list_type index_list;
 
-	unsigned int index_list_buffer, index_list_texture, 
-		grid_buffer, grid_texture;
+	storage::gpu::texture_buffer<int> gpu_index_list;
+	storage::gpu::texture_buffer<glm::ivec2> gpu_grid;
 
 	black_label::renderer::camera& camera;
 	const light_container& lights;

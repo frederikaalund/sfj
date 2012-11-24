@@ -13,10 +13,8 @@
 
 
 
-namespace black_label
-{
-namespace thread_pool
-{
+namespace black_label {
+namespace thread_pool {
   class task;
 } // namespace thread_pool
 } // namespace black_label
@@ -50,10 +48,8 @@ black_label::thread_pool::task operator>>( black_label::thread_pool::task&& lhs,
 
 
 
-namespace black_label
-{
-namespace thread_pool
-{
+namespace black_label {
+namespace thread_pool {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// task

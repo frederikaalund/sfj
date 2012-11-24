@@ -11,10 +11,8 @@
 
 
 
-namespace black_label
-{
-namespace world
-{
+namespace black_label {
+namespace world {
 
 class world
 {

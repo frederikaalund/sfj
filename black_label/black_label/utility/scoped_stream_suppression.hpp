@@ -8,10 +8,8 @@
 
 
 
-namespace black_label
-{
-namespace utility
-{
+namespace black_label {
+namespace utility {
 
 class scoped_stream_suppression
 {

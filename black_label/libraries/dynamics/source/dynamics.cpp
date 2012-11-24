@@ -13,10 +13,8 @@ using namespace std;
 
 
 
-namespace black_label
-{
-namespace dynamics
-{
+namespace black_label {
+namespace dynamics {
 
 dynamics::dynamics( world_type& world )
 	: world(world)

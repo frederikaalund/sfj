@@ -5,10 +5,8 @@
 
 
 
-namespace black_label
-{
-namespace utility
-{
+namespace black_label {
+namespace utility {
 
 boost::crc_32_type::value_type crc_32( const void* data, size_t size )
 {

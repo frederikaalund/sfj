@@ -14,10 +14,8 @@
 
 
 
-namespace black_label
-{
-namespace dynamics
-{
+namespace black_label {
+namespace dynamics {
 
 class BLACK_LABEL_SHARED_LIBRARY dynamics
 {
