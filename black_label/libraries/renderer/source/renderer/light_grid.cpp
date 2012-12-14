@@ -9,10 +9,12 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
+namespace black_label {
+namespace renderer {
+
+using namespace storage::gpu;
+
+
 
 light_grid::light_grid( 
 	int tile_size, 
@@ -21,22 +23,9 @@ light_grid::light_grid(
 	: tile_size_(tile_size)
 	, camera(camera)
 	, lights(lights)
-{
-	glGenBuffers(1, &index_list_buffer);
-	glGenTextures(1, &index_list_texture);
-
-	glGenBuffers(1, &grid_buffer);
-	glGenTextures(1, &grid_texture);
-}
-
-light_grid::~light_grid()
-{
-	glDeleteBuffers(1, &index_list_buffer);
-	glDeleteTextures(1, &index_list_texture);
-
-	glDeleteBuffers(1, &grid_buffer);
-	glDeleteTextures(1, &grid_texture);
-}
+	, gpu_index_list(generate)
+	, gpu_grid(generate)
+{}
 
 
 
@@ -55,7 +44,7 @@ void light_grid::update()
 {
 	float
 		alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f,
-    tan_alpha = tan(alpha);
+		tan_alpha = tan(alpha);
 
 
 
@@ -70,9 +59,11 @@ void light_grid::update()
 
 		int solution_count = 4;
 
+
+
 		auto L = camera.view_matrix * glm::vec4(light.position, 1.0f);
 		auto L_s = L*L;
-		auto r = light.radius;
+		auto r = light.radius(0.0001f);
 		auto r_s = r*r;
 		glm::vec3 N, P;
 
@@ -173,46 +164,17 @@ void light_grid::update()
 
 		index_list.insert(index_list.end(), index_grid_it->cbegin(), index_grid_it->cend());
 	}
-  
-	if (!index_list.empty())
-	{
-#ifdef USE_TEXTURE_BUFFER
-		glBindBuffer(GL_TEXTURE_BUFFER, index_list_buffer);
-		glBufferData(GL_TEXTURE_BUFFER, index_list.size() * sizeof(index_list_type::value_type), index_list.data(), GL_STREAM_DRAW);
-#else
-		glBindBuffer(GL_UNIFORM_BUFFER, index_list_buffer);
-		glBufferData(GL_UNIFORM_BUFFER, index_list.size() * sizeof(index_list_type::value_type), index_list.data(), GL_STREAM_DRAW);
-#endif
-	}
 
-	glBindBuffer(GL_TEXTURE_BUFFER, grid_buffer);
-	glBufferData(GL_TEXTURE_BUFFER, grid.capacity() * sizeof(grid_type::value_type), grid.data(), GL_STREAM_DRAW);
+	if (!index_list.empty())
+		gpu_index_list.bind_buffer_and_update(index_list.size(), index_list.data());
+
+	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::ivec2*>(grid.data()));
 }
 
-void light_grid::bind( program::id_type program_id ) const
+void light_grid::use( const core_program& program, int& texture_unit ) const
 {
-#ifdef USE_TEXTURE_BUFFER
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_BUFFER, index_list_texture);
-	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, index_list_buffer);
-	glUniform1i(glGetUniformLocation(program_id, "light_index_list"), 2);
-#else
-  glBindBufferBase(GL_UNIFORM_BUFFER, 0, index_list_buffer);
-  auto uni_name = "test2_block.index_list[0]";
-  unsigned int uni_index;
-  glGetUniformIndices(program_id, 1, &uni_name, &uni_index);
-  int params;
-  glGetActiveUniformsiv(program_id, 1, &uni_index, GL_UNIFORM_ARRAY_STRIDE, &params);
-  auto uni_block_index = glGetUniformBlockIndex(program_id, "test2_block");
-  glUniformBlockBinding(program_id, uni_block_index, 0);
-#endif
-  
-	glUniform1i(glGetUniformLocation(program_id, "light_index_list_size"), index_list.size());
-
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_BUFFER, grid_texture);
-	glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32I, grid_buffer);
-	glUniform1i(glGetUniformLocation(program_id, "light_grid"), 3);
+	gpu_index_list.use(program, "light_index_list", texture_unit);
+	gpu_grid.use(program, "light_grid", texture_unit);
 }
 
 } // namespace renderer

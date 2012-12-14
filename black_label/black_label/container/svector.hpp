@@ -3,14 +3,13 @@
 
 #include <black_label/container/darray.hpp>
 
+#include <cassert>
 #include <type_traits>
 
 
 
-namespace black_label
-{
-namespace container
-{
+namespace black_label {
+namespace container {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// svector
@@ -66,6 +65,7 @@ public:
 
 	void pop_back() { pop_back_<T>(*this); }
 	
+	void resize( size_type size ) { resize_<T>(*this, size); }
 	void clear() { clear_<T>(*this); }
 
 	template<typename input_iterator>
@@ -90,10 +90,15 @@ protected:
 
 private:
 
+// TODO: Maybe checking for a trivial destructor is not enough! What happens if a class
+// with a trivial destructor has a MEMBER variable without a trivial destructor?
+
 #if MSVC && MSVC_VERSION <= 1600
 	#define IS_TRIVIALLY_DESTRUCTIBLE std::has_trivial_destructor
+	#define IS_TRIVIALLY_CONTRUCTIBLE std::has_trivial_constructor
 #else
 	#define IS_TRIVIALLY_DESTRUCTIBLE std::is_trivially_destructible
+	#define IS_TRIVIALLY_CONTRUCTIBLE std::is_trivially_constructor
 #endif
 
 	template<typename T_> static
@@ -107,8 +112,41 @@ private:
 
 
 	template<typename T_> static
-	typename std::enable_if<!IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
-	clear_( svector<T_>& sv )
+	typename std::enable_if<!(
+		(IS_TRIVIALLY_DESTRUCTIBLE<T_>::value) &&
+		(IS_TRIVIALLY_CONTRUCTIBLE<T_>::value))>::type
+	resize_( svector<T_>& sv, size_type size )
+	{
+		assert(size <= sv.capacity_);
+
+		if (sv.size_ < size)
+		{
+			for (auto i = sv.begin() + size; sv.end() != i; ++i)
+				*i = T_();
+			sv.size_ = size;	
+		}
+		else if (sv.size_ > size)
+		{
+			for (auto i = sv.begin() + size; sv.end() != i; ++i)
+				i->~T_();
+			sv.size_ = size;
+		}
+	}
+
+	template<typename T_> static
+	typename std::enable_if<
+		(IS_TRIVIALLY_DESTRUCTIBLE<T_>::value) &&
+		(IS_TRIVIALLY_CONTRUCTIBLE<T_>::value)>::type
+	resize_( svector<T_>& sv, size_type size )
+	{
+		assert(size <= sv.capacity_);
+		sv.size_ = typename svector<T_>::size_type(size); 
+	}
+
+
+	template<typename T_> static
+		typename std::enable_if<!IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
+		clear_( svector<T_>& sv )
 	{
 		for (auto i = sv.begin(); sv.end() != i; ++i)
 			i->~T_();
@@ -116,8 +154,8 @@ private:
 	}
 
 	template<typename T_> static
-	typename std::enable_if<IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
-	clear_( svector<T_>& sv ) { sv.size_ = typename svector<T_>::size_type(0); }
+		typename std::enable_if<IS_TRIVIALLY_DESTRUCTIBLE<T_>::value>::type
+		clear_( svector<T_>& sv ) { sv.size_ = typename svector<T_>::size_type(0); }
 };
 
 } // namespace container

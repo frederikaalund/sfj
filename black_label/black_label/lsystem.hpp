@@ -13,10 +13,8 @@
 
 
 
-namespace black_label
-{
-namespace lsystem
-{
+namespace black_label {
+namespace lsystem {
 
   struct z_gradient_type { z_gradient_type() {} };
 const z_gradient_type z_gradient;

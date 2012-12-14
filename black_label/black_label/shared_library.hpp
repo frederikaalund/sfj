@@ -6,10 +6,8 @@
 
 
 
-namespace black_label
-{
-namespace shared_library
-{
+namespace black_label {
+namespace shared_library {
 
 class shared_library
 {

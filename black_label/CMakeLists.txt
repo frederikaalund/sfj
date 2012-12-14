@@ -55,7 +55,7 @@ find_package(BlackLabel REQUIRED "file_buffer 0.1")
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.50.0 REQUIRED date_time system chrono thread unit_test_framework)
+find_package(Boost 1.50.0 REQUIRED date_time system chrono thread unit_test_framework filesystem serialization)
 include_directories(${Boost_INCLUDE_DIRS})
 
 ## Boost Lockfree
@@ -81,6 +81,11 @@ include_directories(${GLEW_INCLUDE_PATH})
 find_package(OpenGL)
 include_directories(${OPENGL_INCLUDE_DIR})
 
+## SFML
+set(SFML_STATIC_LIBRARIES TRUE)
+find_package(SFML REQUIRED graphics)
+include_directories(${SFML_INCLUDE_DIR})
+
 ## ASSIMP
 set(ASSIMP_INCLUDE_DIR "ASSIMP_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
 if(NOT ASSIMP_INCLUDE_DIR)
@@ -97,6 +102,40 @@ if(NOT ASSIMP_LIBRARY_DEBUG)
 	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_DEBUG to the debug version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
 endif()
 set(ASSIMP_LIBRARIES debug ${ASSIMP_LIBRARY_DEBUG} optimized ${ASSIMP_LIBRARY_RELEASE})
+
+## FBX
+set(FBX_INCLUDE_DIR "FBX_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
+if(NOT FBX_INCLUDE_DIR)
+	message(FATAL_ERROR "Please set FBX_INCLUDE_DIR to the include directory of FBX. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
+endif()
+include_directories(${FBX_INCLUDE_DIR})
+
+set(FBX_LIBRARY_RELEASE "FBX_LIBRARY_RELEASE-NOTFOUND" CACHE FILEPATH "The release version of the library.")
+if(NOT FBX_LIBRARY_RELEASE)
+	message(FATAL_ERROR "Please set FBX_LIBRARY_RELEASE to the release version of the FBX library. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
+endif()
+set(FBX_LIBRARY_DEBUG "FBX_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "The debug version of the library.")
+if(NOT FBX_LIBRARY_DEBUG)
+	message(FATAL_ERROR "Please set FBX_LIBRARY_DEBUG to the debug version of the FBX library. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
+endif()
+set(FBX_LIBRARIES debug ${FBX_LIBRARY_DEBUG} optimized ${FBX_LIBRARY_RELEASE})
+
+## BULLET
+find_package(BULLET)
+set(BULLET_WORLD_IMPORTER_LIBRARY "BULLET_WORLD_IMPORTER_LIBRARY-NOTFOUND" CACHE FILEPATH "Path to the library.")
+set(BULLET_WORLD_IMPORTER_LIBRARY_DEBUG "BULLET_WORLD_IMPORTER_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "Path to the library.")
+set(BULLET_FILE_LOADER_LIBRARY "BULLET_FILE_LOADER_LIBRARY-NOTFOUND" CACHE FILEPATH "Path to the library.")
+set(BULLET_FILE_LOADER_LIBRARY_DEBUG "BULLET_FILE_LOADER_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "Path to the library.")
+list(APPEND BULLET_LIBRARIES 
+	"optimized" ${BULLET_WORLD_IMPORTER_LIBRARY}
+	"debug" ${BULLET_WORLD_IMPORTER_LIBRARY_DEBUG}
+	"optimized" ${BULLET_FILE_LOADER_LIBRARY}
+	"debug" ${BULLET_FILE_LOADER_LIBRARY_DEBUG}
+	)
+
+set(BULLET_WORLD_IMPORTER_INCLUDE_DIR "BULLET_WORLD_IMPORTER_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "Path to the include dir.")
+set(BULLET_FILE_LOADER_INCLUDE_DIR "BULLET_FILE_LOADER_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "Path to the include dir.")
+include_directories(${BULLET_INCLUDE_DIR} ${BULLET_WORLD_IMPORTER_INCLUDE_DIR} ${BULLET_FILE_LOADER_INCLUDE_DIR})
 
 
 
@@ -211,10 +250,19 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 				${Boost_SYSTEM_LIBRARIES}
 				${Boost_THREAD_LIBRARIES}
 				${Boost_LOG_LIBRARIES}
+				${Boost_FILESYSTEM_LIBRARIES}
+				${Boost_SERIALIZATION}
 				${BlackLabel_FILE_BUFFER_LIBRARIES}
+				${SFML_LIBRARIES}
 				${ASSIMP_LIBRARIES}
+				${FBX_LIBRARIES}
 				${GLEW_LIBRARY}
 				${OPENGL_gl_LIBRARY}
+				)
+		elseif(${TARGET_NAME} STREQUAL dynamics)
+			target_link_libraries(
+				${TARGET_NAME}
+				${BULLET_LIBRARIES}
 				)
 		endif()	
 		

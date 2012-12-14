@@ -5,8 +5,7 @@
 
 
 
-namespace std
-{
+namespace std {
 
 template<typename T>
 void swap( boost::atomic<T>& lhs, boost::atomic<T>& rhs )

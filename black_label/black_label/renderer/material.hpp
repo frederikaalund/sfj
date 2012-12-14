@@ -2,67 +2,40 @@
 #define BLACK_LABEL_RENDERER_MATERIAL_HPP
 
 #include <black_label/shared_library/utility.hpp>
+#include <black_label/utility/serialization/glm.hpp>
 
-#include <glm/glm.hpp>
+#include <string>
+
+#include <boost/serialization/access.hpp>
+
 #include <glm/gtc/type_ptr.hpp>
 
 
 
-namespace black_label
-{
-namespace renderer
-{
+namespace black_label {
+namespace renderer {
 
-////////////////////////////////////////////////////////////////////////////////
-/// Stream Operator Overloads
-////////////////////////////////////////////////////////////////////////////////
-template<typename char_type>
-std::basic_istream<char_type>& operator>>( 
-	std::basic_istream<char_type>& stream, 
-	glm::vec3& v )
-{
-	stream.read(reinterpret_cast<char_type*>(glm::value_ptr(v)), sizeof(glm::vec3));
-	return stream;
-}
-
-template<typename char_type>
-std::basic_ostream<char_type>& operator<<( 
-	std::basic_ostream<char_type>& stream, 
-	const glm::vec3& v )
-{
-	stream.write(reinterpret_cast<const char_type*>(glm::value_ptr(v)), sizeof(glm::vec3));
-	return stream;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Material
-////////////////////////////////////////////////////////////////////////////////
 struct material 
 {
-	template<typename char_type>
-	friend std::basic_istream<char_type>& operator>>( 
-		std::basic_istream<char_type>& stream, 
-		material& material )
+	material( bool enabled = true ) : enabled(enabled) {}
+
+	operator bool() const { return enabled; }
+
+	template<typename archive_type>
+	void serialize( archive_type& archive, unsigned int version )
 	{
-		stream >> material.diffuse;
-		stream.read(reinterpret_cast<char_type*>(&material.alpha), sizeof(float));
-		return stream;
+		archive & enabled & ambient & diffuse & specular & emissive & alpha & shininess 
+			& ambient_texture & diffuse_texture & specular_texture 
+			& height_texture;
 	}
 
-	template<typename char_type>
-	friend std::basic_ostream<char_type>& operator<<( 
-		std::basic_ostream<char_type>& stream, 
-		const material& material )
-	{
-		stream << material.diffuse;
-		stream.write(reinterpret_cast<const char_type*>(&material.alpha), sizeof(float));
-		return stream;
-	}
+	
 
-	glm::vec3 diffuse;
-	float alpha;
+	bool enabled;
+	glm::vec3 ambient, diffuse, specular, emissive;
+	float alpha, shininess;
+	std::string ambient_texture, diffuse_texture, specular_texture, 
+		height_texture;
 };
 
 } // namespace renderer

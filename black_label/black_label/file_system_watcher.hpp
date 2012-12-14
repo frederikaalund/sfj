@@ -13,10 +13,8 @@
 
 
 
-namespace black_label
-{
-namespace file_system_watcher
-{
+namespace black_label {
+namespace file_system_watcher {
 
 class BLACK_LABEL_SHARED_LIBRARY file_system_watcher 
 #ifdef WINDOWS

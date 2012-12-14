@@ -19,10 +19,8 @@
 
 
 
-namespace black_label
-{
-namespace utility
-{
+namespace black_label {
+namespace utility {
 
 template<typename CharT, typename TraitsT>
 inline std::basic_ostream< CharT, TraitsT >& operator<<(
@@ -49,8 +47,7 @@ inline std::basic_ostream< CharT, TraitsT >& operator<<(
 
 
 
-namespace cave_demo
-{
+namespace cave_demo {
 
 using namespace black_label::file_system_watcher;
 using namespace black_label::renderer;
@@ -194,10 +191,11 @@ application::application( int argc, char const* argv[] )
 		sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize, 
 		sf::ContextSettings(32, 0, 0, 3, 2))
 	, world(configuration.world_configuration)
-	, renderer(world, camera(glm::vec3(100.0f, 100.0f, 0.0f), 
-		glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
+	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), 
+		glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
+	, dynamics(world)
 	, fsw("D:/sfj/cave_demo/stage/binaries", FILTER_WRITE)
-	, increment(0.3f)
+	, increment(1.0f)
 	, strafe(0.0f)
 {
 	window.setKeyRepeatEnabled(false);
@@ -222,22 +220,22 @@ void application::process_keyboard_event( const sf::Event& event )
 		{ exit(0); }
 		break;
 	case sf::Keyboard::W:
-		{ strafe[2] += increment*direction; }
+		{ strafe[2] += increment * direction; }
 		break;
 	case sf::Keyboard::S:
-		{ strafe[2] -= increment*direction; }
+		{ strafe[2] -= increment * direction; }
 		break;
 	case sf::Keyboard::A:
-		{ strafe[0] += increment*direction; }
+		{ strafe[0] += increment * direction; }
 		break;
 	case sf::Keyboard::D:
-		{ strafe[0] -= increment*direction; }
+		{ strafe[0] -= increment * direction; }
 		break;
 	case sf::Keyboard::Space:
-		{ strafe[1] += increment*direction; }
+		{ strafe[1] += increment * direction; }
 		break;
 	case sf::Keyboard::C:
-		{ strafe[1] -= increment*direction; }
+		{ strafe[1] -= increment * direction; }
 		break;
   default:
     break;
@@ -302,8 +300,10 @@ void application::update_window()
 		}	
 	}
 
+	dynamics.update();
 	renderer.camera.strafe(strafe);
 	renderer.render_frame();
+	//renderer.render_frame_();
 	window.display();
 
 	static int frames = 0;

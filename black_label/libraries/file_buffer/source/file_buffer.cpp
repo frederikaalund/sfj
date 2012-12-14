@@ -7,10 +7,8 @@ using namespace std;
 
 
 
-namespace black_label
-{
-namespace file_buffer
-{
+namespace black_label {
+namespace file_buffer {
 
 void file_buffer::load_file( const char* path_to_file )
 {

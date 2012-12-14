@@ -12,10 +12,8 @@
 
 
 
-namespace black_label
-{
-namespace lsystem
-{
+namespace black_label {
+namespace lsystem {
 
 int production::fit_score( 
 	const symbol& s, 

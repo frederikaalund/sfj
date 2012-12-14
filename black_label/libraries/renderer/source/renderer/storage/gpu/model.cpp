@@ -1,29 +1,34 @@
 #define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/renderer/storage/gpu/model.hpp>
+#include <black_label/utility/log_severity_level.hpp>
+#include <black_label/utility/scoped_stream_suppression.hpp>
 
 #include <cassert>
 #include <string>
 
+#include <boost/log/common.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+
 #include <GL/glew.h>
 
+#include <SFML/Graphics/Image.hpp>
+
 using namespace std;
+using namespace sf;
 
 
 
-namespace black_label
-{
-namespace renderer
-{
-namespace storage
-{
-namespace gpu
-{
+namespace black_label {
+namespace renderer {
+namespace storage {
+namespace gpu {
 
 mesh::mesh( const cpu::mesh& cpu_mesh )
 	: render_mode(cpu_mesh.render_mode)
 	, material(cpu_mesh.material)
 {
 	const float* normals_begin = (!cpu_mesh.normals.empty()) ? cpu_mesh.normals.data() : nullptr;
+	const float* texture_coordinates_begin = (!cpu_mesh.texture_coordinates.empty()) ? cpu_mesh.texture_coordinates.data() : nullptr;
 	const unsigned int* indices_begin = (!cpu_mesh.indices.empty()) ? cpu_mesh.indices.data() : nullptr;
 	const unsigned int* indices_end = (indices_begin) ? &cpu_mesh.indices[cpu_mesh.indices.capacity()] : nullptr;
 
@@ -31,6 +36,7 @@ mesh::mesh( const cpu::mesh& cpu_mesh )
 		cpu_mesh.vertices.data(), 
 		&cpu_mesh.vertices[cpu_mesh.vertices.capacity()],
 		normals_begin,
+		texture_coordinates_begin,
 		indices_begin,
 		indices_end);
 }
@@ -41,6 +47,7 @@ mesh::mesh(
 	const float* vertices_begin,
 	const float* vertices_end,
 	const float* normals_begin,
+	const float* texture_coordinates_begin,
 	const unsigned int* indices_begin,
 	const unsigned int* indices_end )
 	: render_mode(render_mode)
@@ -50,33 +57,38 @@ mesh::mesh(
 		vertices_begin, 
 		vertices_end, 
 		normals_begin, 
+		texture_coordinates_begin,
 		indices_begin, 
 		indices_end);
 }
 
-mesh::~mesh()
-{
-	if (!is_loaded()) return;
 
-	glDeleteBuffers(1, &vertex_vbo);
-	if (has_indices()) glDeleteBuffers(1, &index_vbo);
-	glDeleteVertexArrays(1, &vao);
+
+void mesh::render( const core_program& program, int& texture_unit ) const
+{
+	if (material)
+	{
+		if (!material.specular_texture.empty())
+		{
+			program.set_uniform("specular_exponent", 1.0f);
+			specular_texture.use(program, "specular_texture", texture_unit);
+		}
+		else
+			program.set_uniform("specular_exponent", 0.0f);
+
+		if (!material.diffuse_texture.empty())
+			diffuse_texture.use(program, "diffuse_texture", texture_unit);
+	}
+
+	render_without_material();
 }
 
-
-
-void mesh::render( program::id_type program_id ) const
+void mesh::render_without_material() const
 {
-	glUniform4f(glGetUniformLocation(program_id, "color"),
-		material.diffuse.r, 
-		material.diffuse.g, 
-		material.diffuse.b,
-		material.alpha);
-  
-	glBindVertexArray(vao);
-		  
+	vertex_array.bind();
+
 	if (has_indices())
-		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, 0);
+		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, nullptr);
 	else
 		glDrawArrays(render_mode, 0, draw_count);
 }
@@ -85,85 +97,104 @@ void mesh::load(
 	const float* vertices_begin,
 	const float* vertices_end,
 	const float* normals_begin,
+	const float* texture_coordinates_begin,
 	const unsigned int* indices_begin,
 	const unsigned int* indices_end )
 {
 	////////////////////////////////////////////////////////////////////////////////
 	/// Vertex Array Object
 	////////////////////////////////////////////////////////////////////////////////
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+	vertex_array = gpu::vertex_array(generate);
+	vertex_array.bind();
 
 
 
 	////////////////////////////////////////////////////////////////////////////////
 	/// Vertices
 	////////////////////////////////////////////////////////////////////////////////
-	draw_count = vertices_end-vertices_begin;
-	GLsizeiptr attribute_size = draw_count*sizeof(float);
-	GLsizeiptr total_size = attribute_size;
-	if (nullptr == normals_begin)
-		normal_size = 0;
-	else
-	{
-		normal_size = attribute_size;
-		total_size *= 2;
-	}
+	draw_count = vertices_end - vertices_begin;
+	GLsizeiptr vertex_size = draw_count * sizeof(float);
+	GLsizeiptr normal_size = (normals_begin) ? vertex_size : 0;
+	GLsizeiptr texture_coordinate_size = (texture_coordinates_begin) ? vertex_size * 2 / 3 : 0;
+	auto total_size = vertex_size + normal_size + texture_coordinate_size;
 
-	glGenBuffers(1, &vertex_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vertex_vbo);
-	glBufferData(
-		GL_ARRAY_BUFFER, 
-		total_size,
-		nullptr,
-		GL_STATIC_DRAW);
 	
-	glBufferSubData(GL_ARRAY_BUFFER, 0, attribute_size, vertices_begin);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); 
-	glEnableVertexAttribArray(0);   
-	if (normal_size)
+	
+	vertex_buffer = vertex_buffer_type(total_size);
+	
+	GLintptr offset = 0;
+	gpu::vertex_array::index_type index = 0;
+	vertex_buffer.update(offset, vertex_size, vertices_begin);
+	vertex_array.add_attribute(index, 3, nullptr);
+	offset += vertex_size;
+	if (normals_begin)
 	{
-		glBufferSubData(GL_ARRAY_BUFFER, attribute_size, normal_size, normals_begin);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid*>(normal_size));
-		glEnableVertexAttribArray(1);
+		vertex_buffer.update(offset, normal_size, normals_begin);
+		vertex_array.add_attribute(index, 3, reinterpret_cast<const void*>(offset));
+		offset += normal_size;
 	}
-		
+	if (texture_coordinates_begin)
+	{
+		vertex_buffer.update(offset, texture_coordinate_size, texture_coordinates_begin);
+		vertex_array.add_attribute(index, 2, reinterpret_cast<const void*>(offset));
+		offset += texture_coordinate_size;
+	}	
+
 
 
 	////////////////////////////////////////////////////////////////////////////////
 	/// Indices
 	////////////////////////////////////////////////////////////////////////////////
-	if (indices_begin == indices_end)
+	if (indices_begin != indices_end)
 	{
-		index_vbo = invalid_vbo;
+		draw_count = indices_end - indices_begin;
+		index_buffer = index_buffer_type(draw_count * sizeof(unsigned int), indices_begin);
+	}
+	else
+		draw_count /= 3;
 
-		switch (render_mode)
+
+
+	////////////////////////////////////////////////////////////////////////////////
+	/// Texture
+	////////////////////////////////////////////////////////////////////////////////
+	if (!material.diffuse_texture.empty())
+	{
+		using namespace black_label::utility;
+		boost::log::sources::severity_logger<severity_level> log;
+
+		Image image;
 		{
-		// (2 indices)/(6 floats) = 1/3 indices/float
-		case GL_LINES:
-			{ draw_count /= 3; }
-			break;
-		// (4 indices)/(12 floats) = 1/3 indices/float
-		case GL_QUADS:
-			{ draw_count /= 3; }
-			break;
-		default:
-			{ assert(false); }
+			scoped_stream_suppression suppress(stdout);
+			if (!image.loadFromFile(material.diffuse_texture))
+			{
+				BOOST_LOG_SEV(log, warning) << "Missing texture \"" << material.diffuse_texture << "\"";
+				return;
+			}
 		}
 
-		return;
+		diffuse_texture = texture_2d(MIPMAP, REPEAT, image.getSize().x, image.getSize().y, reinterpret_cast<const texture_2d::srgb_a*>(image.getPixelsPtr()));
+		BOOST_LOG_SEV(log, info) << "Imported texture \"" << material.diffuse_texture << "\"";
 	}
 
-	draw_count = indices_end-indices_begin;
+	if (!material.specular_texture.empty())
+	{
+		using namespace black_label::utility;
+		boost::log::sources::severity_logger<severity_level> log;
 
-	glGenBuffers(1, &index_vbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_vbo);
+		Image image;
+		{
+			scoped_stream_suppression suppress(stdout);
+			if (!image.loadFromFile(material.specular_texture))
+			{
+				BOOST_LOG_SEV(log, warning) << "Missing texture \"" << material.specular_texture << "\"";
+				return;
+			}
+		}
 
-	glBufferData(
-		GL_ELEMENT_ARRAY_BUFFER, 
-		draw_count*sizeof(unsigned int),
-		indices_begin,
-		GL_STATIC_DRAW);
+		specular_texture = texture_2d(MIPMAP, REPEAT, image.getSize().x, image.getSize().y, reinterpret_cast<const texture_2d::srgb_a*>(image.getPixelsPtr()));
+		BOOST_LOG_SEV(log, info) << "Imported texture \"" << material.specular_texture << "\"";
+	}
 }
 
 } // namespace gpu

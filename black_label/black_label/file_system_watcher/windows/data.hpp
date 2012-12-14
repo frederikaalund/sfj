@@ -13,15 +13,12 @@
 
 
 
-namespace black_label
-{
-namespace file_system_watcher
-{
+namespace black_label {
+namespace file_system_watcher {
 
 class file_system_watcher;
 
-namespace windows
-{
+namespace windows {
 
 class BLACK_LABEL_SHARED_LIBRARY data
 {

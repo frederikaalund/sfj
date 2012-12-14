@@ -14,12 +14,10 @@
 
 
 
-namespace black_label
-{
-namespace world
-{
+namespace black_label {
+namespace world {
 
-template<typename model_type, typename transformation_type>
+template<typename model_type, typename dynamics_type, typename transformation_type>
 class entities
 {
 public:
@@ -98,6 +96,8 @@ public:
 		{ return entities_.model_for_entity(id()); }
 		model_id_type& model_id() const
 		{ return entities_.model_ids[id()]; }
+		dynamics_type& dynamics() const
+		{ return entities_.dynamics[id()]; }
 		transformation_type& transformation() const
 		{ return entities_.transformations[id()]; }
 
@@ -118,6 +118,8 @@ public:
 		{ return entities_.model_for_entity(id()); }
 		const model_id_type& model_id() const
 		{ return entities_.model_ids[id()]; }
+		const dynamics_type& dynamics() const
+		{ return entities_.dynamics[id()]; }
 		const transformation_type& transformation() const
 		{ return entities_.transformations[id()]; }
 
@@ -161,9 +163,10 @@ public:
 
 		typename entities::iterator create(
 			const model_type& model = model_type(), 
+			const dynamics_type& dynamics = dynamics_type(), 
 			const transformation_type& transformation = transformation_type() )
 		{ 
-			member_ids.push_back(entities.create(model, transformation));
+			member_ids.push_back(entities.create(model, dynamics, transformation));
 			return entities::iterator(member_ids.back());
 		}
 
@@ -205,6 +208,7 @@ public:
 		swap(lhs.size, rhs.size);
 		swap(lhs.id_size, rhs.id_size);
 		swap(lhs.model_ids, rhs.model_ids);
+		swap(lhs.dynamics, rhs.dynamics);
 		swap(lhs.transformations, rhs.transformations);
 		swap(lhs.ids, rhs.ids);
 	}
@@ -215,6 +219,7 @@ public:
 		, size(0)
 		, id_size(0)
 		, model_ids(new model_id_type[capacity])
+		, dynamics(new dynamics_type[capacity])
 		, transformations(new transformation_type[capacity])
 		, ids(new size_type[capacity])
 	{ size_type id = 0; std::generate(ids.get(), &ids[capacity], [&id](){ return id++; }); }
@@ -224,6 +229,7 @@ public:
 
 	size_type create( 
 		const model_type& model = model_type(), 
+		const dynamics_type& dynamics = dynamics_type(), 
 		const transformation_type& transformation = transformation_type() )
 	{
 		entities::size_type id = ids[size++ % capacity];
@@ -237,6 +243,7 @@ public:
 			model_ids[id] = models.end() - 1 - models.cbegin();
 		}
 		
+		this->dynamics[id] = dynamics;
 		transformations[id] = transformation;
 
 		return id;
@@ -281,6 +288,7 @@ public:
 	boost::atomic<size_type> size, id_size;
 
 	std::unique_ptr<model_id_type[]> model_ids;
+	std::unique_ptr<dynamics_type[]> dynamics;
 	std::unique_ptr<transformation_type[]> transformations;
 	std::unique_ptr<size_type[]> ids;
 

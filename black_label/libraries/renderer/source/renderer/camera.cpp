@@ -3,17 +3,15 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
+namespace black_label {
+namespace renderer {
 
 void camera::strafe( glm::vec3 delta_in_camera_space )
 {
 	glm::mat3 matrix_sub3x3(view_matrix);
 	glm::vec3 delta_in_world_space(
 		glm::vec3(delta_in_camera_space[0], 0.0f, delta_in_camera_space[2])
-		* matrix_sub3x3 - sky*delta_in_camera_space[1]);
+		* matrix_sub3x3 - sky * delta_in_camera_space[1]);
 	eye -= delta_in_world_space;
 	target -= delta_in_world_space;
 	on_camera_moved();
@@ -24,7 +22,7 @@ void camera::pan( float azimuth_delta, float inclination_delta )
 	glm::vec3 forward = target-eye;
 	glm::vec3 side = glm::cross(forward, sky);
 	target += glm::rotate(forward, azimuth_delta, sky)
-		+ glm::rotate(forward, inclination_delta, side) - 2.0f*forward;
+		+ glm::rotate(forward, inclination_delta, side) - 2.0f * forward;
 	on_camera_moved();
 }
 

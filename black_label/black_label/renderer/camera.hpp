@@ -9,10 +9,8 @@
 
 
 
-namespace black_label
-{
-namespace renderer
-{
+namespace black_label {
+namespace renderer {
 
 class BLACK_LABEL_SHARED_LIBRARY camera
 {
@@ -23,7 +21,7 @@ public:
 		: eye(eye)
 		, target(target)
 		, sky(sky), fovy(45.0f)
-		, z_near(1.0f)
+		, z_near(10.0f)
 		, z_far(10000.0f)
 	{ on_camera_moved(); }
 

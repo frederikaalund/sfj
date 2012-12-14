@@ -3,6 +3,12 @@
 
 #include <black_label/file_buffer.hpp>
 
+#include <sstream>
+
+#include <boost/math/constants/constants.hpp>
+
+#include <glm/gtc/type_ptr.hpp>
+
 #include <GL/glew.h>
 #ifndef APPLE
 #include <GL/gl.h>
@@ -11,10 +17,9 @@
 #endif
 
 
-namespace black_label
-{
-namespace renderer
-{
+
+namespace black_label {
+namespace renderer {
 
 using std::string;
 
@@ -40,10 +45,20 @@ shader::shader(
 	}
 	status.set(shader_file_found_bit);
 	
-	const GLchar* source_code_data[] = { preprocessor_commands, source_code.data() };
+	static std::vector<const char> numerical_constants;
+	if (numerical_constants.empty())
+	{
+		std::stringstream numerical_constants_stream;
+		numerical_constants_stream << "#define PI " << boost::math::constants::pi<float>() << std::endl;
+		auto numerical_constants_string = numerical_constants_stream.str();
+		numerical_constants.assign(numerical_constants_string.cbegin(), numerical_constants_string.cend());
+		numerical_constants.push_back('\0');
+	}
+
+	const GLchar* source_code_data[] = { preprocessor_commands, numerical_constants.data(), source_code.data() };
 	
 	id = glCreateShader(type);
-	glShaderSource(id, 2, source_code_data, nullptr);
+	glShaderSource(id, 3, source_code_data, nullptr);
 	glCompileShader(id);
 	
 	GLint compile_status;
@@ -76,44 +91,101 @@ string shader::get_info_log()
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Program
+/// Core Program
 ////////////////////////////////////////////////////////////////////////////////
-program::program( 
-	const char* path_to_vertex_shader, 
-	const char* path_to_geometry_shader, 
-	const char* path_to_fragment_shader,
-	const char* preprocessor_commands )
-	: vertex(GL_VERTEX_SHADER, path_to_vertex_shader, preprocessor_commands)
+core_program::core_program( generate_type ) : id(glCreateProgram()) {}
+
+core_program::~core_program()
 {
-	id = glCreateProgram();
+	if (id) glDeleteProgram(id);
+}
 
-	if (path_to_geometry_shader)
-		geometry = shader(GL_GEOMETRY_SHADER, path_to_geometry_shader, preprocessor_commands);
-	if (path_to_fragment_shader)
-		fragment = shader(GL_FRAGMENT_SHADER, path_to_fragment_shader, preprocessor_commands);
 
-	if (vertex.is_complete()) glAttachShader(id, vertex.id);
-	if (geometry.is_complete()) glAttachShader(id, geometry.id);
-	if (fragment.is_complete()) glAttachShader(id, fragment.id);
 
-	glBindAttribLocation(id, 0, "position");
-	glBindAttribLocation(id, 1, "normal");
+void core_program::use() const { glUseProgram(id); }
 
+void core_program::set_output_location( unsigned int color_number, const char* name )
+{
+	glBindFragDataLocation(id, color_number, name);
+}
+
+void core_program::link()
+{
 	glLinkProgram(id);
 }
 
-BLACK_LABEL_SHARED_LIBRARY program::~program()
+
+
+unsigned int core_program::get_uniform_location( const char* name ) const
 {
-	if (id)
-	{
-		if (vertex.is_complete()) glDetachShader(id, vertex.id);
-		if (geometry.is_complete()) glDetachShader(id, geometry.id);
-		if (fragment.is_complete()) glDetachShader(id, fragment.id);
-		glDeleteProgram(id);
-	}
+	return glGetUniformLocation(id, name);
 }
 
-void program::use() const { glUseProgram(id); }
+
+void core_program::set_uniform( const char* name, int value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform1i(location, value);
+}
+
+void core_program::set_uniform( const char* name, int value1, int value2 ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform2i(location, value1, value2);
+}
+
+void core_program::set_uniform( const char* name, float value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform1f(location, value);
+}
+
+void core_program::set_uniform( const char* name, float value1, float value2, float value3 ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform3f(location, value1, value2, value3);
+}
+
+void core_program::set_uniform( const char* name, float value1, float value2, float value3, float value4 ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform4f(location, value1, value2, value3, value4);
+}
+
+void core_program::set_uniform( const char* name, glm::mat3& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniformMatrix3fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, glm::mat4& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Program
+////////////////////////////////////////////////////////////////////////////////
+BLACK_LABEL_SHARED_LIBRARY program::~program()
+{
+	if (!id) return;
+
+	if (vertex.is_complete()) glDetachShader(id, vertex.id);
+	if (geometry.is_complete()) glDetachShader(id, geometry.id);
+	if (fragment.is_complete()) glDetachShader(id, fragment.id);
+}
+
+
 
 std::string program::get_info_log()
 {
@@ -125,7 +197,7 @@ std::string program::get_info_log()
 	{
 		result.resize(info_log_length);
 		glGetProgramInfoLog(id, info_log_length, nullptr, &result[0]);
-		result.erase(result.find_last_not_of('\0')+1);
+		result.erase(result.find_last_not_of('\0') + 1);
 	}
 
 	return result;
@@ -163,6 +235,28 @@ std::string program::get_aggregated_info_log()
 	result += get_info_log();
 
 	return result;
+}
+
+void program::setup(
+	const char* path_to_vertex_shader,
+	const char* path_to_geometry_shader,
+	const char* path_to_fragment_shader,
+	const char* preprocessor_commands)
+{
+	vertex = shader(GL_VERTEX_SHADER, path_to_vertex_shader, preprocessor_commands);
+	if (path_to_geometry_shader)
+		geometry = shader(GL_GEOMETRY_SHADER, path_to_geometry_shader, preprocessor_commands);
+	if (path_to_fragment_shader)
+		fragment = shader(GL_FRAGMENT_SHADER, path_to_fragment_shader, preprocessor_commands);
+
+	if (vertex.is_complete()) glAttachShader(id, vertex.id);
+	if (geometry.is_complete()) glAttachShader(id, geometry.id);
+	if (fragment.is_complete()) glAttachShader(id, fragment.id);
+
+	glBindAttribLocation(id, 0, "oc_position");
+	glBindAttribLocation(id, 1, "oc_normal");
+	glBindAttribLocation(id, 2, "oc_texture_coordinates");
+	glBindAttribLocation(id, 3, "wc_camera_ray_direction");
 }
 
 } // namespace renderer

@@ -5,10 +5,8 @@
 #include <cstdint>
 #include <string>
 
-namespace black_label
-{
-namespace file_system_watcher
-{
+namespace black_label {
+namespace file_system_watcher {
 
 typedef std::string path_type;
 

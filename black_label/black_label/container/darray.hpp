@@ -9,10 +9,8 @@
 
 
 
-namespace black_label
-{
-namespace container
-{
+namespace black_label {
+namespace container {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// darray
@@ -93,18 +91,21 @@ public:
 		swap(rhs.data_, lhs.data_);
 	}
 
-	darray() : data_(nullptr) {}
-	darray( darray&& other ) : data_(nullptr) { swap(*this, other); }
+	darray() : capacity_(0), data_(nullptr) {}
+	darray( darray&& other ) : capacity_(0), data_(nullptr) { swap(*this, other); }
 	darray( const darray& other ) 
 		: capacity_(other.capacity_)
-		, data_(new T[other.capacity_]) 
-	{ std::copy(other.cbegin(), other.cend(), data_); }
+	{ 
+		if (!other.data_) { data_ = nullptr; return; }; 
+		data_ = new T[other.capacity_];
+		std::copy(other.cbegin(), other.cend(), data_); 
+	}
 	darray( size_type capacity ) 
 		: capacity_(capacity)
 		, data_(new T[capacity]) {}
 	template<typename input_iterator>
 	darray( input_iterator first, input_iterator last )
-		: capacity_(last-first)
+		: capacity_(last - first)
 		, data_((0 < capacity_) ? new T[capacity_] : nullptr)
 	{ std::copy(first, last, data_); }
 	~darray() { delete[] data_; }
