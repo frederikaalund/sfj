@@ -28,7 +28,7 @@ int main( int argc, char const* argv[] )
 	world::entities_type::group environment(demo.world.static_entities);
 
 	environment.create("scene_2.dae", glm::mat4());
-	environment.create("scene_2.dae", make_mat4(1.0f, 0.0f, 0.0f, -10.0f));
+	//environment.create("scene_2.dae", make_mat4(1.0f, 0.0f, 0.0f, -10.0f));
 	environment.create("sphere.nff", make_mat4(1.0f, 0.0f, 0.0f, -500.0f));
 	environment.create("inverted_cube.obj", make_mat4(5000.0f, 0.0f, 0.0f, -2500.0f));
 

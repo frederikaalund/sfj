@@ -79,9 +79,6 @@ void mesh::render( program::id_type program_id ) const
 		glDrawElements(render_mode, draw_count, GL_UNSIGNED_INT, 0);
 	else
 		glDrawArrays(render_mode, 0, draw_count);
-  
-  auto glerr_8 = glGetError();
-  auto asd = 2;
 }
 
 void mesh::load(

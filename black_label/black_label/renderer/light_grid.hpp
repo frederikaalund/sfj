@@ -1,6 +1,12 @@
 #ifndef BLACK_LABEL_RENDERER_LIGHT_GRID_HPP
 #define BLACK_LABEL_RENDERER_LIGHT_GRID_HPP
 
+
+
+#define USE_TEXTURE_BUFFER
+
+
+
 #include <black_label/container/darray.hpp>
 #include <black_label/container/svector.hpp>
 #include <black_label/renderer/camera.hpp>
@@ -8,6 +14,7 @@
 #include <black_label/renderer/program.hpp>
 #include <black_label/shared_library/utility.hpp>
 
+#include <cstdint>
 #include <vector>
 
 
@@ -24,7 +31,7 @@ public:
 	typedef container::darray<std::vector<int> > index_grid_type;
 	struct grid_data { int offset, count; };
 	typedef container::darray<grid_data> grid_type;
-	typedef std::vector<int> index_list_type;
+	typedef std::vector<float> index_list_type;
 
 
 

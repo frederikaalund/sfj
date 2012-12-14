@@ -28,10 +28,6 @@
 
 
 
-#define USE_TILED_SHADING
-
-
-
 using namespace std;
 
 
@@ -96,10 +92,16 @@ MSVC_POP_WARNINGS()
 #else
 #define UBERSHADER_TILED_SHADING_DEFINE
 #endif
+    
+#ifdef USE_TEXTURE_BUFFER
+#define UBERSHADER_TEXTURE_BUFFER_DEFINE "#define USE_TEXTURE_BUFFER\n"
+#else
+#define UBERSHADER_TEXTURE_BUFFER_DEFINE
+#endif
 
 		BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);
 
-		ubershader = program("test.vertex.glsl", nullptr, "test.fragment.glsl", "#version 150\n" UBERSHADER_TILED_SHADING_DEFINE);
+		ubershader = program("test.vertex.glsl", nullptr, "test.fragment.glsl", "#version 150\n" UBERSHADER_TILED_SHADING_DEFINE UBERSHADER_TEXTURE_BUFFER_DEFINE);
 		BOOST_LOG_SEV(log, info) << ubershader.get_aggregated_info_log();
     /*
 		blur_horizontal = program("tone_mapper.vertex", nullptr, "blur_horizontal.fragment");
@@ -394,7 +396,6 @@ void renderer::render_frame()
 	std::for_each(sorted_statics.cbegin(), sorted_statics.cend(), 
 		[&] ( const entity_id_type id )
 	{
-        auto glerr_1 = glGetError();
 		auto& model = models[this->world.static_entities.model_ids[id]];
 		auto& model_matrix = this->world.static_entities.transformations[id];
 
@@ -409,11 +410,8 @@ void renderer::render_frame()
 		glUniformMatrix4fv(
 			glGetUniformLocation(ubershader.id, "model_matrix"),
 			1, GL_FALSE, glm::value_ptr(model_matrix));
-    auto glerr_2 = glGetError();
+
 		model.render(ubershader.id);
-    
-    auto glerr_3 = glGetError();
-    auto asd = 2;
 	});
 
   

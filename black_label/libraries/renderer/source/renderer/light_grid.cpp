@@ -173,23 +173,41 @@ void light_grid::update()
 
 		index_list.insert(index_list.end(), index_grid_it->cbegin(), index_grid_it->cend());
 	}
-
+  
 	if (!index_list.empty())
 	{
+#ifdef USE_TEXTURE_BUFFER
 		glBindBuffer(GL_TEXTURE_BUFFER, index_list_buffer);
-		glBufferData(GL_TEXTURE_BUFFER, index_list.size() * sizeof(int), index_list.data(), GL_STREAM_DRAW);
+		glBufferData(GL_TEXTURE_BUFFER, index_list.size() * sizeof(index_list_type::value_type), index_list.data(), GL_STREAM_DRAW);
+#else
+		glBindBuffer(GL_UNIFORM_BUFFER, index_list_buffer);
+		glBufferData(GL_UNIFORM_BUFFER, index_list.size() * sizeof(index_list_type::value_type), index_list.data(), GL_STREAM_DRAW);
+#endif
 	}
 
 	glBindBuffer(GL_TEXTURE_BUFFER, grid_buffer);
-	glBufferData(GL_TEXTURE_BUFFER, grid.capacity() * sizeof(grid_data), grid.data(), GL_STREAM_DRAW);
+	glBufferData(GL_TEXTURE_BUFFER, grid.capacity() * sizeof(grid_type::value_type), grid.data(), GL_STREAM_DRAW);
 }
 
 void light_grid::bind( program::id_type program_id ) const
 {
+#ifdef USE_TEXTURE_BUFFER
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_BUFFER, index_list_texture);
-	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, index_list_buffer);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, index_list_buffer);
 	glUniform1i(glGetUniformLocation(program_id, "light_index_list"), 2);
+#else
+  glBindBufferBase(GL_UNIFORM_BUFFER, 0, index_list_buffer);
+  auto uni_name = "test2_block.index_list[0]";
+  unsigned int uni_index;
+  glGetUniformIndices(program_id, 1, &uni_name, &uni_index);
+  int params;
+  glGetActiveUniformsiv(program_id, 1, &uni_index, GL_UNIFORM_ARRAY_STRIDE, &params);
+  auto uni_block_index = glGetUniformBlockIndex(program_id, "test2_block");
+  glUniformBlockBinding(program_id, uni_block_index, 0);
+#endif
+  
+	glUniform1i(glGetUniformLocation(program_id, "light_index_list_size"), index_list.size());
 
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_BUFFER, grid_texture);
