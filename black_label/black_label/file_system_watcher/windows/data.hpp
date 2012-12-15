@@ -28,7 +28,7 @@ public:
 	class BLACK_LABEL_SHARED_LIBRARY path_watcher
 	{
 	public:
-		const static size_t buffer_size = 1024 * 64; // 64 KiB
+		const static size_t buffer_size = 1024 * 64; // 640 KiB
 
 		path_watcher() : directory_or_file_handle(INVALID_HANDLE_VALUE) {}
 		path_watcher( 

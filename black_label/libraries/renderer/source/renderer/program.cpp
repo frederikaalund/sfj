@@ -157,6 +157,28 @@ void core_program::set_uniform( const char* name, float value1, float value2, fl
 	glUniform4f(location, value1, value2, value3, value4);
 }
 
+
+void core_program::set_uniform( const char* name, glm::vec2& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform2fv(location, 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, glm::vec3& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform3fv(location, 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, glm::vec4& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform4fv(location, 1, glm::value_ptr(value));
+}
+
 void core_program::set_uniform( const char* name, glm::mat3& value ) const
 {
 	auto location = get_uniform_location(name);

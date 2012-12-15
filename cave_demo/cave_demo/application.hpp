@@ -46,13 +46,13 @@ public:
 
 	bool window_is_open() { return window.isOpen(); }
 
-  sf::Window window;
+	sf::Window window;
   
 	black_label::thread_pool::thread_pool thread_pool;
 	black_label::world::world world;
 	black_label::renderer::renderer renderer;
 	black_label::dynamics::dynamics dynamics;
-
+	
 
 
 protected:
@@ -60,9 +60,9 @@ private:
 	void process_keyboard_event( const sf::Event& event );
 	void process_mouse_movement_event( const sf::Event& event );
 	void process_mouse_button_event( const sf::Event& event );
-
+	
 	black_label::file_system_watcher::file_system_watcher fsw;
-
+	
 	float increment;
 	glm::vec3 strafe;
 	int last_x, last_y;

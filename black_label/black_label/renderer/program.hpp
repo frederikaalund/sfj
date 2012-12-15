@@ -101,6 +101,9 @@ public:
 	void set_uniform( const char* name, float value ) const;
 	void set_uniform( const char* name, float value1, float value2, float value3 ) const;
 	void set_uniform( const char* name, float value1, float value2, float value3, float value4 ) const;
+	void set_uniform( const char* name, glm::vec2& value ) const;
+	void set_uniform( const char* name, glm::vec3& value ) const;
+	void set_uniform( const char* name, glm::vec4& value ) const;
 	void set_uniform( const char* name, glm::mat3& value ) const;
 	void set_uniform( const char* name, glm::mat4& value ) const;
 

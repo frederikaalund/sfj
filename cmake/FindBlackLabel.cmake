@@ -1,9 +1,13 @@
-set(BlackLabel_FOUND TRUE)
-set(BlackLabel_IN_CACHE TRUE)
+if(COMPONENT_CAPITALIZED)
+	set(COMPONENT_CAPITALIZED_SAVED ${COMPONENT_CAPITALIZED})
+endif()
 
-##############################################################################
-## Functions
-##############################################################################
+
+
+include(FindPackageHandleStandardArgs)
+
+
+
 function(black_label_version_suffix CONFIGURATION API_VERSION VERSION_SUFFIX)
 	set(VERSION_SUFFIX_LOCAL -${TOOLSET})
 	if (NOT ${THREADING_${CONFIGURATION}} STREQUAL "")
@@ -21,53 +25,26 @@ endfunction()
 
 
 
-##############################################################################
-## Directories
-##############################################################################
-
-## If library and include directories must be deduced
-if(NOT BlackLabel_LIBRARY_DIR OR NOT BlackLabel_INCLUDE_DIR)
-	set(BlackLabel_IN_CACHE FALSE)
-
-	## If root directory must be deduced
-	if(NOT BlackLabel_ROOT)
-		## Try to deduce root diretory
-		if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/black_label)
-			set(BlackLabel_ROOT "${CMAKE_SOURCE_DIR}/black_label")
-		endif()
-	endif()
-	if(BlackLabel_ROOT)
-		set(BlackLabel_LIBRARY_DIR ${BlackLabel_ROOT}/stage/libraries CACHE PATH "Black Label library directory.")
-		set(BlackLabel_INCLUDE_DIR ${BlackLabel_ROOT} CACHE PATH "Black Label include directory.")
-		mark_as_advanced(FORCE BlackLabel_LIBRARY_DIR BlackLabel_INCLUDE_DIR)
-	else()
-		set(BlackLabel_FOUND FALSE)
-		set(BlackLabel_ERROR_RESOLUTION "Please specify either:\n  The root directory: BlackLabel_ROOT\n  OR\n  Both library and include directories: BlackLabel_LIBRARY_DIR and BlackLabel_INCLUDE_DIR")
-	endif()
-endif()
-
-set(BlackLabel_INCLUDE_DIRS ${BlackLabel_INCLUDE_DIR})
+find_path(BlackLabel_INCLUDE_DIR "black_label/renderer.hpp")
 
 
 
-##############################################################################
-## Components
-##############################################################################
-if(BlackLabel_FOUND)
+if(BlackLabel_INCLUDE_DIR)
+
+	list(APPEND BlackLabel_INCLUDE_DIRS ${BlackLabel_INCLUDE_DIR})
+
+	set(BlackLabel_LIBRARY_DIR "${BlackLabel_INCLUDE_DIR}/stage/libraries" CACHE PATH "Black Label library directory.")
+	set(BlackLabel_CMAKE_DIR "${BlackLabel_INCLUDE_DIR}/cmake" CACHE PATH "Black Label cmake directory.")
+	
+	mark_as_advanced(BlackLabel_LIBRARY_DIR)
+
+
+
 	foreach(COMPONENT ${BlackLabel_FIND_COMPONENTS})
-		string(REGEX MATCH "^[^ ]*" COMPONENT_NAME ${COMPONENT})
-		string(REGEX MATCH " .*$" COMPONENT_VERSION ${COMPONENT})
-		string(STRIP ${COMPONENT_NAME} COMPONENT_NAME)
+		string(TOUPPER ${COMPONENT} COMPONENT_CAPITALIZED)
 		
-		if (NOT COMPONENT_VERSION)
-			set(BlackLabel_FOUND FALSE)
-			set(BlackLabel_ERROR_RESOLUTION "Black Label component ${COMPONENT_NAME} is missing its version number! The syntax is:\n  <component> <version> [<component> <version> ...]")
-			break()
-		endif()
+	
 		
-		string(TOUPPER ${COMPONENT_NAME} COMPONENT_NAME_CAPITALIZED)
-		string(STRIP ${COMPONENT_VERSION} COMPONENT_VERSION)
-
 		if(WIN32)
 			set(PREFIX "")
 			set(EXTENSION ".lib")
@@ -79,44 +56,58 @@ if(BlackLabel_FOUND)
 			set(BlackLabel_ERROR_RESOLUTION "Unknown target platform! Known platforms:\n  Windows, Unix, and Unix like")
 			break()
 		endif()
-		
-		black_label_version_suffix(RELEASE ${COMPONENT_VERSION} SUFFIX)
-		set(BlackLabel_${COMPONENT_NAME_CAPITALIZED}_RELEASE ${BlackLabel_LIBRARY_DIR}/${PREFIX}black_label_${COMPONENT_NAME}${SUFFIX}${EXTENSION} CACHE PATH "Release version of the ${COMPONENT_NAME} library.")
-		black_label_version_suffix(DEBUG ${COMPONENT_VERSION} SUFFIX)
-		set(BlackLabel_${COMPONENT_NAME_CAPITALIZED}_DEBUG ${BlackLabel_LIBRARY_DIR}/${PREFIX}black_label_${COMPONENT_NAME}${SUFFIX}${EXTENSION} CACHE PATH "Debug version of the ${COMPONENT_NAME} library.")
-		
-		set(
-			BlackLabel_${COMPONENT_NAME_CAPITALIZED}_LIBRARIES
-			optimized	${BlackLabel_${COMPONENT_NAME_CAPITALIZED}_RELEASE}
-			debug		${BlackLabel_${COMPONENT_NAME_CAPITALIZED}_DEBUG}
-			)
-		
-		list(APPEND BlackLabel_LIBRARIES ${BlackLabel_${COMPONENT_NAME_CAPITALIZED}_LIBRARIES})
+
+
+
+		if(NOT TARGET BlackLabel_${COMPONENT_CAPITALIZED})
+			add_library(BlackLabel_${COMPONENT_CAPITALIZED} UNKNOWN IMPORTED)
+
+			foreach(CONFIGURATION ${CONFIGURATIONS})
+				black_label_version_suffix(${CONFIGURATION} ${BlackLabel_FIND_VERSION} SUFFIX)
+				set(BlackLabel_${COMPONENT_CAPITALIZED}_${CONFIGURATION} ${BlackLabel_LIBRARY_DIR}/${PREFIX}black_label_${COMPONENT}${SUFFIX}${EXTENSION} CACHE PATH "${CONFIGURATION} version of the ${COMPONENT} library.")
+				set_target_properties(
+					BlackLabel_${COMPONENT_CAPITALIZED} PROPERTIES
+					IMPORTED_LOCATION_${CONFIGURATION} ${BlackLabel_${COMPONENT_CAPITALIZED}_${CONFIGURATION}})
+				mark_as_advanced(BlackLabel_${COMPONENT_CAPITALIZED}_${CONFIGURATION})
+			endforeach()
+		endif()
+		list(APPEND BlackLabel_LIBRARIES BlackLabel_${COMPONENT_CAPITALIZED})
 			
-		mark_as_advanced(
-			FORCE
-			BlackLabel_${COMPONENT_NAME_CAPITALIZED}_RELEASE
-			BlackLabel_${COMPONENT_NAME_CAPITALIZED}_DEBUG
-			)
+
+
+		set(BlackLabel_${COMPONENT}_FOUND TRUE)
+			
+		
+			
+		if(BlackLabel_USE_STATIC_LIBS)
+			set(${COMPONENT}_DEPENDENCIES_FILE ${BlackLabel_CMAKE_DIR}/dependencies_${COMPONENT}.cmake)
+			if(EXISTS ${${COMPONENT}_DEPENDENCIES_FILE})
+				include(${${COMPONENT}_DEPENDENCIES_FILE})		
+				list(APPEND BlackLabel_INCLUDE_DIRS ${BlackLabel_DEPENDENCIES_${COMPONENT_CAPITALIZED}_INCLUDE_DIRS})
+				list(APPEND BlackLabel_LIBRARIES ${BlackLabel_DEPENDENCIES_${COMPONENT_CAPITALIZED}_LIBRARIES})		
+			endif()
+		endif()
 	endforeach()
+	
+
+			
+	if(BlackLabel_USE_STATIC_LIBS)
+		include(${BlackLabel_CMAKE_DIR}/dependencies_common.cmake)
+		list(APPEND BlackLabel_INCLUDE_DIRS ${BlackLabel_DEPENDENCIES_COMMON_INCLUDE_DIRS})
+		list(APPEND BlackLabel_LIBRARIES ${BlackLabel_DEPENDENCIES_COMMON_LIBRARIES})
+	endif()
 endif()
 
 
 
-##############################################################################
-## Report
-##############################################################################
-if(NOT BlackLabel_FIND_QUIETLY)
-	if(NOT BlackLabel_FOUND)
-		if(BlackLabel_FIND_REQUIRED)
-			message(SEND_ERROR "Could not find the BlackLabel package! ${BlackLabel_ERROR_RESOLUTION}")
-		else()
-			message(STATUS "Could not find the BlackLabel package! ${BlackLabel_ERROR_RESOLUTION}")
-		endif()
-	elseif(NOT BlackLabel_IN_CACHE)
-		message(STATUS "Found BlackLabel with the following components:")
-		foreach(COMPONENT ${BlackLabel_FIND_COMPONENTS})
-			message(STATUS "  ${COMPONENT}")
-		endforeach()
-	endif()
+find_package_handle_standard_args(
+	BlackLabel
+	REQUIRED_VARS BlackLabel_INCLUDE_DIR
+	HANDLE_COMPONENTS)
+	
+	
+	
+if(COMPONENT_CAPITALIZED_SAVED)
+	set(COMPONENT_CAPITALIZED ${COMPONENT_CAPITALIZED_SAVED})
+	unset(COMPONENT_CAPITALIZED_SAVED)
 endif()

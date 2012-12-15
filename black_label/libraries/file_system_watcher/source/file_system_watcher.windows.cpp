@@ -22,7 +22,7 @@ namespace file_system_watcher {
 ////////////////////////////////////////////////////////////////////////////////
 /// File System Watcher
 ////////////////////////////////////////////////////////////////////////////////
-file_system_watcher::file_system_watcher( const path_type& path, const filters_type filters )
+file_system_watcher::file_system_watcher( const path_type& path, filters_type filters )
 {
 	add_path(path, filters);
 }
@@ -145,9 +145,6 @@ void file_system_watcher::path_watcher::read_changes()
 			GetLastError(), 
 			std::system_category(), 
 			error_message(last));
-
-	if (0 == bytes_returned)
-		throw std::exception("Buffer overflowed.");
 }
 
 void file_system_watcher::path_watcher::release_resources()

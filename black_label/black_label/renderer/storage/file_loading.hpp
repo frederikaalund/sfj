@@ -1,6 +1,8 @@
 #ifndef BLACK_LABEL_RENDERER_STORAGE_FILE_LOADING_HPP
 #define BLACK_LABEL_RENDERER_STORAGE_FILE_LOADING_HPP
 
+#ifdef DEVELOPER_TOOLS
+
 #include <black_label/shared_library/utility.hpp>
 #include <black_label/renderer/storage/cpu/model.hpp>
 #include <black_label/renderer/storage/gpu/model.hpp>
@@ -44,5 +46,7 @@ BLACK_LABEL_SHARED_LIBRARY bool load_assimp(
 } // namespace black_label
 
 
+
+#endif
 
 #endif

@@ -106,6 +106,14 @@ public:
 		const srgb_a* data, 
 		int mipmap_levels ) const;
 
+	void texture_base::update( 
+		target_type target,
+		int width, 
+		int height, 
+		int depth, 
+		const float* data, 
+		int mipmap_levels ) const;
+
 	id_type id;
 
 
@@ -123,6 +131,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 namespace target { 
 struct tex2d { static detail::texture_base::target_type get(); };
+struct tex3d { static detail::texture_base::target_type get(); };
 } // namespace target
 
 
@@ -163,6 +172,22 @@ public:
 		update(width, height, rgba_data, mipmap_levels);
 	}
 
+	template<typename data_type>
+	texture( 
+		filter filter, 
+		wrap wrap, 
+		int width, 
+		int height, 
+		int depth, 
+		const data_type* rgb_data = nullptr, 
+		int mipmap_levels = 0 )
+		: detail::texture_base(black_label::renderer::generate)
+	{
+		bind();
+		set_parameters(filter, wrap);
+		update(width, height, depth, rgb_data, mipmap_levels);
+	}
+
 	texture& operator=( texture rhs ) { swap(*this, rhs); return *this; }
 
 
@@ -181,6 +206,15 @@ public:
 		const data_type* data = nullptr, 
 		int mipmap_levels = 8 ) const
 	{ texture_base::update(target_type::get(), width, height, data, mipmap_levels); }
+	
+	template<typename data_type>
+	void update( 
+		int width, 
+		int height, 
+		int depth, 
+		const data_type* data = nullptr, 
+		int mipmap_levels = 8 ) const
+	{ texture_base::update(target_type::get(), width, height, depth, data, mipmap_levels); }
 
 	template<typename data_type>
 	void bind_and_update( 
@@ -198,6 +232,7 @@ protected:
 };
 
 typedef texture<target::tex2d> texture_2d;
+typedef texture<target::tex3d> texture_3d;
 
 
 

@@ -185,6 +185,8 @@ application::configuration::configuration( log_type& log, int argc, char const* 
 ////////////////////////////////////////////////////////////////////////////////
 /// Application
 ////////////////////////////////////////////////////////////////////////////////
+// Lion cam: camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f))
+
 application::application( int argc, char const* argv[] )
 	: configuration(log, argc, argv)
 	, window(sf::VideoMode(800, 800), "OpenGL", 
@@ -192,7 +194,7 @@ application::application( int argc, char const* argv[] )
 		sf::ContextSettings(32, 0, 0, 3, 2))
 	, world(configuration.world_configuration)
 	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), 
-		glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
+		glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
 	, dynamics(world)
 	, fsw("D:/sfj/cave_demo/stage/binaries", FILTER_WRITE)
 	, increment(1.0f)
@@ -303,7 +305,6 @@ void application::update_window()
 	dynamics.update();
 	renderer.camera.strafe(strafe);
 	renderer.render_frame();
-	//renderer.render_frame_();
 	window.display();
 
 	static int frames = 0;

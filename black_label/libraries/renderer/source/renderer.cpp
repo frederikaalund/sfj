@@ -14,8 +14,11 @@
 #include <iostream>
 #include <random>
 
+#include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/log/common.hpp>
 #include <boost/math/constants/constants.hpp>
 
@@ -28,6 +31,10 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
+
+#define OCIO_BUILD_STATIC
+#include <OpenColorIO/OpenColorIO.h>
+namespace ocio = OCIO_NAMESPACE;
 
 
 
@@ -87,8 +94,90 @@ MSVC_POP_WARNINGS()
 	, albedos(NEAREST, CLAMP_TO_EDGE)
 	, bloom1(NEAREST, MIRRORED_REPEAT)
 	, bloom2(NEAREST, MIRRORED_REPEAT)
+	, ambient_occlusion_texture(NEAREST, CLAMP_TO_EDGE)
 	, gpu_lights(black_label::renderer::generate)
+	, ambient_occlusion_resolution_multiplier(1.0f)
+	, shadow_map_resolution_multiplier(2.0f)
 {
+////////////////////////////////////////////////////////////////////////////////
+/// OpenColorIO Test
+////////////////////////////////////////////////////////////////////////////////
+	{
+		using namespace ocio;
+		using namespace storage::gpu;
+		
+		auto transform = FileTransform::Create();
+		transform->setSrc("LUTs/Kodak 5229 Vision2 Expression 500T.cube");
+		transform->setInterpolation(INTERP_BEST);
+		auto processor = Config::Create()->getProcessor(transform);
+
+		GpuShaderDesc shader_description;
+		const int lut_size = 32;
+		shader_description.setLut3DEdgeLen(lut_size);
+		container::darray<float> lut_data(3 * lut_size * lut_size * lut_size);
+		processor->getGpuLut3D(lut_data.data(), shader_description);
+
+		lut_texture = texture_3d(
+			LINEAR, 
+			CLAMP_TO_EDGE, 
+			lut_size, 
+			lut_size, 
+			lut_size, 
+			lut_data.data());
+	}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// 3D LUT Test! (.cube format)
+////////////////////////////////////////////////////////////////////////////////
+	/*{
+		using namespace boost;
+
+		string lut_filename = "LUTs/Kodak 5229 Vision2 Expression 500T.cube";
+		ifstream lut_stream(lut_filename);
+		int lut_texture_size = 0;
+		string next_line;
+
+		while(getline(lut_stream, next_line))
+		{
+			// Comment
+			if (starts_with(next_line, "#"));
+
+			// Title
+			else if (starts_with(next_line, "TITLE"));
+
+			// Size
+			else if (starts_with(next_line, "LUT_3D_SIZE")) 
+			{
+				try
+				{
+					if (next_line.size() < 13)
+						throw new std::exception();
+				
+					lut_texture_size = lexical_cast<int>(&next_line[12]);
+				}
+				catch (std::exception e)
+				{
+					BOOST_LOG_SEV(log, error) << "LUT has invalid size!";
+				}
+
+				break;
+			}
+		}
+
+		if (lut_texture_size)
+		{
+			container::darray<float> lut_data(lut_texture_size * lut_texture_size * lut_texture_size * 3);
+			auto lut_data_iterator = lut_data.data();
+			while (lut_stream >> *lut_data_iterator++);
+
+			lut_texture = storage::gpu::texture_3d(storage::gpu::LINEAR, storage::gpu::CLAMP_TO_EDGE, lut_texture_size, lut_texture_size, lut_texture_size, lut_data.data());
+		}
+	}*/
+
+
+
 	glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 
 	glEnable(GL_DEPTH_TEST);
@@ -127,6 +216,12 @@ MSVC_POP_WARNINGS()
 		auto null_info_log = null.get_aggregated_info_log();
 		if (!null_info_log.empty())
 			BOOST_LOG_SEV(log, info) << null_info_log;
+
+		array<const char*, 1> ambient_occlusion_output_names = {"ambient_occlusion"};
+		ambient_occlusion = program("lighting.vertex.glsl", nullptr, "cryengine2_ambient_occlusion.fragment.glsl", "#version 150\n", ambient_occlusion_output_names.cbegin(), ambient_occlusion_output_names.cend());
+		auto ambient_occlusion_info_log = ambient_occlusion.get_aggregated_info_log();
+		if (!ambient_occlusion_info_log.empty())
+			BOOST_LOG_SEV(log, info) << ambient_occlusion_info_log;
 
 		array<const char*, 2> lighting_output_names = {"color", "overbright"};
 		lighting = program("lighting.vertex.glsl", nullptr, "lighting.fragment.glsl", "#version 150\n" LIGHTING_TILED_SHADING_DEFINE, lighting_output_names.cbegin(), lighting_output_names.cend());
@@ -181,7 +276,7 @@ MSVC_POP_WARNINGS()
 	random_texture = texture_2d(NEAREST, REPEAT, 
 		random_texture_size, random_texture_size, random_data.data(), 0);
 
-	shadow_map.bind_and_update<texture::depth_float>(2048, 2048, nullptr, 0);
+	shadow_map.bind();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 }
 
@@ -273,6 +368,8 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 
 
 
+#ifdef DEVELOPER_TOOLS
+
 ////////////////////////////////////////////////////////////////////////////////
 /// The FBX file format is proprietary but has good application support.
 /// In any case, Assimp will load most other files for us.
@@ -300,6 +397,10 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 		blm_archive << cpu_model;
 		BOOST_LOG_SEV(log, info) << "Exported model \"" << blm_path << "\"";
 	}
+
+#endif
+
+
 
 	return true;
 }
@@ -357,13 +458,12 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 	int viewport_data[4];
 	glGetIntegerv(GL_VIEWPORT, viewport_data);
-	glViewport(0, 0, 2048, 2048);
+	glViewport(0, 0, static_cast<GLsizei>(viewport_data[2] * shadow_map_resolution_multiplier), static_cast<GLsizei>(viewport_data[3] * shadow_map_resolution_multiplier));
 	
 	glEnable(GL_DEPTH_TEST);
 	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-		GL_TEXTURE_2D, shadow_map, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,	GL_TEXTURE_2D, shadow_map, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 0, 0, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, 0, 0, 0);
 	
@@ -407,27 +507,21 @@ void renderer::render_frame()
 		model.render_without_material();
 	});
 	
+	glViewport(0, 0, viewport_data[2], viewport_data[3]);
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Rendering
-////////////////////////////////////////////////////////////////////////////////	
-	glViewport(0, 0, viewport_data[2], viewport_data[3]);
-	
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-		GL_TEXTURE_2D, depths, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_TEXTURE_2D, wc_normals, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
-		GL_TEXTURE_2D, albedos, 0);
-	
-	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-	glDrawBuffersARB(2, draw_buffer);
-
+/// Geometry Buffer
+////////////////////////////////////////////////////////////////////////////////
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depths, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, wc_normals, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, albedos, 0);
+	{
+		GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+		glDrawBuffersARB(2, draw_buffer);
+	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	buffering.use();
 	
 
@@ -466,10 +560,106 @@ void renderer::render_frame()
 	
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Frame setup
+/// Ambient Occlusion
 ////////////////////////////////////////////////////////////////////////////////
-	lighting.use();
+	using namespace storage::gpu;
+
+	static std::array<float, 12> screen_aligned_quad_vertices = {1.0f, 1.0f, 0.0f, -1.0f, 1.0f, 0.0f, -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 0.0f};
+	static mesh screen_aligned_quad(material(false), GL_QUADS, screen_aligned_quad_vertices.data(), &screen_aligned_quad_vertices.back() + 1);
+	static auto done = false;
+	static buffer<target::array, usage::stream_draw> frustrum(sizeof(float) * 3 * 4);
+
+	auto alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f;
+	auto tan_alpha = tan(alpha);
+	auto x = tan_alpha * camera.z_far;
+	auto y = x / camera.aspect_ratio;
+
+	glm::vec3 directions[4] = {
+		glm::vec3(x, y, -camera.z_far),
+		glm::vec3(-x, y, -camera.z_far),
+		glm::vec3(-x, -y, -camera.z_far),
+		glm::vec3(x, -y, -camera.z_far),
+	};
+
+	auto inverse_view_matrix = glm::inverse(glm::mat3(camera.view_matrix));
+
+	directions[0] = inverse_view_matrix * directions[0];
+	directions[1] = inverse_view_matrix * directions[1];
+	directions[2] = inverse_view_matrix * directions[2];
+	directions[3] = inverse_view_matrix * directions[3];
+
+	screen_aligned_quad.vertex_array.bind();
+
+	frustrum.bind_and_update(0, sizeof(float) * 3 * 4, directions);
+
+	if (!done)
+	{
+		done = true;
+		unsigned int index = 3;
+		screen_aligned_quad.vertex_array.add_attribute(index, 3, nullptr);
+	}
 	
+	
+
+	glGetIntegerv(GL_VIEWPORT, viewport_data);
+	auto ambient_occlusion_texture_size = glm::floor(glm::vec2(viewport_data[2] * ambient_occlusion_resolution_multiplier, viewport_data[3] * ambient_occlusion_resolution_multiplier));
+	glViewport(0, 0, ambient_occlusion_texture_size.x, ambient_occlusion_texture_size.y);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, 0, 0, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ambient_occlusion_texture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, 0, 0, 0);
+	{
+		GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0};
+		glDrawBuffersARB(1, draw_buffer);
+	}
+	glDisable(GL_DEPTH_TEST);
+	ambient_occlusion.use();
+
+	{
+		int texture_unit = 0;
+		depths.use(ambient_occlusion, "depths", texture_unit);
+		random_texture.use(ambient_occlusion, "random_texture", texture_unit);
+	}
+	ambient_occlusion.set_uniform("wc_camera_eye_position", camera.eye.x, camera.eye.y, camera.eye.z);
+	ambient_occlusion.set_uniform("z_far", camera.z_far);
+	ambient_occlusion.set_uniform("tc_window", ambient_occlusion_texture_size);
+	ambient_occlusion.set_uniform("view_matrix", camera.view_matrix);
+	ambient_occlusion.set_uniform("projection_matrix", camera.projection_matrix);	
+	ambient_occlusion.set_uniform("view_projection_matrix", camera.view_projection_matrix);
+
+	screen_aligned_quad.render_without_material();
+
+	glViewport(0, 0, viewport_data[2], viewport_data[3]);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Lighting
+////////////////////////////////////////////////////////////////////////////////
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, main_render, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
+		GL_TEXTURE_2D, bloom1, 0);
+	
+	{
+		GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+		glDrawBuffersARB(2, draw_buffer);
+	}
+	
+	
+	lighting.use();
+
+	int texture_unit = 0;
+	array<texture*, 6> texs = {&depths, &albedos, &wc_normals, &random_texture, &shadow_map, &ambient_occlusion_texture};
+	array<const char*, 6> names = {"depths", "albedos", "wc_normals", "random_texture", "shadow_map", "ambient_occlusion_texture"};
+
+	auto texs_it = texs.begin();
+	auto names_it = names.cbegin();
+	for (; texs.end() > texs_it; ++texs_it, ++names_it)
+		(*texs_it)->use(lighting, *names_it, texture_unit);
+
+
+
 	auto lights_size = lights.size();
 
 	for_each(sorted_dynamics.cbegin(), sorted_dynamics.cend(), 
@@ -489,25 +679,6 @@ void renderer::render_frame()
 				light.quadratic_attenuation));
 		});
 	});
-
-
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_TEXTURE_2D, main_render, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
-		GL_TEXTURE_2D, bloom1, 0);
-	glDisable(GL_DEPTH_TEST);
-
-	int texture_unit = 0;
-
-	array<texture*, 5> texs = {&depths, &albedos, &wc_normals, &random_texture, &shadow_map};
-	array<const char*, 5> names = {"depths", "albedos", "wc_normals", "random_texture", "shadow_map"};
-
-	auto texs_it = texs.begin();
-	auto names_it = names.cbegin();
-	for (; texs.end() > texs_it; ++texs_it, ++names_it)
-		(*texs_it)->use(lighting, *names_it, texture_unit);
-
 
 	// TODO: Pack the light class tightly instead.
 	static vector<float> test_lights;
@@ -533,11 +704,11 @@ void renderer::render_frame()
 #endif
 
 	//lighting.set_uniform("z_near", camera.z_near);
-	//lighting.set_uniform("z_far", camera.z_far);
-	lighting.set_uniform("view_matrix", camera.view_matrix);
-	//lighting.set_uniform("projection_matrix", camera.projection_matrix);	
-	lighting.set_uniform("view_projection_matrix", 
-		camera.view_projection_matrix);
+	lighting.set_uniform("z_far", camera.z_far);
+	//lighting.set_uniform("view_matrix", camera.view_matrix);
+	lighting.set_uniform("projection_matrix", camera.projection_matrix);	
+	//lighting.set_uniform("view_projection_matrix", camera.view_projection_matrix);
+	lighting.set_uniform("wc_camera_eye_position", camera.eye);
 
 	glm::mat4 light_tc_matrix(
 		0.5f, 0.0f, 0.0f, 0.0f,
@@ -546,11 +717,6 @@ void renderer::render_frame()
 		0.5f, 0.5f, 0.5f, 1.0f);
 	lighting.set_uniform("light_matrix", light_tc_matrix * light_view_projection_matrix);
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Tiled Shading
-////////////////////////////////////////////////////////////////////////////////
 #ifdef USE_TILED_SHADING
 	light_grid.update();
 	light_grid.use(lighting, texture_unit);
@@ -558,64 +724,14 @@ void renderer::render_frame()
 	
 	lights.resize(lights_size);
 
-	
-
-////////////////////////////////////////////////////////////////////////////////
-/// 2nd Pass
-////////////////////////////////////////////////////////////////////////////////	
-	using namespace storage::gpu;
-	
-	static std::array<float, 12> screen_aligned_quad_vertices = {1.0f, 1.0f, 0.0f, -1.0f, 1.0f, 0.0f, -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 0.0f};
-	static mesh screen_aligned_quad(material(false), GL_QUADS, screen_aligned_quad_vertices.data(), &screen_aligned_quad_vertices.back() + 1);
-	
-	
-	
-	static auto done = false;
-	static buffer<target::array, usage::stream_draw> frustrum(sizeof(float) * 3 * 4);
-	
-
-	
-	auto alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f;
-	auto tan_alpha = tan(alpha);
-	auto x = tan_alpha * camera.z_far;
-	auto y = x / camera.aspect_ratio;
-
-	glm::vec3 directions[4] = {
-		glm::vec3(x, y, -camera.z_far),
-		glm::vec3(-x, y, -camera.z_far),
-		glm::vec3(-x, -y, -camera.z_far),
-		glm::vec3(x, -y, -camera.z_far),
-	};
-
-	auto inverse_view_matrix = glm::inverse(glm::mat3(camera.view_matrix));
-
-	directions[0] = inverse_view_matrix * directions[0];
-	directions[1] = inverse_view_matrix * directions[1];
-	directions[2] = inverse_view_matrix * directions[2];
-	directions[3] = inverse_view_matrix * directions[3];
-	
-	screen_aligned_quad.vertex_array.bind();
-
-	frustrum.bind_and_update(0, sizeof(float) * 3 * 4, directions);
-
-	if (!done)
-	{
-		done = true;
-		unsigned int index = 3;
-		screen_aligned_quad.vertex_array.add_attribute(index, 3, nullptr);
-	}
-	
-	lighting.set_uniform("wc_camera_eye_position", camera.eye.x, camera.eye.y, camera.eye.z);
-	
-	screen_aligned_quad.render(lighting, texture_unit);
-
+	screen_aligned_quad.render_without_material();
 
 
 	
 ////////////////////////////////////////////////////////////////////////////////
 /// Bloom Blur
 ////////////////////////////////////////////////////////////////////////////////
-	
+
 	// Horizontal
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bloom2, 0);
 	texture_unit = 0;
@@ -636,11 +752,12 @@ void renderer::render_frame()
 /// Tone Mapping
 ////////////////////////////////////////////////////////////////////////////////
 	glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
-	tone_mapper.use();
 	texture_unit = 0;
+	tone_mapper.use();
 
 	main_render.use(tone_mapper, "main_render", texture_unit);
 	bloom1.use(tone_mapper, "bloom", texture_unit);
+	lut_texture.use(tone_mapper, "lut", texture_unit);
 	screen_aligned_quad.render(lighting, texture_unit);
 
 
@@ -648,13 +765,6 @@ void renderer::render_frame()
 	glFinish();
 }
 
-thread_pool::task renderer::render_frame_()
-{
-	using namespace thread_pool;
-	task frame_task;
-
-	return move(frame_task);
-}
 
 void renderer::on_window_resized( int width, int height )
 {
@@ -666,10 +776,10 @@ void renderer::on_window_resized( int width, int height )
 
 	lighting.use();
 #ifdef USE_TILED_SHADING
-	//lighting.set_uniform("tile_size", light_grid.tile_size());
-	//lighting.set_uniform("grid_dimensions", light_grid.tiles_x(), light_grid.tiles_y());
+	lighting.set_uniform("tile_size", light_grid.tile_size());
+	lighting.set_uniform("grid_dimensions", light_grid.tiles_x(), light_grid.tiles_y());
 #endif
-	//lighting.set_uniform("window_dimensions", camera.window.x, camera.window.y);
+	lighting.set_uniform("window_dimensions", camera.window.x, camera.window.y);
 
 
 	main_render.bind_and_update<float>(width, height, nullptr, 0);
@@ -678,7 +788,8 @@ void renderer::on_window_resized( int width, int height )
 	albedos.bind_and_update<float>(width, height, nullptr, 0);
 	bloom1.bind_and_update<float>(width, height, nullptr, 0);
 	bloom2.bind_and_update<float>(width, height, nullptr, 0);
-
+	ambient_occlusion_texture.bind_and_update<float>(static_cast<int>(width * ambient_occlusion_resolution_multiplier), static_cast<int>(height * ambient_occlusion_resolution_multiplier), nullptr, 0);
+	shadow_map.bind_and_update<texture::depth_float>(static_cast<int>(width * shadow_map_resolution_multiplier), static_cast<int>(height * shadow_map_resolution_multiplier), nullptr, 0);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 

@@ -9,7 +9,6 @@
 #include <black_label/renderer/program.hpp>
 #include <black_label/renderer/storage/gpu/model.hpp>
 #include <black_label/shared_library/utility.hpp>
-#include <black_label/thread_pool/task.hpp>
 #include <black_label/utility/log_severity_level.hpp>
 #include <black_label/world.hpp>
 
@@ -28,7 +27,6 @@ namespace renderer {
 
 class BLACK_LABEL_SHARED_LIBRARY renderer
 {
-
 MSVC_PUSH_WARNINGS(4251)
 private:
 	struct glew_setup { glew_setup(); } glew_setup;
@@ -47,7 +45,6 @@ public:
 	~renderer();
 
 	void render_frame();
-	thread_pool::task render_frame_();
 
 	void report_dirty_model( model_id_type id )
 	{ dirty_models.enqueue(id); }
@@ -79,7 +76,7 @@ public:
 
 	camera camera;
 
-
+	
 
 protected:
 	renderer( const renderer& other ); // Possible, but do you really want to?
@@ -115,13 +112,14 @@ MSVC_PUSH_WARNINGS(4251)
 
 	light_grid light_grid;
 
-	program buffering, null, lighting, blur_horizontal, blur_vertical, tone_mapper;
+	program buffering, null, ambient_occlusion, lighting, blur_horizontal, blur_vertical, tone_mapper;
 	unsigned int framebuffer;
 	texture main_render, depths, shadow_map, wc_normals, albedos, 
-		bloom1, bloom2, random_texture;
+		bloom1, bloom2, random_texture, ambient_occlusion_texture;
+	storage::gpu::texture_3d lut_texture;
 	storage::gpu::texture_buffer<float> gpu_lights;
 
-	glm::mat4 projection_matrix;
+	float ambient_occlusion_resolution_multiplier, shadow_map_resolution_multiplier;
 
 MSVC_POP_WARNINGS()
 };

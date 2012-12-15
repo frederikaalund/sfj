@@ -12,9 +12,23 @@ string(REPLACE " " "_" PROJECT_NAME_LOWERCASE_UNDERSCORES ${PROJECT_NAME_LOWERCA
 
 
 ##############################################################################
-## Common
+## Files & Directories
 ##############################################################################
-include(${PROJECT_SOURCE_DIR}/../cmake/common.cmake)
+find_path(SFJ_CMAKE_DIR common.cmake HINTS ${SFJ_SOURCE_DIR}/cmake)
+find_file(SFJ_COMMON common.cmake HINTS ${SFJ_CMAKE_DIR})
+
+include(${SFJ_COMMON})
+list(APPEND CMAKE_MODULE_PATH ${SFJ_CMAKE_DIR})
+
+set(HPP_DIR ${PROJECT_SOURCE_DIR}/${PROJECT_NAME_LOWERCASE_UNDERSCORES})
+set(CPP_DIR ${PROJECT_SOURCE_DIR}/libraries)
+
+include_directories(${PROJECT_SOURCE_DIR})
+
+set(BlackLabel_RUNTIME_STAGE_DIR ${PROJECT_SOURCE_DIR}/stage/binaries
+	CACHE PATH "Where to put compiled runtimes (.exe, .dll, .so).")
+set(BlackLabel_ARCHIVE_STAGE_DIR ${PROJECT_SOURCE_DIR}/stage/libraries
+	CACHE PATH "Where to put compiled archives or libraries (.lib, .a).")
 
 
 
@@ -28,114 +42,16 @@ endif()
 
 
 ##############################################################################
-## Directories
-##############################################################################
-set(HPP_DIR ${PROJECT_SOURCE_DIR}/${PROJECT_NAME_LOWERCASE_UNDERSCORES})
-set(CPP_DIR ${PROJECT_SOURCE_DIR}/libraries)
-
-include_directories(${PROJECT_SOURCE_DIR})
-
-
-
-##############################################################################
-## Internal Libraries
-##############################################################################
-
-## Black Label
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../../sfj/cmake)
-find_package(BlackLabel REQUIRED "file_buffer 0.1")
-
-
-
-##############################################################################
-## External Libraries
-##############################################################################
-
-## Boost
+## Libraries
+#############################################################################
+# Boost
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.50.0 REQUIRED date_time system chrono thread unit_test_framework filesystem serialization)
-include_directories(${Boost_INCLUDE_DIRS})
+find_package(Boost 1.50.0 QUIET REQUIRED unit_test_framework)
 
-## Boost Lockfree
-set(Boost_Lockfree_ROOT "Boost_Lockfree_ROOT-NOTFOUND" CACHE PATH "The root directory of Boost Lockfree.")
-if(NOT Boost_Lockfree_ROOT)
-	message(FATAL_ERROR "Please set Boost_Lockfree_ROOT to the root directory of Boost Lockfree. Boost Lockfree is NOT a Boost library but available through git at:\n  git://tim.klingt.org/boost_lockfree.git")
-endif()
-include_directories(${Boost_Lockfree_ROOT})
-
-## GLM
-set(GLM_ROOT "GLM_ROOT-NOTFOUND" CACHE PATH "The root directory of GLM.")
-if(NOT GLM_ROOT)
-	message(FATAL_ERROR "Please set GLM_ROOT to the root directory of GLM. GLM is available at:\n  http://glm.g-truc.net/download.html")
-endif()
-include_directories(${GLM_ROOT})
-
-## GLEW
-find_package(GLEW)
-add_definitions(-DGLEW_STATIC)
-include_directories(${GLEW_INCLUDE_PATH})
-
-## OpenGL
-find_package(OpenGL)
-include_directories(${OPENGL_INCLUDE_DIR})
-
-## SFML
-set(SFML_STATIC_LIBRARIES TRUE)
-find_package(SFML REQUIRED graphics)
-include_directories(${SFML_INCLUDE_DIR})
-
-## ASSIMP
-set(ASSIMP_INCLUDE_DIR "ASSIMP_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
-if(NOT ASSIMP_INCLUDE_DIR)
-	message(FATAL_ERROR "Please set ASSIMP_INCLUDE_DIR to the include directory of ASSIMP. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
-endif()
-include_directories(${ASSIMP_INCLUDE_DIR})
-
-set(ASSIMP_LIBRARY_RELEASE "ASSIMP_LIBRARY_RELEASE-NOTFOUND" CACHE FILEPATH "The release version of the library.")
-if(NOT ASSIMP_LIBRARY_RELEASE)
-	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_RELEASE to the release version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
-endif()
-set(ASSIMP_LIBRARY_DEBUG "ASSIMP_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "The debug version of the library.")
-if(NOT ASSIMP_LIBRARY_DEBUG)
-	message(FATAL_ERROR "Please set ASSIMP_LIBRARY_DEBUG to the debug version of the ASSIMP library. ASSIMP is available at:\n  http://assimp.sourceforge.net/main_downloads.html")
-endif()
-set(ASSIMP_LIBRARIES debug ${ASSIMP_LIBRARY_DEBUG} optimized ${ASSIMP_LIBRARY_RELEASE})
-
-## FBX
-set(FBX_INCLUDE_DIR "FBX_INCLUDE_DIR-NOTFOUND" CACHE PATH "The include directory.")
-if(NOT FBX_INCLUDE_DIR)
-	message(FATAL_ERROR "Please set FBX_INCLUDE_DIR to the include directory of FBX. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
-endif()
-include_directories(${FBX_INCLUDE_DIR})
-
-set(FBX_LIBRARY_RELEASE "FBX_LIBRARY_RELEASE-NOTFOUND" CACHE FILEPATH "The release version of the library.")
-if(NOT FBX_LIBRARY_RELEASE)
-	message(FATAL_ERROR "Please set FBX_LIBRARY_RELEASE to the release version of the FBX library. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
-endif()
-set(FBX_LIBRARY_DEBUG "FBX_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "The debug version of the library.")
-if(NOT FBX_LIBRARY_DEBUG)
-	message(FATAL_ERROR "Please set FBX_LIBRARY_DEBUG to the debug version of the FBX library. FBX is available at:\n  http://usa.autodesk.com/adsk/servlet/pc/item?siteID=123112&id=10775847")
-endif()
-set(FBX_LIBRARIES debug ${FBX_LIBRARY_DEBUG} optimized ${FBX_LIBRARY_RELEASE})
-
-## BULLET
-find_package(BULLET)
-set(BULLET_WORLD_IMPORTER_LIBRARY "BULLET_WORLD_IMPORTER_LIBRARY-NOTFOUND" CACHE FILEPATH "Path to the library.")
-set(BULLET_WORLD_IMPORTER_LIBRARY_DEBUG "BULLET_WORLD_IMPORTER_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "Path to the library.")
-set(BULLET_FILE_LOADER_LIBRARY "BULLET_FILE_LOADER_LIBRARY-NOTFOUND" CACHE FILEPATH "Path to the library.")
-set(BULLET_FILE_LOADER_LIBRARY_DEBUG "BULLET_FILE_LOADER_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "Path to the library.")
-list(APPEND BULLET_LIBRARIES 
-	"optimized" ${BULLET_WORLD_IMPORTER_LIBRARY}
-	"debug" ${BULLET_WORLD_IMPORTER_LIBRARY_DEBUG}
-	"optimized" ${BULLET_FILE_LOADER_LIBRARY}
-	"debug" ${BULLET_FILE_LOADER_LIBRARY_DEBUG}
-	)
-
-set(BULLET_WORLD_IMPORTER_INCLUDE_DIR "BULLET_WORLD_IMPORTER_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "Path to the include dir.")
-set(BULLET_FILE_LOADER_INCLUDE_DIR "BULLET_FILE_LOADER_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "Path to the include dir.")
-include_directories(${BULLET_INCLUDE_DIR} ${BULLET_WORLD_IMPORTER_INCLUDE_DIR} ${BULLET_FILE_LOADER_INCLUDE_DIR})
+include(${PROJECT_SOURCE_DIR}/cmake/dependencies_common.cmake)
+include_directories(${BlackLabel_DEPENDENCIES_COMMON_INCLUDE_DIRS})
 
 
 
@@ -146,18 +62,13 @@ file(GLOB MAIN_HPPS ${HPP_DIR}/*.hpp)
 
 
 
-##############################################################################
-## Main HPPs
-##############################################################################
-set(BlackLabel_RUNTIME_STAGE_DIR DEFAULT CACHE PATH "Where to put compiled runtime targets (.exe, .dll, .so)." )
-
-
 
 ##############################################################################
 ## A library for each main HPP
 ##############################################################################
 foreach(MAIN_HPP ${MAIN_HPPS})
 	get_filename_component(TARGET_NAME ${MAIN_HPP} NAME_WE)
+	string(TOUPPER ${TARGET_NAME} TARGET_NAME_CAPITALIZED)
 	
 	
 
@@ -184,9 +95,9 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	file(GLOB_RECURSE ${TARGET_NAME}_TEST_CPPS ${${TARGET_NAME}_TEST_DIR}/*.cpp)
 	list(APPEND ${TARGET_NAME}_HPPS ${MAIN_HPP})
 
-	directory_source_group(HPP\\${TARGET_NAME} ${${TARGET_NAME}_HPP_DIR} hpp)
+	directory_structured_source_groups(${${TARGET_NAME}_HPP_DIR} hpp HPP\\${TARGET_NAME})
 	source_group(HPP FILES ${MAIN_HPP})
-	directory_source_group(CPP\\${TARGET_NAME} ${${TARGET_NAME}_CPP_DIR}/${TARGET_NAME} cpp)
+	directory_structured_source_groups(${${TARGET_NAME}_CPP_DIR}/${TARGET_NAME} cpp CPP\\${TARGET_NAME})
 	source_group(CPP FILES ${${TARGET_NAME}_CPP_DIR}/${TARGET_NAME}.cpp)
 	source_group(CPP FILES ${${TARGET_NAME}_TEST_CPPS})
 
@@ -197,7 +108,6 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	##############################################################################
 	if(NOT IS_DIRECTORY ${${TARGET_NAME}_CPP_DIR})	
 		set(TARGET_TARGET_TYPE HEADER_ONLY)
-		#add_custom_target(${TARGET_NAME} SOURCES ${${TARGET_NAME}_HPPS})
 		add_library(${TARGET_NAME} STATIC ${${TARGET_NAME}_HPPS})
 		set_target_properties(${TARGET_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 		
@@ -214,8 +124,8 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 		##############################################################################
 		## Type
 		##############################################################################
-		string(TOUPPER ${TARGET_NAME} TARGET_NAME_CAPITALIZED)
-		set(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED} CACHE BOOL "Build ${TARGET_NAME} as a static library.")
+		option(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED}
+			"Build ${TARGET_NAME} as a static library.")
 		if(BlackLabel_BUILD_STATIC_${TARGET_NAME_CAPITALIZED})
 			set(TARGET_LIBRARY_TYPE STATIC)
 			set(TARGET_TARGET_TYPE ARCHIVE)
@@ -234,37 +144,19 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 		
 
 		##############################################################################
-		## Linking
+		## Dependencies
 		##############################################################################
-		if(${TARGET_NAME} STREQUAL thread_pool)
+		include(
+			${PROJECT_SOURCE_DIR}/cmake/dependencies_${TARGET_NAME}.cmake
+			OPTIONAL RESULT_VARIABLE DEPENDENCIES_FILE)
+
+		if(DEPENDENCIES_FILE)
+			include_directories(
+				${BlackLabel_DEPENDENCIES_${TARGET_NAME_CAPITALIZED}_INCLUDE_DIRS})
 			target_link_libraries(
 				${TARGET_NAME}
-				${Boost_DATE_TIME_LIBRARIES}
-				${Boost_SYSTEM_LIBRARIES}
-				${Boost_CHRONO_LIBRARIES}
-				${Boost_THREAD_LIBRARIES}
-				)
-		elseif(${TARGET_NAME} STREQUAL renderer)
-			target_link_libraries(
-				${TARGET_NAME}
-				${Boost_SYSTEM_LIBRARIES}
-				${Boost_THREAD_LIBRARIES}
-				${Boost_LOG_LIBRARIES}
-				${Boost_FILESYSTEM_LIBRARIES}
-				${Boost_SERIALIZATION}
-				${BlackLabel_FILE_BUFFER_LIBRARIES}
-				${SFML_LIBRARIES}
-				${ASSIMP_LIBRARIES}
-				${FBX_LIBRARIES}
-				${GLEW_LIBRARY}
-				${OPENGL_gl_LIBRARY}
-				)
-		elseif(${TARGET_NAME} STREQUAL dynamics)
-			target_link_libraries(
-				${TARGET_NAME}
-				${BULLET_LIBRARIES}
-				)
-		endif()	
+				${BlackLabel_DEPENDENCIES_${TARGET_NAME_CAPITALIZED}_LIBRARIES})
+		endif()
 		
 
 
@@ -272,8 +164,7 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 		## Properties
 		##############################################################################
 		set_target_properties(${TARGET_NAME} PROPERTIES
-			SOVERSION ${API_VERSION}
-			)
+			SOVERSION ${API_VERSION})
 	endif()
 	
 
@@ -281,7 +172,11 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 	##############################################################################
 	## Properties
 	##############################################################################
-	set_target_properties_output(${TARGET_NAME} ${TARGET_TARGET_TYPE} ${BlackLabel_RUNTIME_STAGE_DIR})
+	set_target_output_properties(
+		${TARGET_NAME}
+		${TARGET_TARGET_TYPE}
+		${BlackLabel_RUNTIME_STAGE_DIR}
+		${BlackLabel_ARCHIVE_STAGE_DIR})
 	
 	
 	
@@ -300,7 +195,7 @@ foreach(MAIN_HPP ${MAIN_HPPS})
 			
 			add_executable(${TEST_NAME} ${TEST_CPP})
 			target_link_libraries(${TEST_NAME} ${TEST_LIBRARIES})
-			set_target_properties_output(${TEST_NAME} TEST ${BlackLabel_RUNTIME_STAGE_DIR})
+			set_target_output_properties(${TEST_NAME} TEST ${BlackLabel_RUNTIME_STAGE_DIR})
 		endforeach()
 	endif()
 endforeach()

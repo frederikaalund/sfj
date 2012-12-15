@@ -21,7 +21,10 @@ glm::mat4 make_mat4( float scale, float x, float y, float z )
 
 int main( int argc, char const* argv[] )
 {	
-	application demo(argc, argv);
+	try
+	{
+		application demo(argc, argv);
+
 	
 
 
@@ -72,4 +75,11 @@ int main( int argc, char const* argv[] )
 /// Exit
 ////////////////////////////////////////////////////////////////////////////////
 	return 0;
+
+	}
+	catch(std::exception e)
+	{
+		std::cout << e.what();
+		return 1;
+	}
 }

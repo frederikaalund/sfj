@@ -170,6 +170,25 @@ void texture_base::update(
 	glGenerateMipmap(target);
 }
 
+void texture_base::update( 
+	target_type target,
+	int width, 
+	int height, 
+	int depth, 
+	const float* data, 
+	int mipmap_levels ) const
+{
+		if (0 >= mipmap_levels)
+	{
+		glTexImage3D(target, 0, GL_RGB, width, height, depth, 0, GL_RGB, GL_FLOAT, data);
+		return;
+	}
+
+	glTexStorage3D(target, mipmap_levels, GL_RGB, width, height, depth);
+	glTexSubImage3D(target, 0, 0, 0, 0, width, height, depth, GL_RGB, GL_FLOAT, data);
+	glGenerateMipmap(target);
+}
+
 
 
 void texture_base::generate()
@@ -186,6 +205,7 @@ void texture_base::generate()
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
 detail::texture_base::target_type tex2d::get() { return GL_TEXTURE_2D; }
+detail::texture_base::target_type tex3d::get() { return GL_TEXTURE_3D; }
 } // namespace target
 
 
