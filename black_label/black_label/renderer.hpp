@@ -2,6 +2,13 @@
 #ifndef BLACK_LABEL_RENDERER_RENDERER_HPP
 #define BLACK_LABEL_RENDERER_RENDERER_HPP
 
+
+
+#define USE_TILED_SHADING
+#define USE_TEXTURE_BUFFER
+
+
+
 #include <black_label/container.hpp>
 #include <black_label/renderer/camera.hpp>
 #include <black_label/renderer/light.hpp>

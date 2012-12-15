@@ -38,9 +38,6 @@ namespace ocio = OCIO_NAMESPACE;
 
 
 
-#define USE_TILED_SHADING
-
-
 
 using namespace std;
 
@@ -193,6 +190,12 @@ MSVC_POP_WARNINGS()
 #define LIGHTING_TILED_SHADING_DEFINE "#define USE_TILED_SHADING\n"
 #else
 #define LIGHTING_TILED_SHADING_DEFINE
+#endif
+    
+#ifdef USE_TEXTURE_BUFFER
+#define UBERSHADER_TEXTURE_BUFFER_DEFINE "#define USE_TEXTURE_BUFFER\n"
+#else
+#define UBERSHADER_TEXTURE_BUFFER_DEFINE
 #endif
 
 	/*

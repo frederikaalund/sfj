@@ -1,6 +1,12 @@
 #ifndef BLACK_LABEL_RENDERER_LIGHT_GRID_HPP
 #define BLACK_LABEL_RENDERER_LIGHT_GRID_HPP
 
+
+
+#define USE_TEXTURE_BUFFER
+
+
+
 #include <black_label/container/darray.hpp>
 #include <black_label/container/svector.hpp>
 #include <black_label/renderer/camera.hpp>
@@ -9,6 +15,7 @@
 #include <black_label/renderer/storage/gpu/texture.hpp>
 #include <black_label/shared_library/utility.hpp>
 
+#include <cstdint>
 #include <vector>
 
 #include <glm/glm.hpp>
