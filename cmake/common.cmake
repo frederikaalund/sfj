@@ -18,7 +18,7 @@ endforeach()
 
 
 ## Toolset
-if (MSVC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 	math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)
 	set(TOOLSET vc${VC_VERSION})
 	
@@ -41,7 +41,7 @@ if (MSVC)
 			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s)
 		endif()
 	endforeach()
-elseif (CMAKE_COMPILER_IS_GNUCXX)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	## Identify compiler specifics
 	execute_process(COMMAND ${CMAKE_CXX_COMPILER} "-dumpversion" OUTPUT_VARIABLE GNUCXX_VERSION)
 	execute_process(COMMAND ${CMAKE_CXX_COMPILER} "-dumpmachine" OUTPUT_VARIABLE GNUCXX_TARGET_MACHINE)
@@ -71,7 +71,7 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
 		endif()
 	endforeach()
 else()
-	message(FATAL_ERROR "Unsupported toolset! Supported toolsets: MSVC (all versions), GNUCXX (darwin: all versions)")
+	message(FATAL_ERROR "Unsupported toolset: ${CMAKE_CXX_COMPILER_ID}! Supported toolsets: MSVC (all versions), GNUCXX (darwin: all versions)")
 endif()
 
 ## ABI based on configuration
