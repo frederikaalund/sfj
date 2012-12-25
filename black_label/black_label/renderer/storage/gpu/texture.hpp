@@ -133,8 +133,13 @@ namespace target {
 extern detail::texture_base::target_type tex2d_;
 extern detail::texture_base::target_type tex3d_;
 
+#ifdef MSVC
+detail::texture_base::target_type* tex2d();
+detail::texture_base::target_type* tex3d();
+#else
 constexpr detail::texture_base::target_type* tex2d() { return &tex2d_; }
 constexpr detail::texture_base::target_type* tex3d() { return &tex3d_; }
+#endif
 } // namespace target
 
 

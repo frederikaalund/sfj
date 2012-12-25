@@ -53,11 +53,22 @@ namespace target {
 detail::buffer_base::target_type texture_ = GL_TEXTURE_BUFFER;
 detail::buffer_base::target_type array_ = GL_ARRAY_BUFFER;
 detail::buffer_base::target_type element_array_ = GL_ELEMENT_ARRAY_BUFFER;
+
+#ifdef MSVC
+detail::buffer_base::target_type* texture() { return &texture_; };
+detail::buffer_base::target_type* array() { return &array_; };
+detail::buffer_base::target_type* element_array() { return &element_array_; };
+#endif
 } // namespace target
 
 namespace usage {
 detail::buffer_base::usage_type stream_draw_ = GL_STREAM_DRAW;
 detail::buffer_base::usage_type static_draw_ = GL_STATIC_DRAW;
+
+#ifdef MSVC
+detail::buffer_base::target_type* stream_draw() { return &stream_draw_; };
+detail::buffer_base::target_type* static_draw() { return &static_draw_; };
+#endif
 } // namespace usage
 
 

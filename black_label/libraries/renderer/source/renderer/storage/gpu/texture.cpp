@@ -213,6 +213,11 @@ void texture_base::generate()
 namespace target {
 detail::texture_base::target_type tex2d_ = GL_TEXTURE_2D;
 detail::texture_base::target_type tex3d_ = GL_TEXTURE_3D;
+
+#ifdef MSVC
+detail::texture_base::target_type* tex2d() { return &tex2d_; }
+detail::texture_base::target_type* tex3d() { return &tex3d_; }
+#endif
 } // namespace target
 
 

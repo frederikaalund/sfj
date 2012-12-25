@@ -103,8 +103,8 @@ endforeach()
 ## Identify Toolset
 ##############################################################################
 
-# Visual Studio
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND (MSVC_VERSION EQUAL 1600 OR MSVC_VERSION GREATER 1600))
+# Visual Studio 
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC" AND (MSVC_VERSION EQUAL 1600 OR MSVC_VERSION GREATER 1600))
 	math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)
 	set(TOOLSET vc${VC_VERSION})
 
@@ -123,7 +123,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND (MSVC_VERSION EQUAL 1600 OR MSVC_VE
 
 
 # Clang
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# Query information
 	execute_process(COMMAND ${CMAKE_CXX_COMPILER} "--version" OUTPUT_VARIABLE CLANG_INFO)
 	string(STRIP ${CLANG_INFO} CLANG_INFO)
