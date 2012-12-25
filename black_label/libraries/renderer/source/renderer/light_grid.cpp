@@ -21,10 +21,10 @@ light_grid::light_grid(
 	black_label::renderer::camera& camera,
 	const light_container& lights ) 
 	: tile_size_(tile_size)
-	, camera(camera)
-	, lights(lights)
 	, gpu_index_list(generate)
 	, gpu_grid(generate)
+	, camera(camera)
+	, lights(lights)
 {}
 
 
@@ -48,7 +48,7 @@ void light_grid::update()
 
 
 
-	std::for_each(index_grid.begin(), index_grid.end(), [] ( std::vector<int>& list ) { list.clear(); });
+	std::for_each(index_grid.begin(), index_grid.end(), [] ( std::vector<float>& list ) { list.clear(); });
 
 	for (light_container::size_type i = 0; lights.size() > i; ++i)
 	{
@@ -167,13 +167,15 @@ void light_grid::update()
 
 	if (!index_list.empty())
 		gpu_index_list.bind_buffer_and_update(index_list.size(), index_list.data());
+    else
+		gpu_index_list.bind_buffer_and_update(1);
 
-	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::ivec2*>(grid.data()));
+	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::vec2*>(grid.data()));
 }
 
 void light_grid::use( const core_program& program, int& texture_unit ) const
 {
-	gpu_index_list.use(program, "light_index_list", texture_unit);
+    gpu_index_list.use(program, "light_index_list", texture_unit);
 	gpu_grid.use(program, "light_grid", texture_unit);
 }
 

@@ -10,7 +10,7 @@
 #include <boost/lockfree/fifo.hpp>
 
 #include <btBulletDynamicsCommon.h>
-#include <btBulletWorldImporter.h>
+#include <BulletWorldImporter/btBulletWorldImporter.h>
 
 
 

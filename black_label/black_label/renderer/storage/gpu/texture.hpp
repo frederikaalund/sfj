@@ -75,35 +75,43 @@ public:
 	void set_parameters( target_type target, filter filter, wrap wrap ) const;
 	void use( target_type target, const core_program& program, const char* name, int& texture_unit ) const;
 
-	void texture_base::update( 
+	void update(
 		target_type target,
 		int width, 
 		int height, 
 		const std::uint8_t* rgba_data, 
 		int mipmap_levels ) const;
-	void texture_base::update( 
+	void update(
 		target_type target,
 		int width, 
 		int height, 
 		const float* rgba_data, 
 		int mipmap_levels ) const;
-	void texture_base::update( 
+	void update(
 		target_type target,
 		int width, 
 		int height, 
 		const glm::vec3* data, 
 		int mipmap_levels ) const;
-	void texture_base::update( 
+	void update(
 		target_type target,
 		int width, 
 		int height, 
 		const depth_float* data, 
 		int mipmap_levels ) const;
-	void texture_base::update( 
+	void update(
 		target_type target,
 		int width, 
 		int height, 
 		const srgb_a* data, 
+		int mipmap_levels ) const;
+
+	void update(
+		target_type target,
+		int width, 
+		int height, 
+		int depth, 
+		const float* data, 
 		int mipmap_levels ) const;
 
 	id_type id;
@@ -121,8 +129,12 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 /// Targets
 ////////////////////////////////////////////////////////////////////////////////
-namespace target { 
-struct tex2d { static detail::texture_base::target_type get(); };
+namespace target {
+extern detail::texture_base::target_type tex2d_;
+extern detail::texture_base::target_type tex3d_;
+
+constexpr detail::texture_base::target_type* tex2d() { return &tex2d_; }
+constexpr detail::texture_base::target_type* tex3d() { return &tex3d_; }
 } // namespace target
 
 
@@ -130,7 +142,7 @@ struct tex2d { static detail::texture_base::target_type get(); };
 ////////////////////////////////////////////////////////////////////////////////
 /// Texture
 ////////////////////////////////////////////////////////////////////////////////
-template<typename target_type>
+template<detail::texture_base::target_type* target()>
 class texture : public detail::texture_base
 {
 public:
@@ -163,16 +175,32 @@ public:
 		update(width, height, rgba_data, mipmap_levels);
 	}
 
+	template<typename data_type>
+	texture( 
+		filter filter, 
+		wrap wrap, 
+		int width, 
+		int height, 
+		int depth, 
+		const data_type* rgb_data = nullptr, 
+		int mipmap_levels = 0 )
+		: detail::texture_base(black_label::renderer::generate)
+	{
+		bind();
+		set_parameters(filter, wrap);
+		update(width, height, depth, rgb_data, mipmap_levels);
+	}
+
 	texture& operator=( texture rhs ) { swap(*this, rhs); return *this; }
 
 
 
 	void bind() const
-	{ texture_base::bind(target_type::get()); }
+	{ texture_base::bind(*target()); }
 	void set_parameters( filter filter, wrap wrap ) const
-	{ texture_base::set_parameters(target_type::get(), filter, wrap); }
+	{ texture_base::set_parameters(*target(), filter, wrap); }
 	void use( const core_program& program, const char* name, int& texture_unit ) const
-	{ texture_base::use(target_type::get(), program, name, texture_unit); }
+	{ texture_base::use(*target(), program, name, texture_unit); }
 
 	template<typename data_type>
 	void update( 
@@ -180,7 +208,17 @@ public:
 		int height, 
 		const data_type* data = nullptr, 
 		int mipmap_levels = 8 ) const
-	{ texture_base::update(target_type::get(), width, height, data, mipmap_levels); }
+	{
+        texture_base::update(*target(), width, height, data, mipmap_levels); }
+	
+	template<typename data_type>
+	void update( 
+		int width, 
+		int height, 
+		int depth, 
+		const data_type* data = nullptr, 
+		int mipmap_levels = 8 ) const
+	{ texture_base::update(*target(), width, height, depth, data, mipmap_levels); }
 
 	template<typename data_type>
 	void bind_and_update( 
@@ -198,6 +236,7 @@ protected:
 };
 
 typedef texture<target::tex2d> texture_2d;
+typedef texture<target::tex3d> texture_3d;
 
 
 
@@ -230,6 +269,7 @@ public:
 	void associate_as_int32s() const;
 	void associate_as_ivec2s() const;
 	void associate_as_floats() const;
+	void associate_as_vec2s() const;
 	void associate_as_vec4s() const;
 
 	void update( size_t size, const void* data = nullptr ) const
@@ -302,6 +342,10 @@ private:
 	typename std::enable_if<std::is_same<data_type__, float>::value>::type
 	associate_( const texture_buffer<data_type__>& ttb ) { ttb.associate_as_floats(); }
 
+	template<typename data_type__> static
+	typename std::enable_if<std::is_same<data_type__, glm::vec2>::value>::type
+	associate_( const texture_buffer<data_type__>& ttb ) { ttb.associate_as_vec2s(); }
+    
 	template<typename data_type__> static
 	typename std::enable_if<std::is_same<data_type__, glm::vec4>::value>::type
 	associate_( const texture_buffer<data_type__>& ttb ) { ttb.associate_as_vec4s(); }

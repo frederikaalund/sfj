@@ -45,7 +45,7 @@ shader::shader(
 	}
 	status.set(shader_file_found_bit);
 	
-	static std::vector<const char> numerical_constants;
+	static std::vector<char> numerical_constants;
 	if (numerical_constants.empty())
 	{
 		std::stringstream numerical_constants_stream;
@@ -104,11 +104,16 @@ core_program::~core_program()
 
 void core_program::use() const { glUseProgram(id); }
 
-void core_program::set_output_location( unsigned int color_number, const char* name )
+void core_program::set_output_location( unsigned int location, const char* name )
 {
-	glBindFragDataLocation(id, color_number, name);
+	glBindFragDataLocation(id, location, name);
 }
 
+void core_program::set_attribute_location( unsigned int location, const char* name )
+{
+	glBindAttribLocation(id, location, name);
+}
+    
 void core_program::link()
 {
 	glLinkProgram(id);
@@ -157,14 +162,36 @@ void core_program::set_uniform( const char* name, float value1, float value2, fl
 	glUniform4f(location, value1, value2, value3, value4);
 }
 
-void core_program::set_uniform( const char* name, glm::mat3& value ) const
+
+void core_program::set_uniform( const char* name, const glm::vec2& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform2fv(location, 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, const glm::vec3& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform3fv(location, 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, const glm::vec4& value ) const
+{
+	auto location = get_uniform_location(name);
+	assert(-1 != location);
+	glUniform4fv(location, 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const char* name, const glm::mat3& value ) const
 {
 	auto location = get_uniform_location(name);
 	assert(-1 != location);
 	glUniformMatrix3fv(location, 1, GL_FALSE, glm::value_ptr(value));
 }
 
-void core_program::set_uniform( const char* name, glm::mat4& value ) const
+void core_program::set_uniform( const char* name, const glm::mat4& value ) const
 {
 	auto location = get_uniform_location(name);
 	assert(-1 != location);
@@ -252,11 +279,6 @@ void program::setup(
 	if (vertex.is_complete()) glAttachShader(id, vertex.id);
 	if (geometry.is_complete()) glAttachShader(id, geometry.id);
 	if (fragment.is_complete()) glAttachShader(id, fragment.id);
-
-	glBindAttribLocation(id, 0, "oc_position");
-	glBindAttribLocation(id, 1, "oc_normal");
-	glBindAttribLocation(id, 2, "oc_texture_coordinates");
-	glBindAttribLocation(id, 3, "wc_camera_ray_direction");
 }
 
 } // namespace renderer

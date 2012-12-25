@@ -1,3 +1,5 @@
+#ifdef DEVELOPER_TOOLS
+
 #define BLACK_LABEL_SeHARED_LIBRARY_EXPORT
 #include <black_label/renderer/storage/file_loading.hpp>
 #include <black_label/utility/log_severity_level.hpp>
@@ -34,6 +36,8 @@ using namespace utility;
 
 
 
+#ifndef NO_FBX
+    
 ////////////////////////////////////////////////////////////////////////////////
 /// Scoped FBX Object
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +229,8 @@ bool load_fbx(
 
 	return true;
 }
+    
+#endif
 
 
 
@@ -356,3 +362,5 @@ bool load_assimp(
 } // namespace storage
 } // namespace renderer
 } // namespace black_label
+
+#endif

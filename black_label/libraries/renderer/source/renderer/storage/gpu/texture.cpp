@@ -165,8 +165,34 @@ void texture_base::update(
 		return;
 	}
 
-	glTexStorage2D(target, mipmap_levels, GL_SRGB8_ALPHA8, width, height);
-	glTexSubImage2D(target, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    if (GLEW_ARB_texture_storage)
+    {
+        glTexStorage2D(target, mipmap_levels, GL_SRGB8_ALPHA8, width, height);
+        glTexSubImage2D(target, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    }
+    else
+    {
+        glTexImage2D(target, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(target);
+    }
+}
+
+void texture_base::update( 
+	target_type target,
+	int width, 
+	int height, 
+	int depth, 
+	const float* data, 
+	int mipmap_levels ) const
+{
+    if (0 >= mipmap_levels)
+	{
+		glTexImage3D(target, 0, GL_RGB, width, height, depth, 0, GL_RGB, GL_FLOAT, data);
+		return;
+	}
+
+	glTexStorage3D(target, mipmap_levels, GL_RGB, width, height, depth);
+	glTexSubImage3D(target, 0, 0, 0, 0, width, height, depth, GL_RGB, GL_FLOAT, data);
 	glGenerateMipmap(target);
 }
 
@@ -185,7 +211,8 @@ void texture_base::generate()
 /// Targets
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-detail::texture_base::target_type tex2d::get() { return GL_TEXTURE_2D; }
+detail::texture_base::target_type tex2d_ = GL_TEXTURE_2D;
+detail::texture_base::target_type tex3d_ = GL_TEXTURE_3D;
 } // namespace target
 
 
@@ -207,6 +234,10 @@ void texture_buffer_base::associate_as_ivec2s() const
 void texture_buffer_base::associate_as_floats() const
 {
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, buffer);
+}
+void texture_buffer_base::associate_as_vec2s() const
+{
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32F, buffer);
 }
 void texture_buffer_base::associate_as_vec4s() const
 {

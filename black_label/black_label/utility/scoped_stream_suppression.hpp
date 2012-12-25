@@ -3,7 +3,9 @@
 
 
 
+#ifdef MSVC_VERSION // TODO: Can this include be removed?
 #include <io.h>
+#endif
 #include <fcntl.h>
 
 

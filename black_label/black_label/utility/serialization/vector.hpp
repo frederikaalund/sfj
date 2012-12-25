@@ -13,7 +13,7 @@ namespace serialization {
 template<typename archive_type, typename T, typename allocator_type>
 void save( archive_type& archive, const std::vector<T, allocator_type>& vector, unsigned int version )
 {
-	std::vector<T, allocator_type>::size_type size = vector.size();
+	typename std::vector<T, allocator_type>::size_type size = vector.size();
 	archive & size;
 	archive & make_array(vector.data(), size);
 }
@@ -21,7 +21,7 @@ void save( archive_type& archive, const std::vector<T, allocator_type>& vector, 
 template<typename archive_type, typename T, typename allocator_type>
 void load( archive_type& archive, std::vector<T, allocator_type>& vector, unsigned int version )
 {
-	std::vector<T, allocator_type>::size_type size;
+	typename std::vector<T, allocator_type>::size_type size;
 	archive & size;
 	vector.resize(size);
 	archive & make_array(vector.data(), size);

@@ -98,7 +98,7 @@ private:
 	#define IS_TRIVIALLY_CONTRUCTIBLE std::has_trivial_constructor
 #else
 	#define IS_TRIVIALLY_DESTRUCTIBLE std::is_trivially_destructible
-	#define IS_TRIVIALLY_CONTRUCTIBLE std::is_trivially_constructor
+	#define IS_TRIVIALLY_CONTRUCTIBLE std::is_trivially_constructible
 #endif
 
 	template<typename T_> static

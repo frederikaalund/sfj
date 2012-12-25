@@ -92,7 +92,8 @@ public:
 	core_program& operator =( core_program lhs ) { swap(*this, lhs); return *this; }
 
 	void use() const;
-	void set_output_location( unsigned int color_number, const char* name );
+	void set_output_location( unsigned int location, const char* name );
+	void set_attribute_location( unsigned int location, const char* name );
 	void link();
 
 	unsigned int get_uniform_location( const char* name ) const;
@@ -101,8 +102,11 @@ public:
 	void set_uniform( const char* name, float value ) const;
 	void set_uniform( const char* name, float value1, float value2, float value3 ) const;
 	void set_uniform( const char* name, float value1, float value2, float value3, float value4 ) const;
-	void set_uniform( const char* name, glm::mat3& value ) const;
-	void set_uniform( const char* name, glm::mat4& value ) const;
+	void set_uniform( const char* name, const glm::vec2& value ) const;
+	void set_uniform( const char* name, const glm::vec3& value ) const;
+	void set_uniform( const char* name, const glm::vec4& value ) const;
+	void set_uniform( const char* name, const glm::mat3& value ) const;
+	void set_uniform( const char* name, const glm::mat4& value ) const;
 
 	id_type id;
 
@@ -142,18 +146,21 @@ public:
 		link();
 	}
 
-	template<typename iterator>
+	template<typename iterator1, typename iterator2>
 	explicit program( 
 		const char* path_to_vertex_shader,
 		const char* path_to_geometry_shader,
 		const char* path_to_fragment_shader,
 		const char* preprocessor_commands,
-		iterator fragment_output_name_first,
-		iterator fragment_output_name_last)
+		iterator1 fragment_output_name_first,
+		iterator1 fragment_output_name_last,
+        iterator2 vertex_attribute_name_first,
+        iterator2 vertex_attribute_name_last)
 		: core_program(black_label::renderer::generate)
 	{
 		setup(path_to_vertex_shader, path_to_geometry_shader, path_to_fragment_shader, preprocessor_commands);
 		set_output_locations(fragment_output_name_first, fragment_output_name_last);
+		set_attribute_locations(vertex_attribute_name_first, vertex_attribute_name_last);
 		link();
 	}
 
@@ -184,8 +191,18 @@ protected:
 		iterator fragment_output_name_last)
 	{
 		unsigned int location = 0;
-		std::for_each(fragment_output_name_first, fragment_output_name_last, 
+		std::for_each(fragment_output_name_first, fragment_output_name_last,
 			[&] ( const char* name ) { set_output_location(location++, name); });
+	}
+    
+	template<typename iterator>
+	void set_attribute_locations(
+        iterator vertex_attribute_name_first,
+        iterator vertex_attribute_name_last)
+	{
+		unsigned int location = 0;
+		std::for_each(vertex_attribute_name_first, vertex_attribute_name_last,
+                      [&] ( const char* name ) { set_attribute_location(location++, name); });
 	}
 };
 

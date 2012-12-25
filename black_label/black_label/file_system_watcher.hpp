@@ -25,7 +25,7 @@ public:
 	typedef std::vector<path_type> path_container_type;
 
 	file_system_watcher() {}
-	file_system_watcher( const path_type& path, const filters_type filters );
+	file_system_watcher( const path_type& path, filters_type filters );
 	~file_system_watcher();
 
 	// These calls are not thread-safe
