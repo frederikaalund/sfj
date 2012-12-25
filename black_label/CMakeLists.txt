@@ -35,8 +35,10 @@ set(BlackLabel_ARCHIVE_STAGE_DIR ${PROJECT_SOURCE_DIR}/stage/libraries
 ##############################################################################
 ## Definitions
 ##############################################################################
-if(MSVC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	add_definitions(-Wno-missing-braces)
 endif()
 
 
