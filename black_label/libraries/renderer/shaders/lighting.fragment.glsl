@@ -245,9 +245,6 @@ float ec_depth( in vec2 tc )
 
 
 
-
-
-
 void main()
 {
 	vec2 tc_window = gl_FragCoord.xy / window_dimensions;
@@ -255,6 +252,7 @@ void main()
 	vec3 wc_normal = texture(wc_normals, tc_window).xyz;
 	vec3 albedo = texture(albedos, tc_window).xyz;
 	float specular_exponent = texture(albedos, tc_window).w;
+
 	vec3 bent_normal = normalize(texture(ambient_occlusion_texture, tc_window).rgb * 2.0 - 1.0);
 	float ambient_occlusion = texture(ambient_occlusion_texture, tc_window).a;
 	const float a = 0.5;
@@ -265,10 +263,12 @@ void main()
 	// Direct light
 	color = 0.5880 * calculate_direct_light2(wc_position, wc_normal, albedo, bent_normal, specular_exponent);
 
+
 	// Shadow Mapping
 	color.rgb *= calculate_shadow_coefficient(wc_position);
 
 	// Indirect light
+
 	color.rgb += 0.15880 * albedo * ambient_occlusion;
 
 	// Overrides

@@ -6,7 +6,9 @@ uniform float z_far;
 
 uniform vec2 tc_window;
 
+
 uniform mat4 projection_matrix;
+
 
 
 
@@ -32,6 +34,7 @@ float ec_depth( in vec2 tc )
 void main()
 {
 	vec2 tc_depths = gl_FragCoord.xy / tc_window;
+
 	float ec_depth_negated = -ec_depth(tc_depths);
 	vec3 wc_position = wc_camera_eye_position + vertex.wc_camera_ray_direction * ec_depth_negated / z_far;
 
@@ -44,10 +47,12 @@ void main()
 
 	float scene_depth = texture(depths, tc_depths).x;
 
+
 	vec2 inverted_random_texture_size = 1.0 / vec2(textureSize(random_texture, 0));
 	vec2 tc_random_texture = gl_FragCoord.xy * inverted_random_texture_size;
 
 	vec3 random_direction = texture(random_texture, tc_random_texture).xyz;
+
 	random_direction = normalize(random_direction * 2.0 - 1.0);
 
 	for (int i = 0; i < samples; ++i)
