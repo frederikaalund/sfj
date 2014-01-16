@@ -71,10 +71,22 @@ add_build_type_and_configuration(
 	"ReleaseWithDeveloperTools"
 	"Release"
 	${DEVELOPER_TOOLS_DEFINE})
+
 add_build_type_and_configuration(
 	"MinSizeRelWithDeveloperTools"
 	"MinSizeRel"
 	${DEVELOPER_TOOLS_DEFINE})
+
+add_build_type_and_configuration(
+	"RelWithDebInfoAndDeveloperTools"
+	"RelWithDebInfo"
+	${DEVELOPER_TOOLS_DEFINE})
+
+# Register debug configurations
+get_property(DEBUG_CONFIGURATIONS GLOBAL PROPERTY DEBUG_CONFIGURATIONS)
+list(APPEND DEBUG_CONFIGURATIONS "Debug" "DebugWithDeveloperTools") # "RelWithDebInfo" "RelWithDebInfoAndDeveloperTools"
+list(REMOVE_DUPLICATES DEBUG_CONFIGURATIONS)
+set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS ${DEBUG_CONFIGURATIONS})
 
 
 
@@ -89,6 +101,7 @@ foreach(CONFIGURATION ${CMAKE_CONFIGURATION_TYPES})
 		${CONFIGURATION} STREQUAL RelWithDebInfo OR
 		${CONFIGURATION} STREQUAL DebugWithDeveloperTools OR
 		${CONFIGURATION} STREQUAL ReleaseWithDeveloperTools OR
+		${CONFIGURATION} STREQUAL RelWithDebInfoAndDeveloperTools OR
 		${CONFIGURATION} STREQUAL MinSizeRelWithDeveloperTools)
 		string(TOUPPER ${CONFIGURATION} CONFIGURATION_CAPITALIZED)	
 		list(APPEND CONFIGURATIONS ${CONFIGURATION_CAPITALIZED})
@@ -159,12 +172,14 @@ endif()
 ##############################################################################
 ## Tag According to Configuration
 ##############################################################################
-set(ABI_RELEASE ${ABI_RELEASE}release)
 set(ABI_DEBUG ${ABI_DEBUG}debug)
-set(ABI_MINSIZEREL ${ABI_MINSIZEREL}release_min_size)
-set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}release_with_debug_info)
+set(ABI_DEBUGWITHDEVELOPERTOOLS ${ABI_DEBUGWITHDEVELOPERTOOLS}debug_with_developer_tools)
+set(ABI_RELEASE ${ABI_RELEASE}release)
 set(ABI_RELEASEWITHDEVELOPERTOOLS ${ABI_RELEASEWITHDEVELOPERTOOLS}release_with_developer_tools)
+set(ABI_MINSIZEREL ${ABI_MINSIZEREL}release_min_size)
 set(ABI_MINSIZERELWITHDEVELOPERTOOLS ${ABI_MINSIZERELWITHDEVELOPERTOOLS}release_min_size_with_developer_tools)
+set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}release_with_debug_info)
+set(ABI_RELWITHDEBINFOANDDEVELOPERTOOLS ${ABI_RELWITHDEBINFOANDDEVELOPERTOOLS}release_with_debug_info_and_developer_tools)
 
 
 

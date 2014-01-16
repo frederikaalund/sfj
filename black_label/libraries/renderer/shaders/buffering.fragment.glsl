@@ -21,7 +21,7 @@ void main()
 	vec2 tc_texture_coordinates = vec2(vertex.oc_texture_coordinate.x, 1.0 - vertex.oc_texture_coordinate.y);
 
 	vec4 diffuse = texture(diffuse_texture, tc_texture_coordinates);
-	if (diffuse.a <= 1.0e-5) discard;
+	//if (diffuse.a <= 1.0e-5) discard;
 
 	// TODO: Do this correctly.
 	float specular_exponent_ = specular_exponent * texture(specular_texture, tc_texture_coordinates).r;

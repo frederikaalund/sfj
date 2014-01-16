@@ -213,8 +213,7 @@ public:
 		int height, 
 		const data_type* data = nullptr, 
 		int mipmap_levels = 8 ) const
-	{
-        texture_base::update(*target(), width, height, data, mipmap_levels); }
+	{ texture_base::update(*target(), width, height, data, mipmap_levels); }
 	
 	template<typename data_type>
 	void update( 

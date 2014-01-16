@@ -6,9 +6,8 @@ uniform float z_far;
 
 uniform vec2 tc_window;
 
-uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
-uniform mat4 view_projection_matrix;
+
 
 
 
@@ -33,40 +32,37 @@ float ec_depth( in vec2 tc )
 void main()
 {
 	vec2 tc_depths = gl_FragCoord.xy / tc_window;
-	vec3 wc_position = wc_camera_eye_position + vertex.wc_camera_ray_direction * -ec_depth(tc_depths) / z_far;
+	float ec_depth_negated = -ec_depth(tc_depths);
+	vec3 wc_position = wc_camera_eye_position + vertex.wc_camera_ray_direction * ec_depth_negated / z_far;
 
-	ambient_occlusion.r = 0.0f;
-	const float radius = 5.0;	
-	const int samples = 16;
-	//int visible = 0;
+	ambient_occlusion.a = 0.0f;
+	const float radius = 10.0;	
+	const int samples = 200;
+
+	float projection_scale_xy = 1.0 / ec_depth_negated;
+	float projection_scale_z = 100.0 / z_far * projection_scale_xy;
+
+	float scene_depth = texture(depths, tc_depths).x;
 
 	vec2 inverted_random_texture_size = 1.0 / vec2(textureSize(random_texture, 0));
 	vec2 tc_random_texture = gl_FragCoord.xy * inverted_random_texture_size;
 
 	vec3 random_direction = texture(random_texture, tc_random_texture).xyz;
+	random_direction = normalize(random_direction * 2.0 - 1.0);
 
 	for (int i = 0; i < samples; ++i)
 	{
-		vec3 sample_random_direction = texture(random_texture, vec2(float(i) * inverted_random_texture_size.x + tc_random_texture.x, tc_random_texture.y)).xyz;
+		vec3 sample_random_direction = texture(random_texture, vec2(float(i) * inverted_random_texture_size.x, float(i / textureSize(random_texture, 0).x) * inverted_random_texture_size.y)).xyz;
+		sample_random_direction = sample_random_direction * 2.0 - 1.0;
 		sample_random_direction = reflect(sample_random_direction, random_direction);
-		
-		vec3 wc_sample = wc_position + sample_random_direction * radius;
-		vec3 ec_sample = (view_matrix * vec4(wc_sample, 1.0)).xyz;
-		vec4 cc_sample = view_projection_matrix * vec4(wc_sample, 1.0);
-		vec3 ndc_sample = cc_sample.xyz / cc_sample.w;
-		vec2 tc_sample = (ndc_sample.xy + vec2(1.0)) * 0.5;
 
-		float scene_depth = ec_depth(tc_sample);
-		float sample_depth = ec_sample.z;
-		
-		//float depth_difference = max((scene_depth - sample_depth) * radius, 0.0);
-		//ambient_occlusion.r += 1.0 - 1.0 / (1.0 + depth_difference * depth_difference);
-		ambient_occlusion.r += 1.0 - smoothstep(scene_depth - sample_depth, 0.0, radius);
-		
-		//if (sample_depth <= scene_depth)
-			//visible++;
+		vec3 tc_sample_pos = vec3(tc_depths.xy, scene_depth)
+			+ vec3(sample_random_direction.xy * projection_scale_xy, sample_random_direction.z * scene_depth * projection_scale_z) * radius;
+
+		float sample_depth = texture(depths, tc_sample_pos.xy).x;
+
+		ambient_occlusion.a += float(sample_depth > tc_sample_pos.z);
 	}
 	
-	ambient_occlusion.r = max(ambient_occlusion.r / float(samples) - 0.5f, 0.0) * 2.0;
-	//return min(float(visible) / float(samples) * 2.0, 1.0);
+	ambient_occlusion.a /= float(samples);
 }

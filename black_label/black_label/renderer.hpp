@@ -25,7 +25,11 @@
 #define BOOST_FILESYSTEM_NO_DEPRECATED
 #include <boost/filesystem/convenience.hpp>
 #include <boost/lockfree/fifo.hpp>
+#include <boost/log/common.hpp>
 #include <boost/log/sources/severity_logger.hpp>
+#include <boost/program_options.hpp>
+
+#include <tbb/concurrent_queue.h>
 
 
 
@@ -45,13 +49,20 @@ public:
 	typedef world::world world_type;
 	typedef world_type::entity_id_type entity_id_type;
 	typedef world_type::model_id_type model_id_type;
+	typedef boost::filesystem::path path;
 
+	static const path default_shader_directory;
+	static const path default_asset_directory;
 
-
-	renderer( const world_type& world, camera&& camera );
+	renderer( 
+		const world_type& world,
+		camera&& camera,
+		path shader_directory = default_shader_directory, 
+		path asset_directory = default_asset_directory );
 	~renderer();
 
 	void render_frame();
+	void reload_shader( const path& path_to_shader );
 
 	void report_dirty_model( model_id_type id )
 	{ dirty_models.enqueue(id); }
@@ -82,6 +93,8 @@ public:
 
 
 	camera camera;
+	path shader_directory;
+	path asset_directory;
 
 	
 
@@ -91,6 +104,7 @@ protected:
 
 
 private:
+
 MSVC_PUSH_WARNINGS(4251)
 
 	typedef boost::lockfree::fifo<model_id_type> dirty_model_id_container;
@@ -113,13 +127,17 @@ MSVC_PUSH_WARNINGS(4251)
 	dirty_model_id_container dirty_models;
 	dirty_entity_id_container dirty_static_entities, dirty_dynamic_entities;
 
+	tbb::concurrent_queue<model_id_type> models_being_loaded;
+
 	model_container models;
 	sorted_entities_container sorted_statics, sorted_dynamics;
 	light_container lights;
 
 	light_grid light_grid;
 
-	program buffering, null, ambient_occlusion, lighting, blur_horizontal, blur_vertical, tone_mapper;
+	program buffering, null, ambient_occlusion, lighting, 
+		geometry_aware_blur_horizontal, geometry_aware_blur_vertical, 
+		blur_horizontal, blur_vertical, tone_mapper;
 	unsigned int framebuffer;
 	texture main_render, depths, shadow_map, wc_normals, albedos, 
 		bloom1, bloom2, random_texture, ambient_occlusion_texture;

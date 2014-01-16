@@ -48,7 +48,7 @@ void light_grid::update()
 
 
 
-	std::for_each(index_grid.begin(), index_grid.end(), [] ( std::vector<float>& list ) { list.clear(); });
+	std::for_each(index_grid.begin(), index_grid.end(), [] ( index_grid_type::value_type& list ) { list.clear(); });
 
 	for (light_container::size_type i = 0; lights.size() > i; ++i)
 	{
@@ -170,7 +170,7 @@ void light_grid::update()
     else
 		gpu_index_list.bind_buffer_and_update(1);
 
-	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::vec2*>(grid.data()));
+	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::ivec2*>(grid.data()));
 }
 
 void light_grid::use( const core_program& program, int& texture_unit ) const

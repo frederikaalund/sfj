@@ -25,10 +25,10 @@ class light_grid
 {
 public:
 	typedef container::svector<light> light_container;
-	typedef container::darray<std::vector<float> > index_grid_type;
-	struct grid_data { float offset, count; };
+	typedef container::darray<std::vector<int> > index_grid_type;
+	struct grid_data { int offset, count; };
 	typedef container::darray<grid_data> grid_type;
-	typedef std::vector<float> index_list_type;
+	typedef std::vector<int> index_list_type;
 
 
 
@@ -56,8 +56,8 @@ private:
 	grid_type grid;
 	index_list_type index_list;
 
-	storage::gpu::texture_buffer<float> gpu_index_list;
-	storage::gpu::texture_buffer<glm::vec2> gpu_grid;
+	storage::gpu::texture_buffer<int> gpu_index_list;
+	storage::gpu::texture_buffer<glm::ivec2> gpu_grid;
 
 	black_label::renderer::camera& camera;
 	const light_container& lights;

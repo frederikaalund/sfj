@@ -30,13 +30,27 @@ using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 shader::shader( 
 	shader_type type, 
-	const char* path_to_shader, 
-	const char* preprocessor_commands )
+	const path& path_to_shader, 
+	const string& preprocessor_commands )
+	: type(type)
+	, preprocessor_commands(preprocessor_commands)
+	, path_to_shader(path_to_shader)
 {
+	load();
+}
+
+BLACK_LABEL_SHARED_LIBRARY shader::~shader() 
+{ 
+	if (id) glDeleteShader(id);
+}
+
+void shader::load()
+{
+	status.reset();
 	status.set(is_tried_instantiated_bit);
 
 	file_buffer::file_buffer 
-		source_code(path_to_shader, file_buffer::null_terminated);
+	source_code(path_to_shader.string(), file_buffer::null_terminated);
 	
 	if (!source_code.data())
 	{
@@ -45,17 +59,20 @@ shader::shader(
 	}
 	status.set(shader_file_found_bit);
 	
-	static std::vector<char> numerical_constants;
+	// TODO: Do this without the following if statement.
+	static string numerical_constants;
 	if (numerical_constants.empty())
 	{
 		std::stringstream numerical_constants_stream;
-		numerical_constants_stream << "#define PI " << boost::math::constants::pi<float>() << std::endl;
-		auto numerical_constants_string = numerical_constants_stream.str();
-		numerical_constants.assign(numerical_constants_string.cbegin(), numerical_constants_string.cend());
-		numerical_constants.push_back('\0');
+		numerical_constants_stream << "#define PI " 
+			<< boost::math::constants::pi<float>() << std::endl;
+		numerical_constants = numerical_constants_stream.str();
 	}
 
-	const GLchar* source_code_data[] = { preprocessor_commands, numerical_constants.data(), source_code.data() };
+	const GLchar* source_code_data[] = { 
+		preprocessor_commands.data(), 
+		numerical_constants.data(), 
+		source_code.data() };
 	
 	id = glCreateShader(type);
 	glShaderSource(id, 3, source_code_data, nullptr);
@@ -65,11 +82,6 @@ shader::shader(
 	glGetShaderiv(id, GL_COMPILE_STATUS, &compile_status);
 	if (compile_status)
 		status.set(compile_status_bit);
-}
-
-BLACK_LABEL_SHARED_LIBRARY shader::~shader() 
-{ 
-	if (id) glDeleteShader(id);
 }
 
 string shader::get_info_log()
@@ -82,7 +94,7 @@ string shader::get_info_log()
 	{
 		result.resize(info_log_length);
 		glGetShaderInfoLog(id, info_log_length, nullptr, &result[0]);
-		result.erase(result.find_last_not_of('\0')+1);
+		result.erase(result.find_last_not_of('\0') + 1);
 	}
 
 	return result;
@@ -104,14 +116,14 @@ core_program::~core_program()
 
 void core_program::use() const { glUseProgram(id); }
 
-void core_program::set_output_location( unsigned int location, const char* name )
+void core_program::set_output_location( unsigned int location, const string& name )
 {
-	glBindFragDataLocation(id, location, name);
+	glBindFragDataLocation(id, location, name.data());
 }
 
-void core_program::set_attribute_location( unsigned int location, const char* name )
+void core_program::set_attribute_location( unsigned int location, const string& name )
 {
-	glBindAttribLocation(id, location, name);
+	glBindAttribLocation(id, location, name.data());
 }
     
 void core_program::link()
@@ -121,81 +133,70 @@ void core_program::link()
 
 
 
-unsigned int core_program::get_uniform_location( const char* name ) const
+unsigned int core_program::get_uniform_location( const string& name ) const
 {
-	return glGetUniformLocation(id, name);
+	return glGetUniformLocation(id, name.data());
 }
 
 
-void core_program::set_uniform( const char* name, int value ) const
+unsigned int core_program::get_uniform_location_checked( const std::string& name ) const
 {
 	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform1i(location, value);
-}
-
-void core_program::set_uniform( const char* name, int value1, int value2 ) const
-{
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform2i(location, value1, value2);
-}
-
-void core_program::set_uniform( const char* name, float value ) const
-{
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform1f(location, value);
-}
-
-void core_program::set_uniform( const char* name, float value1, float value2, float value3 ) const
-{
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform3f(location, value1, value2, value3);
-}
-
-void core_program::set_uniform( const char* name, float value1, float value2, float value3, float value4 ) const
-{
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform4f(location, value1, value2, value3, value4);
+	//assert(-1 != location);
+	return location;
 }
 
 
-void core_program::set_uniform( const char* name, const glm::vec2& value ) const
+
+void core_program::set_uniform( const string& name, int value ) const
 {
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform2fv(location, 1, glm::value_ptr(value));
+	glUniform1i(get_uniform_location_checked(name), value);
 }
 
-void core_program::set_uniform( const char* name, const glm::vec3& value ) const
+void core_program::set_uniform( const string& name, int value1, int value2 ) const
 {
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform3fv(location, 1, glm::value_ptr(value));
+	glUniform2i(get_uniform_location_checked(name), value1, value2);
 }
 
-void core_program::set_uniform( const char* name, const glm::vec4& value ) const
+void core_program::set_uniform( const string& name, float value ) const
 {
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniform4fv(location, 1, glm::value_ptr(value));
+	glUniform1f(get_uniform_location_checked(name), value);
 }
 
-void core_program::set_uniform( const char* name, const glm::mat3& value ) const
+void core_program::set_uniform( const string& name, float value1, float value2, float value3 ) const
 {
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniformMatrix3fv(location, 1, GL_FALSE, glm::value_ptr(value));
+	glUniform3f(get_uniform_location_checked(name), value1, value2, value3);
 }
 
-void core_program::set_uniform( const char* name, const glm::mat4& value ) const
+void core_program::set_uniform( const string& name, float value1, float value2, float value3, float value4 ) const
 {
-	auto location = get_uniform_location(name);
-	assert(-1 != location);
-	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value));
+	glUniform4f(get_uniform_location_checked(name), value1, value2, value3, value4);
+}
+
+
+void core_program::set_uniform( const string& name, const glm::vec2& value ) const
+{
+	glUniform2fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const string& name, const glm::vec3& value ) const
+{
+	glUniform3fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const string& name, const glm::vec4& value ) const
+{
+	glUniform4fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const string& name, const glm::mat3& value ) const
+{
+	glUniformMatrix3fv(get_uniform_location_checked(name), 1, GL_FALSE, glm::value_ptr(value));
+}
+
+void core_program::set_uniform( const string& name, const glm::mat4& value ) const
+{
+	glUniformMatrix4fv(get_uniform_location_checked(name), 1, GL_FALSE, glm::value_ptr(value));
 }
 
 
@@ -210,6 +211,27 @@ BLACK_LABEL_SHARED_LIBRARY program::~program()
 	if (vertex.is_complete()) glDetachShader(id, vertex.id);
 	if (geometry.is_complete()) glDetachShader(id, geometry.id);
 	if (fragment.is_complete()) glDetachShader(id, fragment.id);
+}
+
+
+
+bool program::is_complete()
+{
+	bool result = true;
+
+	if (vertex.is_tried_instantiated() && !vertex.is_complete())
+		result = false;
+	if (geometry.is_tried_instantiated() && !geometry.is_complete())
+		result = false;
+	if (fragment.is_tried_instantiated() && !fragment.is_complete())
+		result = false;
+
+	GLint link_status;
+	glGetProgramiv(id, GL_LINK_STATUS, &link_status);
+	if (GL_FALSE == link_status)
+		result = false;
+
+	return result;
 }
 
 
@@ -265,20 +287,22 @@ std::string program::get_aggregated_info_log()
 }
 
 void program::setup(
-	const char* path_to_vertex_shader,
-	const char* path_to_geometry_shader,
-	const char* path_to_fragment_shader,
-	const char* preprocessor_commands)
+	const path& path_to_vertex_shader,
+	const path& path_to_geometry_shader,
+	const path& path_to_fragment_shader,
+	const string& preprocessor_commands)
 {
 	vertex = shader(GL_VERTEX_SHADER, path_to_vertex_shader, preprocessor_commands);
-	if (path_to_geometry_shader)
+	if (!path_to_geometry_shader.empty())
 		geometry = shader(GL_GEOMETRY_SHADER, path_to_geometry_shader, preprocessor_commands);
-	if (path_to_fragment_shader)
+	if (!path_to_fragment_shader.empty())
 		fragment = shader(GL_FRAGMENT_SHADER, path_to_fragment_shader, preprocessor_commands);
 
 	if (vertex.is_complete()) glAttachShader(id, vertex.id);
 	if (geometry.is_complete()) glAttachShader(id, geometry.id);
 	if (fragment.is_complete()) glAttachShader(id, fragment.id);
+
+	glValidateProgram(id);
 }
 
 } // namespace renderer

@@ -10,7 +10,9 @@
 #define BOOST_FILESYSTEM_NO_DEPRECATED
 #include <boost/filesystem/convenience.hpp>
 
+#ifndef MSVC
 #define NO_FBX
+#endif
 
 
 

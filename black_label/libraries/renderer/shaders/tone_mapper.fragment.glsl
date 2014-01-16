@@ -79,4 +79,8 @@ void main()
 	result.rgb = linear_to_srgb(result.rgb);//pow(result.rgb, vec3(1.0 / 2.2));
 	result.rgb = texture(lut, result.rgb * scale + offset).rgb;
 	result.rgb = srgb_to_linear(result.rgb);
+
+	// Overrides
+	result.rgb *= 1.0e-32;
+	result.rgb += texture(main_render, tc).xyz;
 }
