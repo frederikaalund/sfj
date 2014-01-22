@@ -102,10 +102,15 @@ endforeach()
 ##############################################################################
 ## Identify Toolset
 ##############################################################################
-
 # Visual Studio
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND (MSVC_VERSION EQUAL 1600 OR MSVC_VERSION GREATER 1600))
-	math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" AND NOT MSVC_VERSION LESS 1600)
+	# Query if there is a toolset override
+	if(CMAKE_GENERATOR_TOOLSET)
+		string(SUBSTRING ${CMAKE_GENERATOR_TOOLSET} 1 3 VC_VERSION)
+	# Else the toolset must match the MSVC version
+	else()
+		math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)
+	endif()
 	set(TOOLSET vc${VC_VERSION})
 
 	# Setup configurations
@@ -113,10 +118,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND (MSVC_VERSION EQUAL 1600 OR MSVC_VE
 	foreach(CONFIGURATION ${CONFIGURATIONS})
 		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MDd")
 			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}g-)
-		elseif(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MT")
-			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s-)
+		# This test must be done before the "/MT" test
 		elseif(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MTd")
 			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}sg-)
+		elseif(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MT")
+			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s-)
 		endif()
 	endforeach()
 
@@ -163,6 +169,7 @@ set(ABI_RELEASE ${ABI_RELEASE}release)
 set(ABI_DEBUG ${ABI_DEBUG}debug)
 set(ABI_MINSIZEREL ${ABI_MINSIZEREL}release_min_size)
 set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}release_with_debug_info)
+set(ABI_DEBUGWITHDEVELOPERTOOLS ${ABI_DEBUGWITHDEVELOPERTOOLS}debug_with_developer_tools)
 set(ABI_RELEASEWITHDEVELOPERTOOLS ${ABI_RELEASEWITHDEVELOPERTOOLS}release_with_developer_tools)
 set(ABI_MINSIZERELWITHDEVELOPERTOOLS ${ABI_MINSIZERELWITHDEVELOPERTOOLS}release_min_size_with_developer_tools)
 

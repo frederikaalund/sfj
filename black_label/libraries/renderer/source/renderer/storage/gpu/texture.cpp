@@ -211,8 +211,8 @@ void texture_base::generate()
 /// Targets
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-detail::texture_base::target_type tex2d_ = GL_TEXTURE_2D;
-detail::texture_base::target_type tex3d_ = GL_TEXTURE_3D;
+detail::texture_base::target_type tex2d() { return GL_TEXTURE_2D; }
+detail::texture_base::target_type tex3d() { return GL_TEXTURE_3D; }
 } // namespace target
 
 

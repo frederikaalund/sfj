@@ -13,7 +13,7 @@ namespace renderer {
 namespace storage {
 namespace gpu {
 
-template<detail::buffer_base::target_type* target(), detail::buffer_base::usage_type* usage()>
+template<detail::buffer_base::target_type target(), detail::buffer_base::usage_type usage()>
 class buffer : public detail::buffer_base
 {
 public:
@@ -34,11 +34,11 @@ public:
 	buffer& operator=( buffer rhs )	{ swap(*this, rhs); return *this; }
 	
 	void bind() const
-	{ buffer_base::bind(*target()); }
+	{ buffer_base::bind(target()); }
 	void update( size_type size, const void* data = nullptr ) const
-	{ buffer_base::update(*target(), *usage(), size, data); }
+	{ buffer_base::update(target(), usage(), size, data); }
 	void update( offset_type offset, size_type size, const void* data = nullptr ) const
-	{ buffer_base::update(*target(), offset, size, data); }
+	{ buffer_base::update(target(), offset, size, data); }
 	void bind_and_update( size_type size, const void* data = nullptr ) const
 	{ bind(); update(size, data); }
 	void bind_and_update( offset_type offset, size_type size, const void* data = nullptr ) const

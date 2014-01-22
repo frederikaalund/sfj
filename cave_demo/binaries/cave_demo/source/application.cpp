@@ -6,14 +6,14 @@
 #include <tuple>
 
 #include <boost/log/attributes.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/common.hpp>
-#include <boost/log/filters.hpp>
-#include <boost/log/formatters.hpp>
+#include <boost/log/expressions.hpp>
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/support/date_time.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
+#include <boost/utility/empty_deleter.hpp>
 
 #include <SFML/OpenGL.hpp>
 
@@ -51,7 +51,6 @@ namespace cave_demo {
 
 using namespace black_label::file_system_watcher;
 using namespace black_label::renderer;
-using namespace black_label::thread_pool;
 using namespace black_label::world;
 using namespace black_label::utility;
 
@@ -86,34 +85,34 @@ application::configuration::configuration( log_type& log, int argc, char const* 
 		file_backend);
 
 	file_sink->set_formatter(
-		formatters::stream
-		<< "[" << formatters::attr<severity_level>("Severity")
-		<< "] " << formatters::date_time<boost::posix_time::ptime>("TimeStamp", "%d.%m.%Y %H:%M:%S.%f")
-		<< " (" << formatters::time_duration<boost::posix_time::time_duration>("Uptime") << "):"
-		<< formatters::if_(filters::has_attr<bool>("MultiLine"))
-		[ formatters::stream << "\n" ]
+		expressions::stream
+		<< "[" << expressions::attr<severity_level>("Severity")
+		<< "] " << expressions::format_date_time<boost::posix_time::ptime>("TimeStamp", "%d.%m.%Y %H:%M:%S.%f")
+		<< " (" << expressions::format_date_time<boost::posix_time::time_duration>("Uptime", "%H:%M:%S.%f") << "):"
+		<< expressions::if_(expressions::has_attr<bool>("MultiLine"))
+		[expressions::stream << "\n"]
 	.else_
-		[ formatters::stream << " " ]
-	<< formatters::message());
+		[expressions::stream << " "]
+	<< expressions::message);
 
 
 	// Console
 	auto clog_backend = make_shared<sinks::text_ostream_backend>();
-	clog_backend->add_stream(boost::shared_ptr<std::ostream>(&std::clog, empty_deleter()));
+	clog_backend->add_stream(boost::shared_ptr<std::ostream>(&std::clog, boost::empty_deleter()));
 	clog_backend->auto_flush(true);
 
 	auto clog_sink = make_shared<sinks::synchronous_sink<sinks::text_ostream_backend> >(
 		clog_backend);
 
 	clog_sink->set_formatter(
-		formatters::stream
-		<< "[" << formatters::attr<severity_level>("Severity")
-		<< "] " << formatters::time_duration<boost::posix_time::time_duration>("Uptime", "%M:%S.%f") << ":"
-		<< formatters::if_(filters::has_attr<bool>("MultiLine"))
-		[ formatters::stream << "\n" ]
+		expressions::stream
+		<< "[" << expressions::attr<severity_level>("Severity")
+		<< "] " << expressions::format_date_time<boost::posix_time::time_duration>("Uptime", "%M:%S.%f") << ":"
+		<< expressions::if_(expressions::has_attr<bool>("MultiLine"))
+		[expressions::stream << "\n"]
 	.else_
-		[ formatters::stream << " " ]
-	<< formatters::message());
+		[expressions::stream << " "]
+	<< expressions::message);
 
 	core->add_global_attribute("TimeStamp", attributes::local_clock());
 	core->add_global_attribute("Uptime", attributes::timer());
@@ -195,7 +194,6 @@ application::application( int argc, char const* argv[] )
 	, world(configuration.world_configuration)
 	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), 
 		glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
-	, dynamics(world)
 	, fsw("D:/sfj/cave_demo/stage/binaries", FILTER_WRITE)
 	, increment(1.0f)
 	, strafe(0.0f)
@@ -302,7 +300,6 @@ void application::update_window()
 		}	
 	}
 
-	dynamics.update();
 	renderer.camera.strafe(strafe);
 	renderer.render_frame();
 	window.display();

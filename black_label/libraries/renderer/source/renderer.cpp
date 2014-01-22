@@ -79,6 +79,9 @@ renderer::renderer(
 	black_label::renderer::camera&& camera ) 
 	: camera(camera)
 	, world(world)
+	, dirty_models(128)
+	, dirty_static_entities(128)
+	, dirty_dynamic_entities(128)
 	, models(new gpu::model[world.static_entities.models.capacity()])
 	, sorted_statics(world.static_entities.capacity)
 	, sorted_dynamics(world.dynamic_entities.capacity)
@@ -98,6 +101,7 @@ MSVC_POP_WARNINGS()
 	, ambient_occlusion_resolution_multiplier(1.0f)
 	, shadow_map_resolution_multiplier(1.0f)
 {
+	/*
 ////////////////////////////////////////////////////////////////////////////////
 /// OpenColorIO Test
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +129,7 @@ MSVC_POP_WARNINGS()
 			lut_data.data());
 	}
 
-
+	*/
 
 ////////////////////////////////////////////////////////////////////////////////
 /// 3D LUT Test! (.cube format)
@@ -206,7 +210,7 @@ MSVC_POP_WARNINGS()
 	//#pragma optionNV(unroll all)
 	 */
 
-		BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);        
+		//BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);        
         
 		array<const char*, 2> buffering_output_names = {"wc_normal", "albedo"};
 		array<const char*, 3> buffering_attribute_names = {"oc_position", "oc_normal", "oc_texture_coordinate"};
@@ -498,14 +502,14 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Model Loading
 ////////////////////////////////////////////////////////////////////////////////
-	for (model_id_type model; dirty_models.dequeue(model);) import_model(model);
+	for (model_id_type model; dirty_models.pop(model);) import_model(model);
 
 	
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Scene Update
 ////////////////////////////////////////////////////////////////////////////////
-	for (entity_id_type entity; dirty_static_entities.dequeue(entity);)
+	for (entity_id_type entity; dirty_static_entities.pop(entity);)
 	{
 		if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity) == sorted_statics.cend())
 			sorted_statics.push_back(entity);
@@ -516,7 +520,7 @@ void renderer::render_frame()
 	sort(sorted_statics.begin(), sorted_statics.end());
 
 
-	for (entity_id_type entity; dirty_dynamic_entities.dequeue(entity);)
+	for (entity_id_type entity; dirty_dynamic_entities.pop(entity);)
 		if (find(sorted_dynamics.cbegin(), sorted_dynamics.cend(), entity) == sorted_dynamics.cend())
 			sorted_dynamics.push_back(entity);
 	sort(sorted_dynamics.begin(), sorted_dynamics.end());

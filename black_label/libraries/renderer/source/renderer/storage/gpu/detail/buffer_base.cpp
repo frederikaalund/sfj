@@ -50,17 +50,15 @@ void buffer_base::update( target_type target, offset_type offset, size_type size
 /// Targets and Usages
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-detail::buffer_base::target_type texture_ = GL_TEXTURE_BUFFER;
-detail::buffer_base::target_type array_ = GL_ARRAY_BUFFER;
-detail::buffer_base::target_type element_array_ = GL_ELEMENT_ARRAY_BUFFER;
+detail::buffer_base::target_type texture() { return GL_TEXTURE_BUFFER; }
+detail::buffer_base::target_type array() { return GL_ARRAY_BUFFER; }
+detail::buffer_base::target_type element_array() { return GL_ELEMENT_ARRAY_BUFFER; }
 } // namespace target
 
 namespace usage {
-detail::buffer_base::usage_type stream_draw_ = GL_STREAM_DRAW;
-detail::buffer_base::usage_type static_draw_ = GL_STATIC_DRAW;
+	detail::buffer_base::target_type stream_draw() { return GL_STREAM_DRAW; }
+	detail::buffer_base::target_type static_draw() { return GL_STATIC_DRAW; }
 } // namespace usage
-
-
     
 } // namespace gpu
 } // namespace storage

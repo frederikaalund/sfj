@@ -69,21 +69,14 @@ protected:
 /// Targets and Usages
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-extern detail::buffer_base::target_type texture_;
-extern detail::buffer_base::target_type array_;
-extern detail::buffer_base::target_type element_array_;
-    
-constexpr detail::buffer_base::target_type* texture() { return &texture_; };
-constexpr detail::buffer_base::target_type* array() { return &array_; };
-constexpr detail::buffer_base::target_type* element_array() { return &element_array_; };
+detail::buffer_base::target_type texture();
+detail::buffer_base::target_type array();
+detail::buffer_base::target_type element_array();
 } // namespace target
 
 namespace usage {
-extern detail::buffer_base::usage_type stream_draw_;
-extern detail::buffer_base::usage_type static_draw_;
-    
-constexpr detail::buffer_base::target_type* stream_draw() { return &stream_draw_; };
-constexpr detail::buffer_base::target_type* static_draw() { return &static_draw_; };
+detail::buffer_base::target_type stream_draw();
+detail::buffer_base::target_type static_draw();
 } // namespace usage
     
     

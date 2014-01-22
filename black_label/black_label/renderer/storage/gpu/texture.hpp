@@ -130,11 +130,8 @@ protected:
 /// Targets
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-extern detail::texture_base::target_type tex2d_;
-extern detail::texture_base::target_type tex3d_;
-
-constexpr detail::texture_base::target_type* tex2d() { return &tex2d_; }
-constexpr detail::texture_base::target_type* tex3d() { return &tex3d_; }
+detail::texture_base::target_type tex2d();
+detail::texture_base::target_type tex3d();
 } // namespace target
 
 
@@ -142,7 +139,7 @@ constexpr detail::texture_base::target_type* tex3d() { return &tex3d_; }
 ////////////////////////////////////////////////////////////////////////////////
 /// Texture
 ////////////////////////////////////////////////////////////////////////////////
-template<detail::texture_base::target_type* target()>
+template<detail::texture_base::target_type target()>
 class texture : public detail::texture_base
 {
 public:
@@ -196,11 +193,11 @@ public:
 
 
 	void bind() const
-	{ texture_base::bind(*target()); }
+	{ texture_base::bind(target()); }
 	void set_parameters( filter filter, wrap wrap ) const
-	{ texture_base::set_parameters(*target(), filter, wrap); }
+	{ texture_base::set_parameters(target(), filter, wrap); }
 	void use( const core_program& program, const char* name, int& texture_unit ) const
-	{ texture_base::use(*target(), program, name, texture_unit); }
+	{ texture_base::use(target(), program, name, texture_unit); }
 
 	template<typename data_type>
 	void update( 
@@ -209,7 +206,7 @@ public:
 		const data_type* data = nullptr, 
 		int mipmap_levels = 8 ) const
 	{
-        texture_base::update(*target(), width, height, data, mipmap_levels); }
+        texture_base::update(target(), width, height, data, mipmap_levels); }
 	
 	template<typename data_type>
 	void update( 
@@ -218,7 +215,7 @@ public:
 		int depth, 
 		const data_type* data = nullptr, 
 		int mipmap_levels = 8 ) const
-	{ texture_base::update(*target(), width, height, depth, data, mipmap_levels); }
+	{ texture_base::update(target(), width, height, depth, data, mipmap_levels); }
 
 	template<typename data_type>
 	void bind_and_update( 

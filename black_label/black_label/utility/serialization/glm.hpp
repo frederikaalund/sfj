@@ -8,14 +8,14 @@
 namespace boost {
 namespace serialization {
 	
-template<typename archive_type, typename T>
-void serialize( archive_type& archive, glm::detail::tvec3<T>& vec, unsigned int version )
+template<typename archive_type, typename T, enum glm::precision P>
+void serialize( archive_type& archive, glm::detail::tvec3<T, P>& vec, unsigned int version )
 {
 	archive & vec[0] & vec[1] & vec[2];
 }
 
-template<typename archive_type, typename T>
-void serialize( archive_type& archive, glm::detail::tvec4<T>& vec, unsigned int version )
+template<typename archive_type, typename T, enum glm::precision P>
+void serialize( archive_type& archive, glm::detail::tvec4<T, P>& vec, unsigned int version )
 {
 	archive & vec[0] & vec[1] & vec[2] & vec[3];
 }

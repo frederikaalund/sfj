@@ -50,7 +50,7 @@ endif()
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.50.0 QUIET REQUIRED unit_test_framework)
+find_package(Boost 1.55.0 QUIET REQUIRED unit_test_framework)
 
 include(${PROJECT_SOURCE_DIR}/cmake/dependencies_common.cmake)
 include_directories(${BlackLabel_DEPENDENCIES_COMMON_INCLUDE_DIRS})

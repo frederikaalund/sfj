@@ -4,7 +4,6 @@
 
 using namespace black_label::utility;
 using namespace black_label::world;
-using namespace black_label::thread_pool;
 using namespace cave_demo;
 
 
@@ -43,7 +42,6 @@ int main( int argc, char const* argv[] )
 	for (int i = 0; i < 10; ++i)
 	{
 		auto sphere = doodads.create("dynamica_test_1.fbx", "dynamica_test_1.bullet", make_mat4(10.0f, 10.0f * rand() / RAND_MAX, 10.0f + i * 20.0f, 10.0f * rand() / RAND_MAX));
-		demo.dynamics.report_dirty_dynamic_dynamics(*sphere);
 	}
 
 	demo.renderer.report_dirty_models(
@@ -57,8 +55,6 @@ int main( int argc, char const* argv[] )
 	demo.renderer.report_dirty_dynamic_entities(
 		doodads.cbegin(),
 		doodads.cend());
-
-	demo.dynamics.report_dirty_static_dynamics(*sponza);
 	
 
 

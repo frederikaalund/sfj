@@ -24,7 +24,7 @@
 
 #define BOOST_FILESYSTEM_NO_DEPRECATED
 #include <boost/filesystem/convenience.hpp>
-#include <boost/lockfree/fifo.hpp>
+#include <boost/lockfree/queue.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
 
@@ -54,7 +54,7 @@ public:
 	void render_frame();
 
 	void report_dirty_model( model_id_type id )
-	{ dirty_models.enqueue(id); }
+	{ dirty_models.push(id); }
 	void report_dirty_model( 
 		world_type::model_container::const_iterator model ) 
 	{ report_dirty_model(model - world.static_entities.models.cbegin()); }
@@ -64,14 +64,14 @@ public:
 	{ while (first != last) report_dirty_model(first++); }
 
 	void report_dirty_static_entity( entity_id_type id )
-	{ dirty_static_entities.enqueue(id); }
+	{ dirty_static_entities.push(id); }
 	void report_dirty_static_entities( 
 		world_type::entities_type::group::const_iterator first, 
 		world_type::entities_type::group::const_iterator last )
 	{ while (first != last) report_dirty_static_entity(*first++); }
 
 	void report_dirty_dynamic_entity( entity_id_type id )
-	{ dirty_dynamic_entities.enqueue(id); }
+	{ dirty_dynamic_entities.push(id); }
 	void report_dirty_dynamic_entities( 
 		world_type::entities_type::group::const_iterator first, 
 		world_type::entities_type::group::const_iterator last )
@@ -93,8 +93,8 @@ protected:
 private:
 MSVC_PUSH_WARNINGS(4251)
 
-	typedef boost::lockfree::fifo<model_id_type> dirty_model_id_container;
-	typedef boost::lockfree::fifo<entity_id_type> dirty_entity_id_container;
+	typedef boost::lockfree::queue<model_id_type> dirty_model_id_container;
+	typedef boost::lockfree::queue<entity_id_type> dirty_entity_id_container;
 	typedef std::unique_ptr<storage::gpu::model[]> model_container;
 	typedef container::svector<entity_id_type> sorted_entities_container;
 	typedef light_grid::light_container light_container;

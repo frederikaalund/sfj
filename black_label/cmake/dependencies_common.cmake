@@ -2,7 +2,7 @@
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.50.0 QUIET REQUIRED)
+find_package(Boost 1.55.0 QUIET REQUIRED)
 list(APPEND BlackLabel_DEPENDENCIES_COMMON_INCLUDE_DIRS ${Boost_INCLUDE_DIRS})
 
 # GLM
@@ -10,4 +10,4 @@ find_package(GLM REQUIRED)
 list(APPEND BlackLabel_DEPENDENCIES_COMMON_INCLUDE_DIRS ${GLM_INCLUDE_DIR})
 
 # TBB
-#find_package(TBB)
+find_package(TBB)
