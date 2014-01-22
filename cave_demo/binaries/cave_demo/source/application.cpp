@@ -55,7 +55,6 @@ using namespace black_label::world;
 using namespace black_label::utility;
 
 using namespace boost::log;
-using namespace boost::program_options;
 using boost::make_shared;
 
 
@@ -124,58 +123,81 @@ application::configuration::configuration( log_type& log, int argc, char const* 
 ////////////////////////////////////////////////////////////////////////////////
 /// Configuration
 ////////////////////////////////////////////////////////////////////////////////
-	boost::program_options::variables_map program_options_map;
+	namespace po = boost::program_options;
+	
+
+	po::options_description general_options("General");
+	general_options.add_options()
+		(
+			"help,?", "Print the help message."
+		);
+	
+	po::options_description world_options("World");
 	world_configuration = world::configuration(5000, 5000);
+	world_options.add_options()
+		(
+			"world.entities.dynamic_capacity", 
+			po::value<world::entities_type::size_type>(&world_configuration.dynamic_entities_capacity)
+			->default_value(world_configuration.dynamic_entities_capacity)
+		)(
+			"world.entities.static_capacity", 
+			po::value<world::entities_type::size_type>(&world_configuration.static_entities_capacity)
+			->default_value(world_configuration.static_entities_capacity)
+		);
 
 
+	po::options_description renderer_options("Renderer");
+	typedef black_label::renderer::renderer renderer_type;
+	renderer_options.add_options()
+		(
+			"renderer.shader_directory", 
+			po::value<renderer_type::path>(&shader_directory)
+			->default_value(renderer_type::default_shader_directory)
+		)(
+			"renderer.asset_directory", 
+			po::value<renderer_type::path>(&asset_directory)
+			->default_value(renderer_type::default_asset_directory)
+		);
 
-	options_description description("Options");
-	description.add_options()
-		("world.entities.dynamic_capacity", 
-		value<world::entities_type::size_type>(
-		&world_configuration.dynamic_entities_capacity)
-		->default_value(
-		world_configuration.dynamic_entities_capacity))
-		("world.entities.static_capacity", 
-		value<world::entities_type::size_type>(
-		&world_configuration.static_entities_capacity)
-		->default_value(
-		world_configuration.static_entities_capacity));
+	po::options_description subsystem_options, all_options;
+	subsystem_options.add(world_options).add(renderer_options);
+	all_options.add(general_options).add(subsystem_options);
 
-	try
-	{
-		store(
-			parse_command_line(argc, argv, description), 
-			program_options_map);
-		notify(program_options_map);
-	}
-	// Apparently, this specific error does not pass the same value to the
-	// generic error.what().
-	catch (invalid_option_value e)
-	{
-		BOOST_LOG_SEV(log, warning) 
-			<< "Skipping command line options due to error: \"" << e.what()
-			<< "\"";
-	}
-	catch (boost::program_options::error e)
-	{
-		BOOST_LOG_SEV(log, warning) 
-			<< "Skipping command line options due to error: \"" << e.what()
-			<< "\"";
-	}
+	po::variables_map variables_map;
+	static const path_type configuration_file_path = "configuration.ini";
 
 	try
 	{
+		store(po::parse_command_line(argc, argv, all_options), variables_map);
 		store(
-			parse_config_file<char>("configuration.ini", description), 
-			program_options_map);
-		notify(program_options_map);
+			po::parse_config_file<char>(
+				configuration_file_path.c_str(), 
+				subsystem_options), 
+			variables_map);
+
+		if (variables_map.count("help"))
+			BOOST_LOG_SEV(log, info) << all_options;
+
+		notify(variables_map);
 	}
-	catch (boost::program_options::error e)
+	catch (const po::required_option& e)
+	{
+		BOOST_LOG_SEV(log, error) << e.what();
+		throw std::runtime_error("Missing required options!");
+	}
+	catch (const po::reading_file&)
 	{
 		BOOST_LOG_SEV(log, warning) 
-			<< "Skipping \"configuration.ini\" due to error: \"" << e.what()
-			<< "\"";
+			<< "Could not open the configuration file: " 
+			<< configuration_file_path;
+	}
+	catch (const po::unknown_option& e)
+	{
+		BOOST_LOG_SEV(log, warning) << e.what();
+	}
+	catch (const po::error& e)
+	{
+		BOOST_LOG_SEV(log, warning) << e.what();
 	}
 }
 
@@ -185,20 +207,23 @@ application::configuration::configuration( log_type& log, int argc, char const* 
 /// Application
 ////////////////////////////////////////////////////////////////////////////////
 // Lion cam: camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f))
+// Deep cam: camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 application::application( int argc, char const* argv[] )
 	: configuration(log, argc, argv)
 	, window(sf::VideoMode(800, 800), "OpenGL", 
 		sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize, 
 		sf::ContextSettings(32, 0, 0, 3, 2))
+	, task_sceduler(1)
 	, world(configuration.world_configuration)
-	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), 
-		glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)))
-	, fsw("D:/sfj/cave_demo/stage/binaries", FILTER_WRITE)
+	, renderer(world, camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+		configuration.shader_directory,
+		configuration.asset_directory)
 	, increment(1.0f)
 	, strafe(0.0f)
 {
 	window.setKeyRepeatEnabled(false);
+	fsw.add_path(configuration.shader_directory.string(), FILTER_WRITE);
 }
 
 application::~application()
@@ -212,32 +237,13 @@ application::~application()
 ////////////////////////////////////////////////////////////////////////////////
 void application::process_keyboard_event( const sf::Event& event )
 {
-	float direction = (sf::Event::KeyPressed == event.type) ? 1.0f : -1.0f;
-	
 	switch (event.key.code)
 	{
 	case sf::Keyboard::Escape:
 		{ exit(0); }
 		break;
-	case sf::Keyboard::W:
-		{ strafe[2] += increment * direction; }
-		break;
-	case sf::Keyboard::S:
-		{ strafe[2] -= increment * direction; }
-		break;
-	case sf::Keyboard::A:
-		{ strafe[0] += increment * direction; }
-		break;
-	case sf::Keyboard::D:
-		{ strafe[0] -= increment * direction; }
-		break;
-	case sf::Keyboard::Space:
-		{ strafe[1] += increment * direction; }
-		break;
-	case sf::Keyboard::C:
-		{ strafe[1] -= increment * direction; }
-		break;
-  default:
+
+	default:
     break;
 	}
 }
@@ -263,6 +269,29 @@ void application::process_mouse_movement_event( const sf::Event& event )
 
 void application::process_mouse_button_event( const sf::Event& event )
 {
+}
+
+void application::update_movement()
+{
+	strafe = glm::vec3(0.0f);
+
+	if (!is_window_focused)
+		return;
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+		strafe.z += increment;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+		strafe.z -= increment;
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+		strafe.x += increment;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+		strafe.x -= increment;
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+		strafe.y += increment;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::C))
+		strafe.y -= increment;
 }
 
 
@@ -295,11 +324,19 @@ void application::update_window()
 			{ process_mouse_movement_event(event); }
 			break;
 
+		case sf::Event::GainedFocus:
+			{ is_window_focused = true; }
+			break;
+		case sf::Event::LostFocus:
+			{ is_window_focused = false; }
+			break;
+
 		default:
 			break;
 		}	
 	}
 
+	update_movement();
 	renderer.camera.strafe(strafe);
 	renderer.render_frame();
 	window.display();
@@ -349,6 +386,9 @@ void application::update_file_system_watcher()
 				else
 					watched_paths.push_back(current_pair);
 			}
+
+			// Maybe it is shader, try to reload it.
+			renderer.reload_shader(path);
 		});
 
 		// If a watched model file has not been modified for 1.0 seconds then reload it.

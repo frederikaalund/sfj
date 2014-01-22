@@ -69,6 +69,10 @@ if(APPLE)
 	find_library(OSX_CARBON_LIBRARY Carbon)
 endif()
 
+# VTune (Optional)
+find_package(VTune QUIET)
+include_directories(${VTune_INCLUDE_DIR})
+
 
 
 ##############################################################################
@@ -105,7 +109,9 @@ target_link_libraries(
 	${OSX_COREFOUNDATION_LIBRARY}
 	${OSX_COCOA_LIBRARY}
 	${OSX_IOKIT_LIBRARY}
-	${OSX_CARBON_LIBRARY})
+	${OSX_CARBON_LIBRARY}
+
+	${VTune_LIBRARIES})
 
 	
 

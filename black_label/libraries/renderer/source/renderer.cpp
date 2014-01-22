@@ -1,6 +1,8 @@
 #define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/renderer.hpp>
 
+#include <windows.h> // TODO: TESTING
+
 #include <black_label/file_buffer.hpp>
 #include <black_label/renderer/storage/cpu/model.hpp>
 #include <black_label/renderer/storage/file_loading.hpp>
@@ -21,8 +23,11 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/log/common.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/math/constants/constants.hpp>
+#include <boost/date_time.hpp>
+
+#include <tbb/task.h>
 
 #include <GL/glew.h>
 #ifndef APPLE
@@ -42,6 +47,7 @@ namespace ocio = OCIO_NAMESPACE;
 
 
 using namespace std;
+using namespace tbb;
 
 
 
@@ -74,10 +80,19 @@ renderer::glew_setup::glew_setup()
 
 
 
+const renderer::path renderer::default_shader_directory;
+const renderer::path renderer::default_asset_directory;
+
+
+
 renderer::renderer( 
 	const world_type& world, 
-	black_label::renderer::camera&& camera ) 
+	black_label::renderer::camera&& camera,
+	path shader_directory, 
+	path asset_directory )
 	: camera(camera)
+	, shader_directory(shader_directory)
+	, asset_directory(asset_directory)
 	, world(world)
 	, dirty_models(128)
 	, dirty_static_entities(128)
@@ -101,10 +116,18 @@ MSVC_POP_WARNINGS()
 	, ambient_occlusion_resolution_multiplier(1.0f)
 	, shadow_map_resolution_multiplier(1.0f)
 {
-	/*
+	if (GLEW_ARB_texture_storage)
+		glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_FRAMEBUFFER_SRGB);
+	glClearColor(0.9f, 0.934f, 1.0f, 1.0f);
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 /// OpenColorIO Test
 ////////////////////////////////////////////////////////////////////////////////
+	/*
 	{
 		using namespace ocio;
 		using namespace storage::gpu;
@@ -132,130 +155,134 @@ MSVC_POP_WARNINGS()
 	*/
 
 ////////////////////////////////////////////////////////////////////////////////
-/// 3D LUT Test! (.cube format)
+/// Programs
 ////////////////////////////////////////////////////////////////////////////////
-	/*{
-		using namespace boost;
-
-		string lut_filename = "LUTs/Kodak 5229 Vision2 Expression 500T.cube";
-		ifstream lut_stream(lut_filename);
-		int lut_texture_size = 0;
-		string next_line;
-
-		while(getline(lut_stream, next_line))
-		{
-			// Comment
-			if (starts_with(next_line, "#"));
-
-			// Title
-			else if (starts_with(next_line, "TITLE"));
-
-			// Size
-			else if (starts_with(next_line, "LUT_3D_SIZE")) 
-			{
-				try
-				{
-					if (next_line.size() < 13)
-						throw new std::exception();
-				
-					lut_texture_size = lexical_cast<int>(&next_line[12]);
-				}
-				catch (std::exception e)
-				{
-					BOOST_LOG_SEV(log, error) << "LUT has invalid size!";
-				}
-
-				break;
-			}
-		}
-
-		if (lut_texture_size)
-		{
-			container::darray<float> lut_data(lut_texture_size * lut_texture_size * lut_texture_size * 3);
-			auto lut_data_iterator = lut_data.data();
-			while (lut_stream >> *lut_data_iterator++);
-
-			lut_texture = storage::gpu::texture_3d(storage::gpu::LINEAR, storage::gpu::CLAMP_TO_EDGE, lut_texture_size, lut_texture_size, lut_texture_size, lut_data.data());
-		}
-	}*/
-
-    
-
-//	glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST); // TODO: Check Drivers in MacBook Air 2012.
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_FRAMEBUFFER_SRGB);
-	glClearColor(0.9f, 0.934f, 1.0f, 1.0f);
-
-
-
+	auto program_loader = [&] ( 
+		program& program_,
+		program::configuration& configuration )
 	{
+		//BOOST_LOG_SCOPED_LOGGER_TAG(this->log, "MultiLine", bool, true);        
+
+		program_ = configuration.shader_directory(this->shader_directory);
+
+		auto info_log = program_.get_aggregated_info_log();
+		if (!info_log.empty())
+			BOOST_LOG_SEV(this->log, error) << info_log;
+	};
+      
+
+	// Buffering
+	program_loader(buffering, program::configuration()
+		.vertex_shader("buffering.vertex.glsl")
+		.fragment_shader("buffering.fragment.glsl")
+		.preprocessor_commands("#version 150\n")
+
+		.add_vertex_attribute("oc_position")
+		.add_vertex_attribute("oc_normal")
+		.add_vertex_attribute("oc_texture_coordinate")
+
+		.add_fragment_output("wc_normal")
+		.add_fragment_output("albedo"));
+	
+
+	// Null
+	program_loader(null, program::configuration()
+		.vertex_shader("null.vertex.glsl")
+		.fragment_shader("null.fragment.glsl")
+		.preprocessor_commands("#version 150\n"));
+
+
+	// Ambient Occlusion
+	program_loader(ambient_occlusion, program::configuration()
+		.vertex_shader("lighting.vertex.glsl")
+		.fragment_shader("ambient_occlusion.fragment.glsl")
+		.preprocessor_commands("#version 150\n")
+
+		.add_vertex_attribute("oc_position")
+		.add_vertex_attribute("wc_camera_ray_direction")
+
+		.add_fragment_output("ambient_occlusion"));
+
+
+	// Lighting
 #ifdef USE_TILED_SHADING
 #define LIGHTING_TILED_SHADING_DEFINE "#define USE_TILED_SHADING\n"
 #else
 #define LIGHTING_TILED_SHADING_DEFINE
 #endif
-    
+
 #ifdef USE_TEXTURE_BUFFER
 #define UBERSHADER_TEXTURE_BUFFER_DEFINE "#define USE_TEXTURE_BUFFER\n"
 #else
 #define UBERSHADER_TEXTURE_BUFFER_DEFINE
 #endif
 
-	/*
-	#pragma optionNV(fastmath on)
-	#pragma optionNV(fastprecision on)
-	//#pragma optionNV(ifcvt all)
-	//#pragma optionNV(inline all)
-	//#pragma optionNV(strict on)
-	//#pragma optionNV(unroll all)
-	 */
+	program_loader(lighting, program::configuration()
+		.vertex_shader("lighting.vertex.glsl")
+		.fragment_shader("lighting.fragment.glsl")
+		.preprocessor_commands("#version 150\n" LIGHTING_TILED_SHADING_DEFINE)
 
-		//BOOST_LOG_SCOPED_LOGGER_TAG(log, "MultiLine", bool, true);        
-        
-		array<const char*, 2> buffering_output_names = {"wc_normal", "albedo"};
-		array<const char*, 3> buffering_attribute_names = {"oc_position", "oc_normal", "oc_texture_coordinate"};
-		buffering = program("buffering.vertex.glsl", nullptr, "buffering.fragment.glsl", "#version 150\n", buffering_output_names.cbegin(), buffering_output_names.cend(), buffering_attribute_names.cbegin(), buffering_attribute_names.cend());
-		auto buffer_info_log = buffering.get_aggregated_info_log();
-		if (!buffer_info_log.empty())
-			BOOST_LOG_SEV(log, info) << buffer_info_log;
-		
-		null = program("null.vertex.glsl", nullptr, "null.fragment.glsl", "#version 150\n");
-		auto null_info_log = null.get_aggregated_info_log();
-		if (!null_info_log.empty())
-			BOOST_LOG_SEV(log, info) << null_info_log;
+		.add_vertex_attribute("oc_position")
+		.add_vertex_attribute("wc_camera_ray_direction")
 
-		array<const char*, 1> ambient_occlusion_output_names = {"ambient_occlusion"};
-		array<const char*, 2> lighting_attribute_names = {"oc_position", "wc_camera_ray_direction"};
-		ambient_occlusion = program("lighting.vertex.glsl", nullptr, "cryengine2_ambient_occlusion.fragment.glsl", "#version 150\n", ambient_occlusion_output_names.cbegin(), ambient_occlusion_output_names.cend(), lighting_attribute_names.cbegin(), lighting_attribute_names.cend());
-		auto ambient_occlusion_info_log = ambient_occlusion.get_aggregated_info_log();
-		if (!ambient_occlusion_info_log.empty())
-			BOOST_LOG_SEV(log, info) << ambient_occlusion_info_log;
+		.add_fragment_output("color")
+		.add_fragment_output("overbright"));
 
-		array<const char*, 2> lighting_output_names = {"color", "overbright"};
-		lighting = program("lighting.vertex.glsl", nullptr, "lighting.fragment.glsl", "#version 150\n" LIGHTING_TILED_SHADING_DEFINE, lighting_output_names.cbegin(), lighting_output_names.cend(), lighting_attribute_names.cbegin(), lighting_attribute_names.cend());
-		auto lighting_info_log = lighting.get_aggregated_info_log();
-		if (!lighting_info_log.empty())
-			BOOST_LOG_SEV(log, info) << lighting_info_log;
 
-		array<const char*, 1> blur_horizontal_output_names = {"result"};
-		array<const char*, 1> passthrough_attribute_names = {"oc_position"};
-		blur_horizontal = program("pass-through.vertex.glsl", nullptr, "blur.fragment.glsl", "#version 150\n#define HORIZONTAL\n", blur_horizontal_output_names.cbegin(), blur_horizontal_output_names.cend(), passthrough_attribute_names.cbegin(), passthrough_attribute_names.cend());
-		auto blur_horizontal_info_log = blur_horizontal.get_aggregated_info_log();
-		if (!blur_horizontal_info_log.empty())
-			BOOST_LOG_SEV(log, info) << blur_horizontal_info_log;
+	// Geometry-Aware Blur Horizontal
+	program_loader(geometry_aware_blur_horizontal, program::configuration()
+		.vertex_shader("pass-through.vertex.glsl")
+		.fragment_shader("geometry_aware_blur.fragment.glsl")
+		.preprocessor_commands("#version 150\n#define HORIZONTAL\n")
 
-		array<const char*, 1> blur_vertical_output_names = {"result"};
-		blur_vertical = program("pass-through.vertex.glsl", nullptr, "blur.fragment.glsl", "#version 150\n#define VERTICAL\n", blur_vertical_output_names.cbegin(), blur_vertical_output_names.cend(), passthrough_attribute_names.cbegin(), passthrough_attribute_names.cend());
-		auto blur_vertical_info_log = blur_vertical.get_aggregated_info_log();
-		if (!blur_vertical_info_log.empty())
-			BOOST_LOG_SEV(log, info) << blur_vertical_info_log;
+		.add_vertex_attribute("oc_position")
 
-		array<const char*, 1> tone_mapper_output_names = {"result"};
-		tone_mapper = program("pass-through.vertex.glsl", nullptr, "tone_mapper.fragment.glsl", "#version 150\n", tone_mapper_output_names.cbegin(), tone_mapper_output_names.cend(), passthrough_attribute_names.cbegin(), passthrough_attribute_names.cend());
-		auto tone_mapper_info_log = tone_mapper.get_aggregated_info_log();
-		if (!tone_mapper_info_log.empty())
-			BOOST_LOG_SEV(log, info) << tone_mapper_info_log;
-	}
+		.add_fragment_output("result"));
+
+
+	// Geometry-Aware Blur Vertical
+	program_loader(geometry_aware_blur_vertical, program::configuration()
+		.vertex_shader("pass-through.vertex.glsl")
+		.fragment_shader("geometry_aware_blur.fragment.glsl")
+		.preprocessor_commands("#version 150\n#define VERTICAL\n")
+
+		.add_vertex_attribute("oc_position")
+
+		.add_fragment_output("result"));
+
+
+	// Blur Horizontal
+	program_loader(blur_horizontal, program::configuration()
+		.vertex_shader("pass-through.vertex.glsl")
+		.fragment_shader("blur.fragment.glsl")
+		.preprocessor_commands("#version 150\n#define HORIZONTAL\n")
+
+		.add_vertex_attribute("oc_position")
+
+		.add_fragment_output("result"));
+
+
+	// Blur Vertical
+	program_loader(blur_vertical, program::configuration()
+		.vertex_shader("pass-through.vertex.glsl")
+		.fragment_shader("blur.fragment.glsl")
+		.preprocessor_commands("#version 150\n#define VERTICAL\n")
+
+		.add_vertex_attribute("oc_position")
+
+		.add_fragment_output("result"));
+
+
+	// Tone Mapper
+	program_loader(tone_mapper, program::configuration()
+		.vertex_shader("pass-through.vertex.glsl")
+		.fragment_shader("tone_mapper.fragment.glsl")
+		.preprocessor_commands("#version 150\n")
+
+		.add_vertex_attribute("oc_position")
+
+		.add_fragment_output("result"));
+
 
 
 	glGenFramebuffers(1, &framebuffer);
@@ -269,7 +296,7 @@ MSVC_POP_WARNINGS()
 
 	mt19937 random_number_generator;
 	uniform_real_distribution<float> distribution(-1.0f, 1.0f);
-	int random_texture_size = 32;
+	int random_texture_size = 800;
 	auto random_data = container::darray<glm::vec3>(random_texture_size * random_texture_size);
 	std::generate(random_data.begin(), random_data.end(), [&] () -> glm::vec3 { 
 		glm::vec3 v;
@@ -279,7 +306,7 @@ MSVC_POP_WARNINGS()
 			v.y = distribution(random_number_generator);
 			v.z = distribution(random_number_generator);
 		} while (glm::length(v) > 1.0f);
-		return v;
+		return v * 0.5f + glm::vec3(0.5f);
 	});
 	
 	random_texture = texture_2d(NEAREST, REPEAT, 
@@ -340,7 +367,6 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 /// The BLM file format is not standard but it imports quickly.
 ////////////////////////////////////////////////////////////////////////////////
 	const auto blm_path = path.string() + ".blm";
-    /*
 	{
 		ifstream blm_file(blm_path, ifstream::binary);
 		if (blm_file.is_open())
@@ -382,7 +408,7 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 		}
 	}
 
-*/
+
 
 #ifdef DEVELOPER_TOOLS
 
@@ -395,8 +421,10 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 
 #ifndef NO_FBX
     if (".fbx" == path.extension())
-        if (!load_fbx(path, cpu_model, gpu_model)
+	{
+        if (!load_fbx(path, cpu_model, gpu_model))
             return false;
+	}
     else
 #endif
 	if (!load_assimp(path, cpu_model, gpu_model))
@@ -406,8 +434,6 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 	BOOST_LOG_SEV(log, info) << "Imported model " << path;
 
 
-
-    
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Assimp processes models slowly so we export a BLM model file to save our
@@ -430,11 +456,42 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 
 void renderer::import_model( model_id_type model_id )
 {
+	class my_task : public task
+	{
+	public:
+		bool result;
+		renderer& renderer1;
+		const renderer::path path;
+		storage::gpu::model& gpu_model;
+
+
+		my_task( renderer& renderer1, const renderer::path& path, storage::gpu::model& gpu_model )
+			: renderer1(renderer1), path(path), gpu_model(gpu_model) {}
+
+		task* execute()
+		{
+			result = renderer1.import_model(path, gpu_model);
+			return nullptr;
+		}
+	};
+
+
+
 	static const boost::filesystem::path MISSING_MODEL_PATH = "missing_model.dae";
 	auto& path = world.models[model_id];
 	auto& gpu_model = models[model_id];
 
-	if (import_model(path, gpu_model)) return;
+	bool import_result;
+
+
+
+
+	my_task& my_task1 = *new(task::allocate_root()) my_task(*this, path, gpu_model);
+	task::spawn_root_and_wait(my_task1);
+
+	import_result = my_task1.result;
+
+	if (import_result) return;
 
 	BOOST_LOG_SEV(log, warning) << "Missing model \"" << path << "\"";
 	import_model(MISSING_MODEL_PATH, gpu_model);
@@ -442,10 +499,108 @@ void renderer::import_model( model_id_type model_id )
 
 
 
+
+void renderer::reload_shader( const path& path_to_shader )
+{
+	if (shader_directory / path_to_shader == ambient_occlusion.fragment.path_to_shader)
+	{
+		BOOST_LOG_SEV(this->log, info) << "Reloading shader: " << path_to_shader;
+		//BOOST_LOG_SCOPED_LOGGER_TAG(this->log, "MultiLine", bool, true);
+
+		if (ambient_occlusion.is_complete())
+			glDetachShader(ambient_occlusion.id, ambient_occlusion.fragment.id);
+
+		ambient_occlusion.fragment.load();
+
+		if (ambient_occlusion.is_complete())
+		{
+			glAttachShader(ambient_occlusion.id, ambient_occlusion.fragment.id);
+			ambient_occlusion.link();
+		}
+
+		on_window_resized(camera.window.x, camera.window.y);
+
+		auto info_log = ambient_occlusion.get_aggregated_info_log();
+		if (!info_log.empty())
+			BOOST_LOG_SEV(this->log, error) << info_log;
+	}
+
+	if (shader_directory / path_to_shader == lighting.fragment.path_to_shader)
+	{
+		BOOST_LOG_SEV(this->log, info) << "Reloading shader: " << path_to_shader;
+		//BOOST_LOG_SCOPED_LOGGER_TAG(this->log, "MultiLine", bool, true);
+
+		if (lighting.is_complete())
+			glDetachShader(lighting.id, lighting.fragment.id);
+
+		lighting.fragment.load();
+
+		if (lighting.is_complete())
+		{
+			glAttachShader(lighting.id, lighting.fragment.id);
+			lighting.link();
+		}
+
+		on_window_resized(camera.window.x, camera.window.y);
+
+		auto info_log = lighting.get_aggregated_info_log();
+		if (!info_log.empty())
+			BOOST_LOG_SEV(this->log, error) << info_log;
+	}
+
+	if (shader_directory / path_to_shader == geometry_aware_blur_horizontal.fragment.path_to_shader)
+	{
+		BOOST_LOG_SEV(this->log, info) << "Reloading shader: " << path_to_shader;
+		//BOOST_LOG_SCOPED_LOGGER_TAG(this->log, "MultiLine", bool, true);
+
+		if (geometry_aware_blur_horizontal.is_complete())
+			glDetachShader(geometry_aware_blur_horizontal.id, geometry_aware_blur_horizontal.fragment.id);
+
+		geometry_aware_blur_horizontal.fragment.load();
+
+		if (geometry_aware_blur_horizontal.is_complete())
+		{
+			glAttachShader(geometry_aware_blur_horizontal.id, geometry_aware_blur_horizontal.fragment.id);
+			geometry_aware_blur_horizontal.link();
+		}
+
+		{
+			auto info_log = geometry_aware_blur_horizontal.get_aggregated_info_log();
+			if (!info_log.empty())
+				BOOST_LOG_SEV(this->log, error) << info_log;
+		}
+
+
+
+		if (geometry_aware_blur_vertical.is_complete())
+			glDetachShader(geometry_aware_blur_vertical.id, geometry_aware_blur_vertical.fragment.id);
+
+		geometry_aware_blur_vertical.fragment.load();
+
+		if (geometry_aware_blur_vertical.is_complete())
+		{
+			glAttachShader(geometry_aware_blur_vertical.id, geometry_aware_blur_vertical.fragment.id);
+			geometry_aware_blur_vertical.link();
+		}
+
+		{
+			auto info_log = geometry_aware_blur_vertical.get_aggregated_info_log();
+			if (!info_log.empty())
+				BOOST_LOG_SEV(this->log, error) << info_log;
+		}
+
+
+		on_window_resized(camera.window.x, camera.window.y);
+	}
+}
+
+
 void renderer::render_frame()
 {
 	assert(0 == glGetError());
-    
+
+	if (!(ambient_occlusion.is_complete() && lighting.is_complete()))
+		return;
     
     
     
@@ -637,6 +792,24 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Ambient Occlusion
 ////////////////////////////////////////////////////////////////////////////////
+	
+
+LARGE_INTEGER frequency;        // ticks per second
+LARGE_INTEGER t1, t2;           // ticks
+
+
+static double sum_ao_in_milli_secs  = 0;
+static double sum_blur_in_milli_secs  = 0;
+static double k = 0;
+
+// get ticks per second
+QueryPerformanceFrequency(&frequency);
+
+
+glFinish();
+// start timer
+QueryPerformanceCounter(&t1);
+	
 	glGetIntegerv(GL_VIEWPORT, viewport_data);
 	auto ambient_occlusion_texture_size = glm::floor(glm::vec2(viewport_data[2] * ambient_occlusion_resolution_multiplier, viewport_data[3] * ambient_occlusion_resolution_multiplier));
 	glViewport(0, 0, ambient_occlusion_texture_size.x, ambient_occlusion_texture_size.y);
@@ -654,6 +827,7 @@ void renderer::render_frame()
 	{
 		int texture_unit = 0;
 		depths.use(ambient_occlusion, "depths", texture_unit);
+		wc_normals.use(ambient_occlusion, "wc_normals", texture_unit);
 		random_texture.use(ambient_occlusion, "random_texture", texture_unit);
 	}
 
@@ -663,10 +837,73 @@ void renderer::render_frame()
 	ambient_occlusion.set_uniform("view_matrix", camera.view_matrix);
 	ambient_occlusion.set_uniform("projection_matrix", camera.projection_matrix);	
 	ambient_occlusion.set_uniform("view_projection_matrix", camera.view_projection_matrix);
+	ambient_occlusion.set_uniform("inverse_view_projection_matrix", glm::inverse(this->camera.view_projection_matrix));
+	ambient_occlusion.set_uniform("normal_matrix", glm::mat3(glm::inverseTranspose(camera.view_matrix)));
 
 	screen_aligned_quad.render_without_material();
  
 	glViewport(0, 0, viewport_data[2], viewport_data[3]);
+
+
+
+glFinish();
+// stop timer
+QueryPerformanceCounter(&t2);
+
+// compute and print the elapsed time in millisec
+sum_ao_in_milli_secs += (t2.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Ambient Occlusion Blur
+////////////////////////////////////////////////////////////////////////////////
+
+QueryPerformanceCounter(&t1);
+
+	// Horizontal
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bloom1, 0);
+	geometry_aware_blur_horizontal.use();
+	{
+		int texture_unit = 0;
+		ambient_occlusion_texture.use(geometry_aware_blur_horizontal, "source", texture_unit);
+		depths.use(geometry_aware_blur_horizontal, "depths", texture_unit);
+		wc_normals.use(geometry_aware_blur_horizontal, "wc_normals", texture_unit);
+	}
+	geometry_aware_blur_horizontal.set_uniform("projection_matrix", camera.projection_matrix);	
+
+	screen_aligned_quad.render_without_material();
+
+	// Vertical
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ambient_occlusion_texture, 0);
+	geometry_aware_blur_vertical.use();
+	{
+		int texture_unit = 0;
+		bloom1.use(geometry_aware_blur_vertical, "source", texture_unit);
+		depths.use(geometry_aware_blur_vertical, "depths", texture_unit);
+		wc_normals.use(geometry_aware_blur_vertical, "wc_normals", texture_unit);
+	}
+	geometry_aware_blur_vertical.set_uniform("projection_matrix", camera.projection_matrix);	
+
+	screen_aligned_quad.render_without_material();
+
+glFinish();
+// stop timer
+QueryPerformanceCounter(&t2);
+
+
+sum_blur_in_milli_secs += (t2.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
+
+if (++k > 100)
+{
+	double total = sum_ao_in_milli_secs + sum_blur_in_milli_secs;
+	BOOST_LOG_SEV(log, info) << "Total: " << total / 100.0 << "\t(AO: " << sum_ao_in_milli_secs / 100.0 << ",\tblur: " << sum_blur_in_milli_secs / 100.0 << ")";
+	k = sum_ao_in_milli_secs = sum_blur_in_milli_secs = 0;
+}
+
 
 
 
@@ -741,9 +978,9 @@ void renderer::render_frame()
 
 	//lighting.set_uniform("z_near", camera.z_near);
 	lighting.set_uniform("z_far", camera.z_far);
-	//lighting.set_uniform("view_matrix", camera.view_matrix);
+	lighting.set_uniform("view_matrix", camera.view_matrix);
 	lighting.set_uniform("projection_matrix", camera.projection_matrix);	
-	//lighting.set_uniform("view_projection_matrix", camera.view_projection_matrix);
+	lighting.set_uniform("view_projection_matrix", camera.view_projection_matrix);
 	lighting.set_uniform("wc_camera_eye_position", camera.eye);
 
 	glm::mat4 light_tc_matrix(
@@ -810,13 +1047,17 @@ void renderer::on_window_resized( int width, int height )
 	glViewport(0, 0, width, height);
 
 
-	lighting.use();
+	if (lighting.is_complete())
+	{
+		lighting.use();
 
 #ifdef USE_TILED_SHADING
-	lighting.set_uniform("tile_size", light_grid.tile_size());
-	lighting.set_uniform("grid_dimensions", light_grid.tiles_x(), light_grid.tiles_y());
+		lighting.set_uniform("tile_size", light_grid.tile_size());
+		lighting.set_uniform("grid_dimensions", light_grid.tiles_x(), light_grid.tiles_y());
 #endif
-	lighting.set_uniform("window_dimensions", camera.window.x, camera.window.y);
+		lighting.set_uniform("window_dimensions", camera.window.x, camera.window.y);
+	}
+	
 
 	main_render.bind_and_update<float>(width, height, nullptr, 0);
 	depths.bind_and_update<texture::depth_float>(width, height, nullptr, 0);
@@ -836,7 +1077,7 @@ void renderer::on_window_resized( int width, int height )
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
 		GL_TEXTURE_2D, depths, 0);
 
-
+	// TODO: Remove this?
 	GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
 	glDrawBuffers(2, draw_buffer);
 

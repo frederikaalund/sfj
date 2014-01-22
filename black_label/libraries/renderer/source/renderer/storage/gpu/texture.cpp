@@ -171,10 +171,9 @@ void texture_base::update(
         glTexSubImage2D(target, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
     }
     else
-    {
         glTexImage2D(target, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(target);
-    }
+        
+    glGenerateMipmap(target);
 }
 
 void texture_base::update( 
