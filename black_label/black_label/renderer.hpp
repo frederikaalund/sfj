@@ -47,7 +47,6 @@ MSVC_POP_WARNINGS()
 public:
 	typedef world::world world_type;
 	typedef world_type::entity_id_type entity_id_type;
-	typedef world_type::model_id_type model_id_type;
 	typedef boost::filesystem::path path;
 
 	static const path default_shader_directory;
@@ -63,29 +62,29 @@ public:
 	void render_frame();
 	void reload_shader( const path& path_to_shader );
 
-	void report_dirty_model( model_id_type id )
-	{ dirty_models.push(id); }
-	void report_dirty_model( 
-		world_type::model_container::const_iterator model ) 
-	{ report_dirty_model(model - world.static_entities.models.cbegin()); }
-	void report_dirty_models( 
-		world_type::model_container::const_iterator first, 
-		world_type::model_container::const_iterator last )
-	{ while (first != last) report_dirty_model(first++); }
+	//void report_dirty_model( model_id_type id )
+	//{ dirty_models.push(id); }
+	//void report_dirty_model( 
+	//	world_type::model_container::const_iterator model ) 
+	//{ report_dirty_model(model - world.static_entities.models.cbegin()); }
+	//void report_dirty_models( 
+	//	world_type::model_container::const_iterator first, 
+	//	world_type::model_container::const_iterator last )
+	//{ while (first != last) report_dirty_model(first++); }
 
-	void report_dirty_static_entity( entity_id_type id )
-	{ dirty_static_entities.push(id); }
-	void report_dirty_static_entities( 
-		world_type::entities_type::group::const_iterator first, 
-		world_type::entities_type::group::const_iterator last )
-	{ while (first != last) report_dirty_static_entity(*first++); }
+	//void report_dirty_static_entity( entity_id_type id )
+	//{ dirty_static_entities.push(id); }
+	//void report_dirty_static_entities( 
+	//	world_type::entities_type::group::const_iterator first, 
+	//	world_type::entities_type::group::const_iterator last )
+	//{ while (first != last) report_dirty_static_entity(*first++); }
 
-	void report_dirty_dynamic_entity( entity_id_type id )
-	{ dirty_dynamic_entities.push(id); }
-	void report_dirty_dynamic_entities( 
-		world_type::entities_type::group::const_iterator first, 
-		world_type::entities_type::group::const_iterator last )
-	{ while (first != last) report_dirty_dynamic_entity(*first++); }
+	//void report_dirty_dynamic_entity( entity_id_type id )
+	//{ dirty_dynamic_entities.push(id); }
+	//void report_dirty_dynamic_entities( 
+	//	world_type::entities_type::group::const_iterator first, 
+	//	world_type::entities_type::group::const_iterator last )
+	//{ while (first != last) report_dirty_dynamic_entity(*first++); }
 	
 	void on_window_resized( int width, int height );
 
@@ -106,7 +105,7 @@ private:
 
 MSVC_PUSH_WARNINGS(4251)
 
-	typedef boost::lockfree::queue<model_id_type> dirty_model_id_container;
+	//typedef boost::lockfree::queue<model_id_type> dirty_model_id_container;
 	typedef boost::lockfree::queue<entity_id_type> dirty_entity_id_container;
 	typedef std::unique_ptr<storage::gpu::model[]> model_container;
 	typedef container::svector<entity_id_type> sorted_entities_container;
@@ -115,7 +114,7 @@ MSVC_PUSH_WARNINGS(4251)
 
 	void update_lights();
 	bool import_model( const boost::filesystem::path& path, storage::gpu::model& gpu_model );
-	void import_model( model_id_type entity_id );
+	//void import_model( model_id_type entity_id );
 	
 
 
@@ -123,10 +122,10 @@ MSVC_PUSH_WARNINGS(4251)
 
 	const world_type& world;
 
-	dirty_model_id_container dirty_models;
+	//dirty_model_id_container dirty_models;
 	dirty_entity_id_container dirty_static_entities, dirty_dynamic_entities;
 
-	tbb::concurrent_queue<model_id_type> models_being_loaded;
+	//tbb::concurrent_queue<model_id_type> models_being_loaded;
 
 	model_container models;
 	sorted_entities_container sorted_statics, sorted_dynamics;

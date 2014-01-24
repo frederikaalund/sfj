@@ -33,6 +33,7 @@ list(APPEND BlackLabel_DEPENDENCIES_RENDERER_LIBRARIES ${SFML_LIBRARIES})
 # Winmm (SFML Dependency on Windows)
 if(WIN32)
 	list(APPEND BlackLabel_DEPENDENCIES_RENDERER_LIBRARIES "winmm.lib")
+	add_definitions("-DNOMINMAX")
 endif()
 
 # JPEG (SFML Dependency)

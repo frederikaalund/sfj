@@ -71,7 +71,9 @@ endif()
 
 # VTune (Optional)
 find_package(VTune QUIET)
-include_directories(${VTune_INCLUDE_DIR})
+if(VTune_FOUND)
+	include_directories(${VTune_INCLUDE_DIR})
+endif()
 
 
 

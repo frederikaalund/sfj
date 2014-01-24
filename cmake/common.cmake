@@ -115,12 +115,17 @@ endforeach()
 ##############################################################################
 ## Identify Toolset
 ##############################################################################
-<<<<<<< HEAD
 # Visual Studio
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" AND NOT MSVC_VERSION LESS 1600)
 	# Query if there is a toolset override
 	if(CMAKE_GENERATOR_TOOLSET)
-		string(SUBSTRING ${CMAKE_GENERATOR_TOOLSET} 1 3 VC_VERSION)
+		if(${CMAKE_GENERATOR_TOOLSET} MATCHES "CTP")
+			string(SUBSTRING ${CMAKE_GENERATOR_TOOLSET} 4 -1 VC_VERSION)
+			string(TOLOWER ${VC_VERSION} VC_VERSION_LOWERCASE)
+			set(VC_VERSION _ctp_${VC_VERSION_LOWERCASE})
+		else()
+			string(SUBSTRING ${CMAKE_GENERATOR_TOOLSET} 1 3 VC_VERSION)
+		endif()
 	# Else the toolset must match the MSVC version
 	else()
 		math(EXPR VC_VERSION ${MSVC_VERSION}/10-60)

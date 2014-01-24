@@ -10,9 +10,9 @@
 
 #include <SFML/Window.hpp>
 
-#include <ittnotify.h>
-#define TBB_USE_THREADING_TOOLS 1
-#define TBB_USE_PERFORMANCE_WARNINGS 1
+//#include <ittnotify.h>
+//#define tbb_use_threading_tools 1
+//#define tbb_use_performance_warnings 1
 #include <tbb/task_scheduler_init.h>
 #include <tbb/tbb_stddef.h>
 
@@ -45,6 +45,7 @@ public:
 
 
 	application( int argc, char const* argv[] );
+	application( const application& other ) = delete;
 	~application();
 
 	void update_window();

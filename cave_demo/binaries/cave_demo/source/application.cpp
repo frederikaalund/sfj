@@ -244,7 +244,7 @@ void application::process_keyboard_event( const sf::Event& event )
 		break;
 
 	default:
-    break;
+	break;
 	}
 }
 
@@ -359,54 +359,54 @@ void application::update_window()
 
 void application::update_file_system_watcher()
 {
-	try
-	{
-		auto& models = this->world.static_entities.models;
-		auto& renderer = this->renderer;
-		auto& log = this->log;
+	//try
+	//{
+	//	auto& models = this->world.static_entities.models;
+	//	auto& renderer = this->renderer;
+	//	auto& log = this->log;
 
-		typedef std::tuple<path_type, world::model_container::const_iterator, sf::Clock> path_pair;
-		static std::vector<path_pair> watched_paths;
+	//	typedef std::tuple<path_type, world::model_container::const_iterator, sf::Clock> path_pair;
+	//	static std::vector<path_pair> watched_paths;
 
-		fsw.update();
-		std::for_each(fsw.modified_paths.cbegin(), fsw.modified_paths.cend(),
-			[&] ( const path_type& path ) {
+	//	fsw.update();
+	//	std::for_each(fsw.modified_paths.cbegin(), fsw.modified_paths.cend(),
+	//		[&] ( const path_type& path ) {
 
-			auto found = std::find(models.cbegin(),	models.cend(), path);
+	//		auto found = std::find(models.cbegin(),	models.cend(), path);
 
-			// Watch any model files that have been modified.
-			if (models.cend() != found)
-			{
-				auto current_pair = std::make_tuple(*found, found, sf::Clock());
-				auto found_pair = std::find_if(watched_paths.begin(), watched_paths.end(),
-					[&] ( path_pair& pp ) -> bool { return std::get<0>(pp) == std::get<0>(current_pair); });
+	//		// Watch any model files that have been modified.
+	//		if (models.cend() != found)
+	//		{
+	//			auto current_pair = std::make_tuple(*found, found, sf::Clock());
+	//			auto found_pair = std::find_if(watched_paths.begin(), watched_paths.end(),
+	//				[&] ( path_pair& pp ) -> bool { return std::get<0>(pp) == std::get<0>(current_pair); });
 
-				if (watched_paths.end() != found_pair)
-					std::get<2>(*found_pair).restart();
-				else
-					watched_paths.push_back(current_pair);
-			}
+	//			if (watched_paths.end() != found_pair)
+	//				std::get<2>(*found_pair).restart();
+	//			else
+	//				watched_paths.push_back(current_pair);
+	//		}
 
-			// Maybe it is shader, try to reload it.
-			renderer.reload_shader(path);
-		});
+	//		// Maybe it is shader, try to reload it.
+	//		renderer.reload_shader(path);
+	//	});
 
-		// If a watched model file has not been modified for 1.0 seconds then reload it.
-		auto new_end = std::partition(watched_paths.begin(), watched_paths.end(),
-			[&] ( path_pair& pp ) -> bool { return 1.0f >= std::get<2>(pp).getElapsedTime().asSeconds(); });
+	//	// If a watched model file has not been modified for 1.0 seconds then reload it.
+	//	auto new_end = std::partition(watched_paths.begin(), watched_paths.end(),
+	//		[&] ( path_pair& pp ) -> bool { return 1.0f >= std::get<2>(pp).getElapsedTime().asSeconds(); });
 
-		std::for_each(new_end, watched_paths.end(), [&] ( path_pair& pp ) {
-			renderer.report_dirty_model(std::get<1>(pp));
-			BOOST_LOG_SEV(log, info) << "Dirty entity <id: " << *std::get<1>(pp) << ", model: \"" << std::get<0>(pp) << "\">";
-		});
-		watched_paths.resize(new_end - watched_paths.begin());
+	//	std::for_each(new_end, watched_paths.end(), [&] ( path_pair& pp ) {
+	//		renderer.report_dirty_model(std::get<1>(pp));
+	//		BOOST_LOG_SEV(log, info) << "Dirty entity <id: " << *std::get<1>(pp) << ", model: \"" << std::get<0>(pp) << "\">";
+	//	});
+	//	watched_paths.resize(new_end - watched_paths.begin());
 
-		fsw.modified_paths.clear();
-	}
-	catch (const std::exception& error)
-	{
-		BOOST_LOG_SEV(log, black_label::utility::error) << error.what();
-	}
+	//	fsw.modified_paths.clear();
+	//}
+	//catch (const std::exception& error)
+	//{
+	//	BOOST_LOG_SEV(log, black_label::utility::error) << error.what();
+	//}
 }
 
 } // namespace cave_demo

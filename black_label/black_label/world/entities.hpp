@@ -1,29 +1,30 @@
 #ifndef BLACK_LABEL_WORLD_ENTITIES_HPP
 #define BLACK_LABEL_WORLD_ENTITIES_HPP
 
-#include <black_label/container/svector.hpp>
-#include <black_label/utility/boost_atomic_extensions.hpp>
+#include <atomic>
 
 #include <algorithm>
 #include <cstring>
+#include <initializer_list>
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <boost/iterator/iterator_facade.hpp>
+
+#include "tbb/concurrent_priority_queue.h"
 
 
 
 namespace black_label {
 namespace world {
 
-template<typename model_type, typename dynamics_type, typename transformation_type>
+template<typename model_type, typename dynamic_type, typename transformation_type>
 class entities
 {
 public:
-	typedef std::size_t size_type;
-	typedef container::svector<model_type> model_container;
-	typedef typename model_container::size_type model_id_type;
+	using size_type = std::size_t;
 
 
 
@@ -39,15 +40,15 @@ public:
 		size_type>
 	{
 	public:
-    typedef size_type difference_type;
+	using difference_type = size_type;
     
 		iterator_base() {}
-		iterator_base( value id ) : id_(id) {}
+		iterator_base( value id ) : id_{id} {}
 		template<typename other_value>
 		iterator_base( 
 			const iterator_base<other_value>& other,
 			typename std::enable_if<std::is_convertible<other_value*, value*>::value>::type* = nullptr )
-			: id_(other.id_) {}
+			: id_{other.id_} {}
 
 	protected:
 		size_type id_;
@@ -72,11 +73,11 @@ public:
 		{ return other.id_ - id_; }
 	};
 
-	typedef iterator_base<size_type> iterator;
-	typedef iterator_base<const size_type> const_iterator;
+	using iterator = iterator_base<size_type>;
+	using const_iterator = iterator_base<const size_type>;
 
-	typedef transformation_type* transformation_iterator;
-	typedef const transformation_type* const_transformation_iterator;
+	using transformation_iterator_ = transformation_type*;
+	using const_transformation_iterator_ = const transformation_type*;
 
 
 
@@ -94,9 +95,7 @@ public:
 
 		model_type& model() const
 		{ return entities_.model_for_entity(id()); }
-		model_id_type& model_id() const
-		{ return entities_.model_ids[id()]; }
-		dynamics_type& dynamics() const
+		dynamic_type& dynamics() const
 		{ return entities_.dynamics[id()]; }
 		transformation_type& transformation() const
 		{ return entities_.transformations[id()]; }
@@ -116,9 +115,7 @@ public:
 
 		const model_type& model() const
 		{ return entities_.model_for_entity(id()); }
-		const model_id_type& model_id() const
-		{ return entities_.model_ids[id()]; }
-		const dynamics_type& dynamics() const
+		const dynamic_type& dynamics() const
 		{ return entities_.dynamics[id()]; }
 		const transformation_type& transformation() const
 		{ return entities_.transformations[id()]; }
@@ -127,72 +124,61 @@ public:
 		const entities& entities_;
 	};
 
-	typedef entity_base<iterator> entity;
-	typedef const_entity_base<const_iterator> const_entity;
+	using entity = entity_base<iterator>;
+	using const_entity = const_entity_base<const_iterator>;
+
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Group
+/// Range & Scoped Range
 ////////////////////////////////////////////////////////////////////////////////
-	class group
+	class range
 	{
 	public:
-		typedef container::svector<size_type> member_id_container;
+		range() {}
+		range( size_type ids_begin, size_type ids_end )
+			: ids_begin{ids_begin}
+			, ids_end{ids_end}
+		{ assert(ids_begin <= ids_end); }
 
-		typedef member_id_container::iterator iterator;
-		typedef member_id_container::const_iterator const_iterator;
+		size_type size() const { return ids_end - ids_begin; }
 
-		typedef entity_base<iterator> entity;
-		typedef const_entity_base<const_iterator> const_entity;
+		iterator begin() { return ids_begin; }
+		iterator end() { return ids_end; }
 
+		template<typename container>
+		typename container::element_type* begin( container& container )
+		{ return &container[ids_begin]; }
+		template<typename container>
+		typename container::element_type* end( container& container )
+		{ return &container[ids_end]; }
 
+		friend bool operator<( range lhs, range rhs )
+		{ return lhs.size() < rhs.size(); }
 
-////////////////////////////////////////////////////////////////////////////////
-/// Group
-////////////////////////////////////////////////////////////////////////////////
-		group( entities& entities ) 
-			: entities(entities)
-			, member_ids(entities.capacity)
-		{}
-		~group()
-		{
-			std::for_each(member_ids.cbegin(), member_ids.cend(), 
-				[this] ( size_type entity ) { this->entities.remove(entity); });
-		}
+		size_type ids_begin, ids_end;
+	};
 
-		typename entities::iterator create(
-			const model_type& model = model_type(), 
-			const dynamics_type& dynamics = dynamics_type(), 
-			const transformation_type& transformation = transformation_type() )
-		{ 
-			member_ids.push_back(entities.create(model, dynamics, transformation));
-			return entities::iterator(member_ids.back());
-		}
+	class scoped_range {
+	public:
+		scoped_range( 
+			entities& entities_, 
+			range range ) : entities_(entities_), range(range) {}
+		~scoped_range() { entities_.remove(range); }
 
-		void remove( size_type id )
-		{
-			entities.remove(id);
-			*std::find(member_ids.cbegin(), member_ids.cend(), id) = 
-				member_ids.back();
-			member_ids.pop_back();
-		}
-		void remove( typename entities::iterator entity ) { remove(entity.id()); }
+		iterator begin() { return range.begin(); }
+		iterator end() { return range.end(); }
 
-		iterator begin() { return member_ids.begin(); };
-		iterator end() { return member_ids.end(); };
-		const_iterator cbegin() const { return member_ids.cbegin(); };
-		const_iterator cend() const	{ return member_ids.cend(); };
+		template<typename container>
+		typename container::element_type* begin( container& container )
+		{ return range.begin(container); }
+		template<typename container>
+		typename container::element_type* end( container& container )
+		{ return range.end(container); }
 
-		entity ebegin() { return entity(this->entities, begin()); };
-		entity eend() { return entity(this->entities, end()); };
-		const_entity cebegin() const 
-		{ return group::const_entity(this->entities, cbegin()); };
-		const_entity ceend() const
-		{ return const_entity(this->entities, cend()); };
-
-		entities& entities;
-		member_id_container member_ids;
+		entities& entities_;
+		range range;
 	};
 
 
@@ -200,72 +186,181 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 /// Entities
 ////////////////////////////////////////////////////////////////////////////////
-	friend void swap( entities& lhs, entities& rhs )
+	entities( size_type capacity = 0 )
+		: capacity{capacity}
+		, size{0}
+		, models{std::make_unique<std::shared_ptr<model_type>[]>(capacity)}
+		, dynamics{std::make_unique<std::shared_ptr<dynamic_type>[]>(capacity)}
+		, transformations{std::make_unique<transformation_type[]>(capacity)}
+	{}
+	entities( const entities& other ) = delete;
+	entities( entities&& other ) 
+		: capacity{std::move(other.capacity)}
+		, size{other.size.load()}
+		, models{std::move(other.models)}
+		, dynamics{std::move(other.dynamics)}
+		, transformations{std::move(other.transformations)}
+	{}
+	entities& operator=( entities rhs ) { std::swap(*this, rhs); return *this; }
+
+	bool allocate_from_free_list( size_type size, range& result )
 	{
-		using std::swap;
-		swap(lhs.models, rhs.models);
-		swap(lhs.capacity, rhs.capacity);
-		swap(lhs.size, rhs.size);
-		swap(lhs.id_size, rhs.id_size);
-		swap(lhs.model_ids, rhs.model_ids);
-		swap(lhs.dynamics, rhs.dynamics);
-		swap(lhs.transformations, rhs.transformations);
-		swap(lhs.ids, rhs.ids);
-	}
+		range free_range;
 
-	entities( model_container& models, size_type capacity = 0 )
-		: models(models)
-		, capacity(capacity)
-		, size(0)
-		, id_size(0)
-		, model_ids(new model_id_type[capacity])
-		, dynamics(new dynamics_type[capacity])
-		, transformations(new transformation_type[capacity])
-		, ids(new size_type[capacity])
-	{ size_type id = 0; std::generate(ids.get(), &ids[capacity], [&id](){ return id++; }); }
-	entities( entities&& other ) { swap(*this, other); }
+		// Failure; nothing in free list
+		if (!free_list.try_pop(free_range)) return false;
 
-	entities& operator=( entities rhs ) { swap(*this, rhs); return *this; }
-
-	size_type create( 
-		const model_type& model = model_type(), 
-		const dynamics_type& dynamics = dynamics_type(), 
-		const transformation_type& transformation = transformation_type() )
-	{
-		entities::size_type id = ids[size++ % capacity];
-
-		auto existing_model = std::find(models.cbegin(), models.cend(), model);
-		if (models.cend() != existing_model)
-			model_ids[id] = existing_model - models.cbegin();
-		else
-		{
-			models.push_back(model);
-			model_ids[id] = models.end() - 1 - models.cbegin();
+		// Failure; not enough space
+		if (free_range.size() < size) {
+			// Return unused space
+			free_list.push(free_range); 
+			return false;
 		}
-		
-		this->dynamics[id] = dynamics;
-		transformations[id] = transformation;
 
-		return id;
+		// Success; take space from the free range
+		result = range{free_range.ids_begin, free_range.ids_begin + size};
+
+		// Return unused space
+		if (free_range.ids_end == result.ids_end)
+			free_list.push(range(result.ids_end, free_range.ids_end));
+
+		return true;
 	}
 
-	void remove( size_type id ) { ids[id_size++ % capacity] = id; }
+	range allocate( size_type size )
+	{
+		// Try the free list first
+		range result;
+		if (allocate_from_free_list(size, result)) return result;
+
+		// Just do a new allocation
+		this->size += size;
+		assert(this->size <= capacity);
+
+		return range{this->size - size, this->size};
+
+		// TODO: Add a third option where the free list is first
+		// de-fragmented and then the allocation process is tried again.
+	}
+
+	template<typename model_iterator, typename dynamic_iterator, typename transformation_iterator>
+	range create(
+		model_iterator models_begin,
+		model_iterator models_end,
+		dynamic_iterator dynamics_begin,
+		dynamic_iterator dynamics_end,
+		transformation_iterator transformations_begin,
+		transformation_iterator transformations_end)
+	{
+		auto count = models_end - models_begin;
+		assert(dynamics_end - dynamics_begin == count);
+		assert(transformations_end - transformations_begin == count);
+
+		auto all_ = all();
+		range new_range{allocate(count)};
+
+		// Copy input ranges into the corresponding containers
+		for (auto id : new_range) {
+			assign_existing(all_.begin(models), all_.end(models), models[id], *models_begin++);
+			assign_existing(all_.begin(dynamics), all_.end(dynamics), dynamics[id], *dynamics_begin++);
+		}
+		std::copy(transformations_begin, transformations_end, new_range.begin(transformations));
+
+		return new_range;
+	}
+	template<typename model_container, typename dynamic_container, typename transformation_container>
+	range create(
+		const model_container& models,
+		const dynamic_container& dynamics,
+		const transformation_container& transformations)
+	{
+		return create(
+			std::cbegin(models),
+			std::cend(models),
+			std::cbegin(dynamics),
+			std::cend(dynamics),
+			std::cbegin(transformations),
+			std::cend(transformations));
+	}
+	range create(
+		const std::initializer_list<model_type> models,
+		const std::initializer_list<dynamic_type> dynamics,
+		const std::initializer_list<transformation_type> transformations)
+	{
+		return create(
+			std::cbegin(models),
+			std::cend(models),
+			std::cbegin(dynamics),
+			std::cend(dynamics),
+			std::cbegin(transformations),
+			std::cend(transformations));
+	}
+
+	template<typename model_iterator, typename dynamic_iterator, typename transformation_iterator>
+	scoped_range create_scoped(
+		model_iterator models_begin,
+		model_iterator models_end,
+		dynamic_iterator dynamics_begin,
+		dynamic_iterator dynamics_end,
+		transformation_iterator transformations_begin,
+		transformation_iterator transformations_end)
+	{
+		return scoped_range{*this, create(
+			models_begin,
+			models_end,
+			dynamics_begin,
+			dynamics_end,
+			transformations_begin,
+			transformations_end)};
+	}
+	template<typename model_container, typename dynamic_container, typename transformation_container>
+	scoped_range create_scoped(
+		const model_container& models,
+		const dynamic_container& dynamics,
+		const transformation_container& transformations)
+	{ return scoped_range{*this, create(models, dynamics, transformations)}; }
+	scoped_range create_scoped(
+		const std::initializer_list<model_type> models,
+		const std::initializer_list<dynamic_type> dynamics,
+		const std::initializer_list<transformation_type> transformations)
+	{ return scoped_range{*this, create(models, dynamics, transformations)}; }
+
+	void remove( range range )
+	{ 
+		std::fill(range.begin(models), range.end(models), std::shared_ptr<model_type>());
+		free_list.push(range);
+	}
+
+//////////////////////////////////////////////////////////////////////////
+/// Search range for the given value. If a previous entry exists in the
+/// range then 'which' is assigned to the previous value. Otherwise,
+/// the value is simply assigned to 'which'.
+//////////////////////////////////////////////////////////////////////////
+	template<typename value_type>
+	void assign_existing( 
+		std::shared_ptr<value_type>* begin,
+		std::shared_ptr<value_type>* end,
+		std::shared_ptr<value_type> which, 
+		value_type value )
+	{
+		// Find existing value
+		auto existing_model = std::find_if(begin, end, 
+			[value] (const auto& model) { return *model == value; });
+
+		// Value already exists; re-use it
+		if (end != existing_model)
+			which = *existing_model;
+		// Otherwise, insert a new value
+		else
+			which = std::make_shared<value_type>(value);
+	}
 
 	model_type& model_for_entity( size_type id )
-	{ return models[model_ids[id]]; }
+	{ return models[id]; }
 	const model_type& model_for_entity( size_type id ) const
-	{ return models[model_ids[id]]; }
+	{ return models[id]; }
 
-	std::vector<size_type> entities_for_model( 
-		const model_id_type id ) const
-	{
-		std::vector<size_type> entity_ids;
-		std::for_each(cbegin(), cend(), [&] ( size_type entity_id ) {
-			if (id == model_ids[entity_id]) entity_ids.push_back(entity_id);
-		});
-		return std::move(entity_ids);
-	}
-
+	range all() const { return range(0, size); }
 
 	iterator begin() { return iterator(0); }
 	iterator end() { return iterator(size); }
@@ -277,25 +372,20 @@ public:
 	const_entity cebegin() const { return const_entity(*this, cbegin()); }
 	const_entity ceend() const { return const_entity(*this, cend()); }
 
-	transformation_iterator transformations_begin() { return transformations.get(); };
-	transformation_iterator transformations_end() { return &transformations[size]; };
-	const_transformation_iterator transformations_cbegin() const { return transformations.get(); };
-	const_transformation_iterator transformations_cend() const { return &transformations[size]; };
+	transformation_iterator_ transformations_begin() { return transformations.get(); };
+	transformation_iterator_ transformations_end() { return &transformations[size]; };
+	const_transformation_iterator_ transformations_cbegin() const { return transformations.get(); };
+	const_transformation_iterator_ transformations_cend() const { return &transformations[size]; };
 
-	model_container& models;
+
 
 	size_type capacity;
-	boost::atomic<size_type> size, id_size;
+	std::atomic<size_type> size;
+	tbb::concurrent_priority_queue<range> free_list;
 
-	std::unique_ptr<model_id_type[]> model_ids;
-	std::unique_ptr<dynamics_type[]> dynamics;
+	std::unique_ptr<std::shared_ptr<model_type>[]> models;
+	std::unique_ptr<std::shared_ptr<dynamic_type>[]> dynamics;
 	std::unique_ptr<transformation_type[]> transformations;
-	std::unique_ptr<size_type[]> ids;
-
-
-
-protected:
-	entities( const entities& other );
 };
 
 } // namespace world

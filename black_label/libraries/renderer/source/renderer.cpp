@@ -58,7 +58,7 @@ using namespace storage;
 using namespace storage::gpu;
 using namespace utility;
 
-        
+		
 
 renderer::glew_setup::glew_setup()
 {
@@ -94,10 +94,10 @@ renderer::renderer(
 	, shader_directory(shader_directory)
 	, asset_directory(asset_directory)
 	, world(world)
-	, dirty_models(128)
+	//, dirty_models(128)
 	, dirty_static_entities(128)
 	, dirty_dynamic_entities(128)
-	, models(new gpu::model[world.static_entities.models.capacity()])
+	//, models(new gpu::model[world.static_entities.models.capacity()])
 	, sorted_statics(world.static_entities.capacity)
 	, sorted_dynamics(world.dynamic_entities.capacity)
 	, lights(1024 * 10)
@@ -116,6 +116,8 @@ MSVC_POP_WARNINGS()
 	, ambient_occlusion_resolution_multiplier(1.0f)
 	, shadow_map_resolution_multiplier(1.0f)
 {
+	return;
+
 	if (GLEW_ARB_texture_storage)
 		glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 	glEnable(GL_CULL_FACE);
@@ -169,7 +171,7 @@ MSVC_POP_WARNINGS()
 		if (!info_log.empty())
 			BOOST_LOG_SEV(this->log, error) << info_log;
 	};
-      
+	  
 
 	// Buffering
 	program_loader(buffering, program::configuration()
@@ -323,26 +325,26 @@ renderer::~renderer()
 
 
 
-void renderer::update_lights()
-{
-	lights.clear();
-
-	auto& entities = world.static_entities;
-	for (auto entity = entities.cebegin(); entities.ceend() != entity; ++entity)
-	{
-		auto& model = models[entity.model_id()];
-		auto& transformation = entity.transformation();
-		if (model.has_lights())
-			for_each(model.lights.cbegin(), model.lights.cend(), [&] ( const light& light ) {
-				this->lights.push_back(black_label::renderer::light(
-					glm::vec3(transformation * glm::vec4(light.position, 1.0f)),
-					light.color,
-					light.constant_attenuation,
-					light.linear_attenuation,
-					light.quadratic_attenuation));
-			});
-	}
-}
+//void renderer::update_lights()
+//{
+//	lights.clear();
+//
+//	auto& entities = world.static_entities;
+//	for (auto entity = entities.cebegin(); entities.ceend() != entity; ++entity)
+//	{
+//		auto& model = models[entity.model_id()];
+//		auto& transformation = entity.transformation();
+//		if (model.has_lights())
+//			for_each(model.lights.cbegin(), model.lights.cend(), [&] ( const light& light ) {
+//				this->lights.push_back(black_label::renderer::light(
+//					glm::vec3(transformation * glm::vec4(light.position, 1.0f)),
+//					light.color,
+//					light.constant_attenuation,
+//					light.linear_attenuation,
+//					light.quadratic_attenuation));
+//			});
+//	}
+//}
 
 
 
@@ -394,16 +396,16 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 				blm_file.seekg(0);
 				boost::archive::binary_iarchive blm_archive(blm_file);
 				try {
-                    blm_archive >> gpu_model;
-                }
-                catch (exception e)
-                {
-                    BOOST_LOG_SEV(log, error) << e.what();
-                }
+					blm_archive >> gpu_model;
+				}
+				catch (exception e)
+				{
+					BOOST_LOG_SEV(log, error) << e.what();
+				}
 				BOOST_LOG_SEV(log, info) << "Imported model \"" << blm_path << "\"";
 
-				if (gpu_model.has_lights()) update_lights();
-                    return true;
+				//if (gpu_model.has_lights()) update_lights();
+				//	return true;
 			}
 		}
 	}
@@ -416,21 +418,21 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 /// The FBX file format is proprietary but has good application support.
 /// In any case, Assimp will load most other files for us.
 ////////////////////////////////////////////////////////////////////////////////
-    storage::cpu::model cpu_model(checksum);
+	storage::cpu::model cpu_model(checksum);
 	gpu_model.clear();
 
 #ifndef NO_FBX
-    if (".fbx" == path.extension())
+	if (".fbx" == path.extension())
 	{
-        if (!load_fbx(path, cpu_model, gpu_model))
-            return false;
+		if (!load_fbx(path, cpu_model, gpu_model))
+			return false;
 	}
-    else
+	else
 #endif
 	if (!load_assimp(path, cpu_model, gpu_model))
 		return false;
 	
-	if (gpu_model.has_lights()) update_lights();
+	//if (gpu_model.has_lights()) update_lights();
 	BOOST_LOG_SEV(log, info) << "Imported model " << path;
 
 
@@ -454,48 +456,48 @@ bool renderer::import_model( const boost::filesystem::path& path, storage::gpu::
 	return true;
 }
 
-void renderer::import_model( model_id_type model_id )
-{
-	class my_task : public task
-	{
-	public:
-		bool result;
-		renderer& renderer1;
-		const renderer::path path;
-		storage::gpu::model& gpu_model;
-
-
-		my_task( renderer& renderer1, const renderer::path& path, storage::gpu::model& gpu_model )
-			: renderer1(renderer1), path(path), gpu_model(gpu_model) {}
-
-		task* execute()
-		{
-			result = renderer1.import_model(path, gpu_model);
-			return nullptr;
-		}
-	};
-
-
-
-	static const boost::filesystem::path MISSING_MODEL_PATH = "missing_model.dae";
-	auto& path = world.models[model_id];
-	auto& gpu_model = models[model_id];
-
-	bool import_result;
-
-
-
-
-	my_task& my_task1 = *new(task::allocate_root()) my_task(*this, path, gpu_model);
-	task::spawn_root_and_wait(my_task1);
-
-	import_result = my_task1.result;
-
-	if (import_result) return;
-
-	BOOST_LOG_SEV(log, warning) << "Missing model \"" << path << "\"";
-	import_model(MISSING_MODEL_PATH, gpu_model);
-}
+//void renderer::import_model( model_id_type model_id )
+//{
+//	class my_task : public task
+//	{
+//	public:
+//		bool result;
+//		renderer& renderer1;
+//		const renderer::path path;
+//		storage::gpu::model& gpu_model;
+//
+//
+//		my_task( renderer& renderer1, const renderer::path& path, storage::gpu::model& gpu_model )
+//			: renderer1(renderer1), path(path), gpu_model(gpu_model) {}
+//
+//		task* execute()
+//		{
+//			result = renderer1.import_model(path, gpu_model);
+//			return nullptr;
+//		}
+//	};
+//
+//
+//
+//	static const boost::filesystem::path MISSING_MODEL_PATH = "missing_model.dae";
+//	auto& path = world.models[model_id];
+//	auto& gpu_model = models[model_id];
+//
+//	bool import_result;
+//
+//
+//
+//
+//	my_task& my_task1 = *new(task::allocate_root()) my_task(*this, path, gpu_model);
+//	task::spawn_root_and_wait(my_task1);
+//
+//	import_result = my_task1.result;
+//
+//	if (import_result) return;
+//
+//	BOOST_LOG_SEV(log, warning) << "Missing model \"" << path << "\"";
+//	import_model(MISSING_MODEL_PATH, gpu_model);
+//}
 
 
 
@@ -601,28 +603,28 @@ void renderer::render_frame()
 
 	if (!(ambient_occlusion.is_complete() && lighting.is_complete()))
 		return;
-    
-    
-    
+	
+	
+	
 	using namespace storage::gpu;
-    
+	
 	static std::array<float, 3*6> screen_aligned_quad_vertices = {
-        1.0f, 1.0f, 0.0f,
-        -1.0f, 1.0f, 0.0f,
-        -1.0f, -1.0f, 0.0f,
-        -1.0f, -1.0f, 0.0f,
-        1.0f, -1.0f, 0.0f,
-        1.0f, 1.0f, 0.0f};
-    
+		1.0f, 1.0f, 0.0f,
+		-1.0f, 1.0f, 0.0f,
+		-1.0f, -1.0f, 0.0f,
+		-1.0f, -1.0f, 0.0f,
+		1.0f, -1.0f, 0.0f,
+		1.0f, 1.0f, 0.0f};
+	
 	static mesh screen_aligned_quad(material(false), GL_TRIANGLES, screen_aligned_quad_vertices.data(), &screen_aligned_quad_vertices.back() + 1);
 	static auto done = false;
 	static buffer<target::array, usage::stream_draw> frustrum(sizeof(float) * 3 * 6);
-    
+	
 	auto alpha = camera.fovy * boost::math::constants::pi<float>() / 360.0f;
 	auto tan_alpha = tan(alpha);
 	auto x = tan_alpha * camera.z_far;
 	auto y = x / camera.aspect_ratio;
-    
+	
 	glm::vec3 directions[6] = {
 		glm::vec3(x, y, -camera.z_far),
 		glm::vec3(-x, y, -camera.z_far),
@@ -631,33 +633,33 @@ void renderer::render_frame()
 		glm::vec3(x, -y, -camera.z_far),
 		glm::vec3(x, y, -camera.z_far),
 	};
-    
+	
 	auto inverse_view_matrix = glm::inverse(glm::mat3(camera.view_matrix));
-    
+	
 	directions[0] = inverse_view_matrix * directions[0];
 	directions[1] = inverse_view_matrix * directions[1];
 	directions[2] = inverse_view_matrix * directions[2];
 	directions[3] = inverse_view_matrix * directions[3];
 	directions[4] = inverse_view_matrix * directions[4];
 	directions[5] = inverse_view_matrix * directions[5];
-    
+	
 	screen_aligned_quad.vertex_array.bind();
-    
+	
 	frustrum.bind_and_update(0, sizeof(float) * 3 * 6, directions);
-    
+	
 	if (!done)
 	{
 		done = true;
 		unsigned int index = 1;
 		screen_aligned_quad.vertex_array.add_attribute(index, 3, nullptr);
 	}
-    
+	
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Model Loading
 ////////////////////////////////////////////////////////////////////////////////
-	for (model_id_type model; dirty_models.pop(model);) import_model(model);
+	//for (model_id_type model; dirty_models.pop(model);) import_model(model);
 
 	
 
@@ -669,8 +671,8 @@ void renderer::render_frame()
 		if (find(sorted_statics.cbegin(), sorted_statics.cend(), entity) == sorted_statics.cend())
 			sorted_statics.push_back(entity);
 
-		if (models[world.static_entities.model_ids[entity]].has_lights())
-			update_lights();
+		//if (models[world.static_entities.model_ids[entity]].has_lights())
+		//	update_lights();
 	}
 	sort(sorted_statics.begin(), sorted_statics.end());
 
@@ -680,7 +682,7 @@ void renderer::render_frame()
 			sorted_dynamics.push_back(entity);
 	sort(sorted_dynamics.begin(), sorted_dynamics.end());
 
-    
+	
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Shadow Map
@@ -713,26 +715,26 @@ void renderer::render_frame()
 	std::for_each(sorted_statics.cbegin(), sorted_statics.cend(), 
 		[&] ( const entity_id_type id )
 	{
-		auto& model = models[this->world.static_entities.model_ids[id]];
+		//auto& model = models[this->world.static_entities.model_ids[id]];
 		auto& model_matrix = this->world.static_entities.transformations[id];
 
 		null.set_uniform("model_view_projection_matrix", 
 			light_view_projection_matrix * model_matrix);
 
-		model.render_without_material();
+		//model.render_without_material();
 	});
 
 	// Dynamics
 	std::for_each(sorted_dynamics.cbegin(), sorted_dynamics.cend(), 
 		[&] ( const entity_id_type id )
 	{
-		auto& model = models[this->world.dynamic_entities.model_ids[id]];
+		//auto& model = models[this->world.dynamic_entities.model_ids[id]];
 		auto& model_matrix = this->world.dynamic_entities.transformations[id];
 
 		null.set_uniform("model_view_projection_matrix", 
 			light_view_projection_matrix * model_matrix);
 
-		model.render_without_material();
+		//model.render_without_material();
 	});
 
 	glViewport(0, 0, viewport_data[2], viewport_data[3]);
@@ -742,10 +744,10 @@ void renderer::render_frame()
 ////////////////////////////////////////////////////////////////////////////////
 /// Geometry Buffer
 ////////////////////////////////////////////////////////////////////////////////
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depths, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depths, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, wc_normals, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, albedos, 0);
-    
+	
 	{
 		GLenum draw_buffer[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
 		glDrawBuffers(2, draw_buffer);
@@ -754,13 +756,12 @@ void renderer::render_frame()
 
 	buffering.use();
 
-
 	// Statics
 	std::for_each(sorted_statics.cbegin(), sorted_statics.cend(), 
 		[&] ( const entity_id_type id )
 	{
 		int texture_unit = 0;
-		auto& model = models[this->world.static_entities.model_ids[id]];
+		//auto& model = models[this->world.static_entities.model_ids[id]];
 		auto& model_matrix = this->world.static_entities.transformations[id];
 
 		buffering.set_uniform("normal_matrix", 
@@ -768,7 +769,7 @@ void renderer::render_frame()
 		buffering.set_uniform("model_view_projection_matrix", 
 			this->camera.view_projection_matrix * model_matrix);
 
-		model.render(buffering, texture_unit);
+		//model.render(buffering, texture_unit);
 	});
 
 	// Dynamics
@@ -776,7 +777,7 @@ void renderer::render_frame()
 		[&] ( const entity_id_type id )
 	{
 		int texture_unit = 0;
-		auto& model = models[this->world.dynamic_entities.model_ids[id]];
+		//auto& model = models[this->world.dynamic_entities.model_ids[id]];
 		auto& model_matrix = this->world.dynamic_entities.transformations[id];
 
 		buffering.set_uniform("normal_matrix", 
@@ -784,9 +785,9 @@ void renderer::render_frame()
 		buffering.set_uniform("model_view_projection_matrix", 
 			this->camera.view_projection_matrix * model_matrix);
 
-		model.render(buffering, texture_unit);
+		//model.render(buffering, texture_unit);
 	});
-    
+	
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -920,7 +921,7 @@ if (++k > 100)
 	int texture_unit = 0;
 	static array<texture*, 6> texs = {{&depths, &albedos, &wc_normals, &random_texture, &shadow_map, &ambient_occlusion_texture}};
 	static array<const char*, 6> names = {{"depths", "albedos", "wc_normals", "random_texture", "shadow_map", "ambient_occlusion_texture"}};
-    
+	
 	lighting.use();
 
 	auto texs_it = texs.begin();
@@ -933,19 +934,19 @@ if (++k > 100)
 	for_each(sorted_dynamics.cbegin(), sorted_dynamics.cend(), 
 		[&] ( const entity_id_type id )
 	{
-		auto& model = models[this->world.dynamic_entities.model_ids[id]];
+		//auto& model = models[this->world.dynamic_entities.model_ids[id]];
 		auto& model_matrix = this->world.dynamic_entities.transformations[id];
 
 		auto& lights = this->lights;
 
-		for_each(model.lights.cbegin(), model.lights.cend(), [&] ( const light light ) {
-			lights.push_back(black_label::renderer::light(
-				glm::vec3(model_matrix * glm::vec4(light.position, 1.0f)), 
-				light.color,
-				light.constant_attenuation,
-				light.linear_attenuation,
-				light.quadratic_attenuation));
-		});
+		//for_each(model.lights.cbegin(), model.lights.cend(), [&] ( const light light ) {
+		//	lights.push_back(black_label::renderer::light(
+		//		glm::vec3(model_matrix * glm::vec4(light.position, 1.0f)), 
+		//		light.color,
+		//		light.constant_attenuation,
+		//		light.linear_attenuation,
+		//		light.quadratic_attenuation));
+		//});
 	});
 
 	// TODO: Pack the light class tightly instead.
@@ -967,10 +968,10 @@ if (++k > 100)
   
 	if (!lights.empty())
 		gpu_lights.bind_buffer_and_update(test_lights.size(), test_lights.data());
-    else
+	else
 		gpu_lights.bind_buffer_and_update(1);
-    
-    gpu_lights.use(lighting, "lights", texture_unit);
+	
+	gpu_lights.use(lighting, "lights", texture_unit);
 
 #ifndef USE_TILED_SHADING
 	lighting.set_uniform("lights_size", static_cast<int>(lights.size()));
@@ -997,10 +998,10 @@ if (++k > 100)
 
 	lights.resize(lights_size);
 
-    screen_aligned_quad.render_without_material();
+	screen_aligned_quad.render_without_material();
 
 
-    
+	
 ////////////////////////////////////////////////////////////////////////////////
 /// Bloom Blur
 ////////////////////////////////////////////////////////////////////////////////
@@ -1067,7 +1068,7 @@ void renderer::on_window_resized( int width, int height )
 	bloom2.bind_and_update<float>(width, height, nullptr, 0);
 	ambient_occlusion_texture.bind_and_update<float>(static_cast<int>(width * ambient_occlusion_resolution_multiplier), static_cast<int>(height * ambient_occlusion_resolution_multiplier), nullptr, 0);
 	shadow_map.bind_and_update<texture::depth_float>(static_cast<int>(width * shadow_map_resolution_multiplier), static_cast<int>(height * shadow_map_resolution_multiplier), nullptr, 0);
-    
+	
 	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,

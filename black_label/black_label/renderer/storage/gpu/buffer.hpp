@@ -44,7 +44,7 @@ public:
 	void bind_and_update( offset_type offset, size_type size, const void* data = nullptr ) const
 	{ bind(); update(offset, size, data); }
 
-    
+	
 
 protected:
 	buffer( const buffer& other );
