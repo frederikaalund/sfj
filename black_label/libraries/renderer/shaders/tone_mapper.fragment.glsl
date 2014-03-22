@@ -1,10 +1,10 @@
-uniform sampler2D main_render;
+uniform sampler2D lit;
 uniform sampler2D bloom;
 uniform sampler3D lut;
 
 
 
-out vec4 result;
+layout(location = 0) out vec4 result;
 
 
 
@@ -64,25 +64,24 @@ vec3 srgb_to_linear( in vec3 color )
 
 void main()
 {
-	vec2 tc = gl_FragCoord.xy / vec2(textureSize(main_render, 0));
-	result = texture(main_render, tc);
+	vec2 tc = gl_FragCoord.xy / vec2(textureSize(lit, 0));
+	result = texture(lit, tc);
 
-	//result.rgb = f(result.rgb) / f(vec3(LinearWhite));
+	result.rgb = f(result.rgb) / f(vec3(LinearWhite));
 
-	vec3 bloom_ = texture(bloom, tc).rgb;
-	result.rgb = min(result.rgb + bloom_ * 0.5, vec3(1.0));	
+	// vec3 bloom_ = texture(bloom, tc).rgb;
+	// result.rgb = min(result.rgb + bloom_ * 0.5, vec3(1.0));	
 
-	float lut_size = float(textureSize(lut, 0).x);
-	vec3 scale = vec3((lut_size - 1.0) / lut_size);
-	vec3 offset = vec3(1.0 / (2.0 * lut_size));
+	// float lut_size = float(textureSize(lut, 0).x);
+	// vec3 scale = vec3((lut_size - 1.0) / lut_size);
+	// vec3 offset = vec3(1.0 / (2.0 * lut_size));
 
-	result.rgb = linear_to_srgb(result.rgb);//pow(result.rgb, vec3(1.0 / 2.2));
-	result.rgb = texture(lut, result.rgb * scale + offset).rgb;
-	result.rgb = srgb_to_linear(result.rgb);
+	//result.rgb = linear_to_srgb(result.rgb);//pow(result.rgb, vec3(1.0 / 2.2));
+	//result.rgb = texture(lut, result.rgb * scale + offset).rgb;
+	//result.rgb = srgb_to_linear(result.rgb);
 
 
 	// Overrides
-	result.rgb *= 1.0e-32;
-	result.rgb += texture(main_render, tc).xyz;
+	result.rgb = texture(lit, tc).xyz;
 
 }

@@ -1,5 +1,5 @@
-in vec4 oc_position;
-in vec3 wc_camera_ray_direction;
+layout(location = 0) in vec4 oc_position;
+layout(location = 1) in vec3 wc_camera_ray_direction;
 
 struct vertex_data
 {

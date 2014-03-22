@@ -1,4 +1,4 @@
-in vec4 oc_position;
+layout(location = 0) in vec4 oc_position;
 
 
 

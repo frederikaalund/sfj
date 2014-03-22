@@ -1,4 +1,6 @@
+uniform mat4 model_view_matrix;
 uniform mat4 model_view_projection_matrix;
+uniform float z_near, z_far;
 
 
 

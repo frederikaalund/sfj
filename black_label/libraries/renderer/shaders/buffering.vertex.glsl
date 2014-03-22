@@ -3,9 +3,9 @@ uniform mat3 normal_matrix;
 
 
 
-in vec4 oc_position;
-in vec3 oc_normal;
-in vec2 oc_texture_coordinate;
+layout(location = 0) in vec4 oc_position;
+layout(location = 1) in vec3 oc_normal;
+layout(location = 2) in vec2 oc_texture_coordinate;
 
 struct vertex_data
 {

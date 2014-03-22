@@ -115,6 +115,16 @@ endforeach()
 ##############################################################################
 ## Identify Toolset
 ##############################################################################
+# Helper function
+unset(ABI_STATIC_RUNTIME_LINKAGE)
+function(set_static_runtime_linkage TOGGLE)
+	# Check consistency across configurations
+	if(DEFINED ABI_STATIC_RUNTIME_LINKAGE AND NOT ABI_STATIC_RUNTIME_LINKAGE STREQUAL TOGGLE)
+		message(FATAL_ERROR "Runtime linkage is not consistent across configurations (/MT[d] and /MD[d] has booth been used)! Check your CMAKE_CXX_FLAGS_ variables.")
+	endif()
+	set(ABI_STATIC_RUNTIME_LINKAGE ${TOGGLE} PARENT_SCOPE)
+endfunction()
+
 # Visual Studio
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" AND NOT MSVC_VERSION LESS 1600)
 	# Query if there is a toolset override
@@ -133,15 +143,20 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" AND NOT MSVC_VERSION LESS 1600)
 	set(TOOLSET vc${VC_VERSION})
 
 	# Setup configurations
-	# Reference: http://msdn.microsoft.com/en-us/library/2kzt1wy3(v=vs.100).aspx
+	# Reference: http://msdn.microsoft.com/en-us/library/2kzt1wy3.aspx
 	foreach(CONFIGURATION ${CONFIGURATIONS})
-		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MDd")
-			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}g-)
-		# This test must be done before the "/MT" test
-		elseif(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MTd")
-			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}sg-)
+		if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MD")
+			set_static_runtime_linkage(OFF)
+			if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MDd")
+				set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}g-)
+			endif()
 		elseif(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MT")
-			set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s-)
+			set_static_runtime_linkage(ON)
+			if(${CMAKE_CXX_FLAGS_${CONFIGURATION}} MATCHES "/MTd")
+				set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}sg-)
+			else()
+				set(ABI_${CONFIGURATION} ${ABI_${CONFIGURATION}}s-)
+			endif()
 		endif()
 	endforeach()
 
@@ -172,6 +187,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 		endif()
 	endforeach()
 
+	set_static_runtime_linkage(OFF)
+
 
 
 # ERROR
@@ -192,6 +209,26 @@ set(ABI_MINSIZEREL ${ABI_MINSIZEREL}release_min_size)
 set(ABI_MINSIZERELWITHDEVELOPERTOOLS ${ABI_MINSIZERELWITHDEVELOPERTOOLS}release_min_size_with_developer_tools)
 set(ABI_RELWITHDEBINFO ${ABI_RELWITHDEBINFO}release_with_debug_info)
 set(ABI_RELWITHDEBINFOANDDEVELOPERTOOLS ${ABI_RELWITHDEBINFOANDDEVELOPERTOOLS}release_with_debug_info_and_developer_tools)
+
+
+
+##############################################################################
+## Boost Configuration
+##############################################################################
+set(COMMON_BOOST_VERSION 1.55.0)
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME ${ABI_STATIC_RUNTIME_LINKAGE})
+
+# The naming convention is taken from http://stackoverflow.com/q/21267652/554283
+if(${CMAKE_GENERATOR_TOOLSET} MATCHES "CTP_Nov2013")
+	set(Boost_COMPILER "-vc121")
+endif()
+
+# Disable automatic linking. Using CMake somewhat defeats the purpose of
+# automatic linking. Furthermore, automatic linking breaks the build work
+# when the Boost libraries are named unconventionally (E.g., using -vc121).
+add_definitions("-DBOOST_ALL_NO_LIB")
 
 
 

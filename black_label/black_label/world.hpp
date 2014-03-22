@@ -20,7 +20,7 @@ public:
 	using dynamic_type = std::string;
 	using transformation_type = glm::mat4;
 
-	using entities_type = entities<model_type, dynamic_type, transformation_type>;
+	using entities_type = entities_base<model_type, dynamic_type, transformation_type>;
 	using entity_id_type = entities_type::size_type;
 
 
@@ -45,14 +45,21 @@ public:
 
 
 
+	friend void swap( world& lhs, world& rhs )
+	{
+		using std::swap;
+		swap(lhs.dynamic_entities, rhs.dynamic_entities);
+		swap(lhs.dynamic_entities, rhs.dynamic_entities);
+	}
+
 	world() {}
 	world( configuration configuration )
-		: dynamic_entities(configuration.dynamic_entities_capacity)
-		, static_entities(configuration.static_entities_capacity)
+//		: dynamic_entities(configuration.dynamic_entities_capacity)
+//		, static_entities(configuration.static_entities_capacity)
 	{}
 	world( const world& other ) = delete;
 	world( world&& other ) = default;
-	world& operator=( world rhs ) { std::swap(*this, rhs); return *this; }
+	world& operator=( world rhs ) { swap(*this, rhs); return *this; }
 
 	entities_type dynamic_entities;
 	entities_type static_entities;

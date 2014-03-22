@@ -13,9 +13,9 @@ namespace file_system_watcher {
 ////////////////////////////////////////////////////////////////////////////////
 /// File System Watcher
 ////////////////////////////////////////////////////////////////////////////////
-file_system_watcher::file_system_watcher( const path_type& path, const filters_type filters )
+file_system_watcher::file_system_watcher( const path& path, const filters filters )
 {
-	add_path(path, filters);
+	subscribe(path, filters);
 }
 
 file_system_watcher::~file_system_watcher()
@@ -24,7 +24,7 @@ file_system_watcher::~file_system_watcher()
 
 
 
-void file_system_watcher::add_path( const path_type& path, const filters_type filters )
+void file_system_watcher::subscribe( const path& path, const filters filters )
 {
 }
 

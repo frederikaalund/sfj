@@ -21,8 +21,8 @@ void camera::pan( float azimuth_delta, float inclination_delta )
 {
 	glm::vec3 forward = target-eye;
 	glm::vec3 side = glm::cross(forward, sky);
-	target += glm::rotate(forward, azimuth_delta, sky)
-		+ glm::rotate(forward, inclination_delta, side) - 2.0f * forward;
+	target += glm::rotate(forward, glm::radians(azimuth_delta), sky)
+		+ glm::rotate(forward, glm::radians(inclination_delta), side) - 2.0f * forward;
 	on_camera_moved();
 }
 

@@ -12,7 +12,7 @@
 namespace black_label {
 namespace renderer {
 
-using namespace storage::gpu;
+using namespace gpu;
 
 
 
@@ -21,8 +21,8 @@ light_grid::light_grid(
 	black_label::renderer::camera& camera,
 	const light_container& lights ) 
 	: tile_size_(tile_size)
-	, gpu_index_list(generate)
-	, gpu_grid(generate)
+	, gpu_index_list{usage::stream_draw, format::r32i}
+	, gpu_grid{usage::stream_draw, format::rg32i}
 	, camera(camera)
 	, lights(lights)
 {}
@@ -148,7 +148,7 @@ void light_grid::update()
 
 		for (float x = lower_left.x, x_tc = x / tile_size_; upper_right.x + tile_size_ > x && x_tc < tiles_x_; x += tile_size_, x_tc = x / tile_size_)
 			for (float y = lower_left.y, y_tc = y / tile_size_; upper_right.y + tile_size_ > y && y_tc < tiles_y_; y += tile_size_, y_tc = y / tile_size_)
-				index_grid[tiles_x_ * static_cast<int>(y_tc) + static_cast<int>(x_tc)].push_back(i);
+				index_grid[tiles_x_ * static_cast<int>(y_tc) + static_cast<int>(x_tc)].push_back(static_cast<int>(i));
 	}
 	
 
@@ -159,8 +159,8 @@ void light_grid::update()
 	for (; index_grid.end() != index_grid_it; ++index_grid_it, ++grid_it)
 	{
 		grid_it->offset = offset;
-		grid_it->count = index_grid_it->size();
-		offset += index_grid_it->size();
+		grid_it->count = static_cast<int>(index_grid_it->size());
+		offset += static_cast<int>(index_grid_it->size());
 
 		index_list.insert(index_list.end(), index_grid_it->cbegin(), index_grid_it->cend());
 	}
@@ -168,12 +168,12 @@ void light_grid::update()
 	if (!index_list.empty())
 		gpu_index_list.bind_buffer_and_update(index_list.size(), index_list.data());
     else
-		gpu_index_list.bind_buffer_and_update(1);
+		gpu_index_list.bind_buffer_and_update<int>(1);
 
 	gpu_grid.bind_buffer_and_update(grid.capacity(), reinterpret_cast<glm::ivec2*>(grid.data()));
 }
 
-void light_grid::use( const core_program& program, int& texture_unit ) const
+void light_grid::use( const core_program& program, unsigned int& texture_unit ) const
 {
     gpu_index_list.use(program, "light_index_list", texture_unit);
 	gpu_grid.use(program, "light_grid", texture_unit);

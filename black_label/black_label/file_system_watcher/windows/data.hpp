@@ -6,7 +6,9 @@
 #include <black_label/shared_library/utility.hpp>
 
 #include <memory>
-#include <vector>
+#include <utility>
+
+#include <tbb/concurrent_hash_map.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -23,19 +25,34 @@ namespace windows {
 class BLACK_LABEL_SHARED_LIBRARY data
 {
 public:
-	data() {}
 
 	class BLACK_LABEL_SHARED_LIBRARY path_watcher
 	{
 	public:
 		const static size_t buffer_size = 1024 * 64; // 640 KiB
 
-		path_watcher() : directory_or_file_handle(INVALID_HANDLE_VALUE) {}
+		friend void swap( path_watcher& lhs, path_watcher& rhs )
+		{
+			using std::swap;
+			swap(lhs.fsw, rhs.fsw);
+			swap(lhs.filter_, rhs.filter_);
+			swap(lhs.win_filters, rhs.win_filters);
+			swap(lhs.directory_or_file_handle, rhs.directory_or_file_handle);
+			swap(lhs.buffer, rhs.buffer);
+			swap(lhs.over, rhs.over);
+		}
+
+		path_watcher() : directory_or_file_handle{INVALID_HANDLE_VALUE} {}
 		path_watcher( 
 			file_system_watcher* fsw, 
-			const path_type& path, 
-			const filters_type filters );
+			const path& path_, 
+			const filter filter_ );
+		path_watcher( const path_watcher& other ) = delete;
+		path_watcher( path_watcher&& other )
+			: path_watcher{} { swap(*this, other); }
 		~path_watcher();
+		path_watcher& operator=( path_watcher rhs )
+		{ swap(*this, rhs); return *this; }
 
 		void read_changes();
 		void release_resources();
@@ -45,13 +62,10 @@ public:
 			DWORD dwNumberOfBytesTransfered,
 			LPOVERLAPPED lpOverlapped);
 
-	protected:
-		path_watcher( const path_watcher& other );
-		path_watcher& operator=( path_watcher rhs );
 
-	private:
+
 		file_system_watcher* fsw;
-		filters_type filters;
+		filter filter_;
 		DWORD win_filters;
 		HANDLE directory_or_file_handle;
 		void* buffer;
@@ -60,18 +74,20 @@ public:
 
 
 
+	friend void swap( data& lhs, data& rhs )
+	{
+		using std::swap;
+		swap(lhs.path_watchers, rhs.path_watchers);
+	}
+
+
+
 #pragma warning(push)
 #pragma warning(disable : 4251)
 
-	std::vector<std::unique_ptr<path_watcher>> path_watchers;
+	tbb::concurrent_hash_map<path, std::shared_ptr<path_watcher>> path_watchers;
 
 #pragma warning(pop)
-
-
-
-protected:
-	data( const data& other );
-	data& operator=( data rhs );
 };
 
 } // namespace windows

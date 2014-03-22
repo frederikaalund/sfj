@@ -1,0 +1,65 @@
+{
+	"buffers": [
+		{ "name": "depths", "format": "depth32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "albedos", "format": "rgba8", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "wc_normals", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "random", "format": "rgba16f", "filter": "nearest", "wrap": "repeat", "data": "random" },
+		{ "name": "ambient_occlusion", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "lit", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge" }
+	],
+
+	"passes": [
+		{ 
+			"name": "buffering",
+			"vertex_program": "buffering.vertex.glsl",
+			"fragment_program": "buffering.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"buffers": {
+				"input": [ ],
+				"output": [ "depths", "wc_normals", "albedos" ]
+			},
+			"models": [ "statics", "dynamics" ],
+			"clear": [ "color", "depth" ],
+			"test_depth": true
+		},
+		{ 
+			"name": "ambient_occlusion",
+			"vertex_program": "lighting.vertex.glsl",
+			"fragment_program": "ambient_occlusion.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"buffers": {
+				"input": [ "depths", "wc_normals", "random" ],
+				"output": [ "ambient_occlusion" ]
+			},
+			"models": [ "screen_aligned_quad" ],
+			"clear": [ ],
+			"test_depth": false
+		},
+		{ 
+			"name": "lighting",
+			"vertex_program": "lighting.vertex.glsl",
+			"fragment_program": "lighting.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"buffers": {
+				"input": [ "depths", "wc_normals", "albedos", "ambient_occlusion", "random" ],
+				"output": [ "lit" ]
+			},
+			"models": [ "screen_aligned_quad" ],
+			"clear": [ ],
+			"test_depth": false
+		},
+		{ 
+			"name": "tone_mapping",
+			"vertex_program": "pass-through.vertex.glsl",
+			"fragment_program": "tone_mapper.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"buffers": {
+				"input": [ "lit" ],
+				"output": [ ]
+			},
+			"models": [ "screen_aligned_quad" ],
+			"clear": [ ],
+			"test_depth": false
+		}
+	]
+}

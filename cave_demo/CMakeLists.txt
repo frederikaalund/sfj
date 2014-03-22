@@ -50,10 +50,7 @@ find_package(BlackLabel 0.1 QUIET REQUIRED renderer file_system_watcher file_buf
 include_directories(${BlackLabel_INCLUDE_DIRS})
 
 # Boost
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.55.0 QUIET REQUIRED program_options log_setup log filesystem system date_time thread atomic chrono)
+find_package(Boost ${COMMON_BOOST_VERSION} QUIET REQUIRED program_options log_setup log filesystem system date_time thread atomic chrono)
 include_directories(${Boost_INCLUDE_DIRS})
 
 # SFML

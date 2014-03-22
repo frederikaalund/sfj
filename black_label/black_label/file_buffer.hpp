@@ -4,6 +4,7 @@
 
 #include <black_label/container/darray.hpp>
 #include <black_label/shared_library/utility.hpp>
+#include <black_label/utility/warning_suppression.hpp>
 
 #include <string>
 

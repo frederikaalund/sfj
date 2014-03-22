@@ -22,35 +22,18 @@ namespace file_system_watcher {
 ////////////////////////////////////////////////////////////////////////////////
 /// File System Watcher
 ////////////////////////////////////////////////////////////////////////////////
-file_system_watcher::file_system_watcher( const path_type& path, filters_type filters )
+void file_system_watcher::subscribe( path path, const filter filter_ )
 {
-	add_path(path, filters);
+	path_watchers.insert({
+		path.make_preferred(), 
+		std::make_shared<path_watcher>(this, path, filter_)});
 }
 
-file_system_watcher::~file_system_watcher()
-{
-}
+void file_system_watcher::unsubscribe( path path )
+{ path_watchers.erase(path.make_preferred()); }
 
-
-
-void file_system_watcher::add_path( const path_type& path, const filters_type filters )
-{
-	path_watchers.push_back(std::unique_ptr<path_watcher>(new path_watcher(this, path, filters)));
-}
-
-void file_system_watcher::update()
-{
-	SleepEx(0, TRUE);
-	modified_paths.resize(
-		std::unique(modified_paths.begin(), modified_paths.end())
-		- modified_paths.begin());
-}
-
-void file_system_watcher::release_resources()
-{
-	std::for_each(path_watchers.begin(), path_watchers.end(), 
-		[] ( std::unique_ptr<path_watcher>& pw ) { pw->release_resources(); });
-}
+void file_system_watcher::update_internal()
+{ SleepEx(0, TRUE); }
 
 
 
@@ -90,13 +73,14 @@ struct error_message
 ////////////////////////////////////////////////////////////////////////////////
 file_system_watcher::path_watcher::path_watcher( 
 	file_system_watcher* fsw,
-	const path_type& path,
-	const filters_type filters )
-	: fsw(fsw)
-	, filters(filters)
+	const path& path_,
+	const filter filter_ )
+	: fsw{fsw}
+	, filter_{filter_}
+	, win_filters{0}
 {
 	if (INVALID_HANDLE_VALUE == (directory_or_file_handle = CreateFile(
-		path.c_str(),
+		path_.string().c_str(),
 		FILE_LIST_DIRECTORY,
 		FILE_SHARE_READ	| FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 		NULL,
@@ -106,7 +90,7 @@ file_system_watcher::path_watcher::path_watcher(
 		throw std::system_error(
 			GetLastError(), 
 			std::system_category(), 
-			error_message(last));
+			error_message{last});
 
 	buffer = _aligned_malloc(buffer_size, sizeof(DWORD));
 
@@ -116,16 +100,15 @@ file_system_watcher::path_watcher::path_watcher(
 		0);
 	over.hEvent = static_cast<HANDLE>(this);
 
-	win_filters = 0;
-	if (FILTER_WRITE == filters) win_filters |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+	if (filter::write & filter_) win_filters |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+	if (filter::access & filter_) win_filters |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
+	if (filter::file_name & filter_) win_filters |= FILE_NOTIFY_CHANGE_FILE_NAME;
 
 	read_changes();
 }
 
 file_system_watcher::path_watcher::~path_watcher()
-{
-	try { release_resources(); } catch(const std::exception&) {}
-}
+{ try { release_resources(); } catch( const std::exception& ) { assert(false); } }
 
 
 
@@ -136,7 +119,7 @@ void file_system_watcher::path_watcher::read_changes()
 		directory_or_file_handle,
 		buffer,
 		buffer_size,
-		FALSE,
+		TRUE,
 		win_filters,
 		&bytes_returned,
 		&over,
@@ -144,26 +127,26 @@ void file_system_watcher::path_watcher::read_changes()
 		throw std::system_error(
 			GetLastError(), 
 			std::system_category(), 
-			error_message(last));
+			error_message{last});
 }
 
 void file_system_watcher::path_watcher::release_resources()
 {
 	if (INVALID_HANDLE_VALUE == directory_or_file_handle) return;
-
+	
 	_aligned_free(buffer);
 
 	if (!CancelIoEx(directory_or_file_handle, NULL))
-		throw std::system_error(
-			GetLastError(), 
+		throw std::system_error{
+			static_cast<int>(GetLastError()),
 			std::system_category(), 
-			error_message(last));
+			error_message{last}};
 
 	if (!CloseHandle(directory_or_file_handle))
-		throw std::system_error(
-			GetLastError(), 
+		throw std::system_error{
+			static_cast<int>(GetLastError()), 
 			std::system_category(), 
-			error_message(last));
+			error_message{last}};
 
 	directory_or_file_handle = INVALID_HANDLE_VALUE;
 }
@@ -177,23 +160,25 @@ VOID CALLBACK file_system_watcher::path_watcher::completion(
 {
 	if (dwErrorCode || 0 == dwNumberOfBytesTransfered) return;
 
-	path_watcher* pw = static_cast<path_watcher*>(lpOverlapped->hEvent);
+	auto pw = static_cast<path_watcher*>(lpOverlapped->hEvent);
 
-	FILE_NOTIFY_INFORMATION* fni = static_cast<FILE_NOTIFY_INFORMATION*>(pw->buffer);
+	auto fni = static_cast<FILE_NOTIFY_INFORMATION*>(pw->buffer);
 	do 
 	{
 		static_assert(sizeof(wchar_t) == sizeof(WCHAR), "size of wchar_t does not equal size of WCHAR");
 
-		int size = WideCharToMultiByte(CP_UTF8, 0, fni->FileName, fni->FileNameLength / sizeof(WCHAR), NULL, 0, 0, 0);
-		std::unique_ptr<char[]> string_buffer(new char[size]);
+		auto size = WideCharToMultiByte(CP_UTF8, 0, fni->FileName, fni->FileNameLength / sizeof(WCHAR), NULL, 0, 0, 0);
+		auto string_buffer = std::make_unique<char[]>(size);
 		WideCharToMultiByte(CP_UTF8, 0, fni->FileName, fni->FileNameLength / sizeof(WCHAR), string_buffer.get(), size, 0, 0);
-		pw->fsw->modified_paths.push_back(path_type(string_buffer.get(), size));
+		pw->fsw->modified_paths.push(path(string_buffer.get(), &string_buffer[size]));
 
 		fni = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(reinterpret_cast<char*>(fni) + fni->NextEntryOffset);
 	} while (0 < fni->NextEntryOffset);
 
 	pw->read_changes();
 }
+
+
 
 } // namespace file_buffer
 } // namespace black_label

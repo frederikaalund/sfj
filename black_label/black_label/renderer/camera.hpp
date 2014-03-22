@@ -2,7 +2,9 @@
 #define BLACK_LABEL_RENDERER_CAMERA_HPP
 
 #include <black_label/shared_library/utility.hpp>
+#include <black_label/utility/warning_suppression.hpp>
 
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
@@ -17,13 +19,30 @@ class BLACK_LABEL_SHARED_LIBRARY camera
 public:
 	camera() {}
 
-	camera( const glm::vec3 eye, const glm::vec3 target, const glm::vec3 sky )
-		: eye(eye)
-		, target(target)
-		, sky(sky), fovy(45.0f)
-		, z_near(10.0f)
-		, z_far(10000.0f)
+	camera( 
+		const glm::vec3 eye,
+		const glm::vec3 target, 
+		const glm::vec3 sky,
+		float z_near = 10.0f,
+		float z_far = 10000.0f )
+		: eye{eye}
+		, target{target}
+		, sky{sky}
+		, fovy{glm::radians(45.0f)}
+		, z_near{z_near}
+		, z_far{z_far}
 	{ on_camera_moved(); }
+
+	camera( 
+		const glm::vec3 eye,
+		const glm::vec3 target, 
+		const glm::vec3 sky,
+		int width,
+		int height,
+		float z_near = 10.0f,
+		float z_far = 10000.0f )
+		: camera{eye, target, sky, z_near, z_far}
+	{ on_window_resized(width, height); }
 
 	void strafe( glm::vec3 delta_in_camera_space );
 	void pan( float azimuth_delta, float inclination_delta );
@@ -31,9 +50,9 @@ public:
 	void on_camera_moved();
 	void on_window_resized( int width, int height );
 
-	glm::vec3 forward() { return glm::vec3(-view_matrix[0][2], -view_matrix[1][2], -view_matrix[2][2]); }
-	glm::vec3 right() { return glm::vec3(view_matrix[0][0], view_matrix[1][0], view_matrix[2][0]); }
-	glm::vec3 up() { return glm::vec3(view_matrix[0][1], view_matrix[1][1], view_matrix[2][1]); }
+	glm::vec3 forward() const { return glm::vec3(-view_matrix[0][2], -view_matrix[1][2], -view_matrix[2][2]); }
+	glm::vec3 right() const { return glm::vec3(view_matrix[0][0], view_matrix[1][0], view_matrix[2][0]); }
+	glm::vec3 up() const { return glm::vec3(view_matrix[0][1], view_matrix[1][1], view_matrix[2][1]); }
 
   
 

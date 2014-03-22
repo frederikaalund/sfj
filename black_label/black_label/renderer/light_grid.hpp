@@ -8,7 +8,7 @@
 #include <black_label/renderer/camera.hpp>
 #include <black_label/renderer/light.hpp>
 #include <black_label/renderer/program.hpp>
-#include <black_label/renderer/storage/gpu/texture.hpp>
+#include <black_label/renderer/gpu/texture.hpp>
 #include <black_label/shared_library/utility.hpp>
 
 #include <cstdint>
@@ -24,7 +24,7 @@ namespace renderer {
 class light_grid
 {
 public:
-	typedef container::svector<light> light_container;
+	typedef std::vector<light> light_container;
 	typedef container::darray<std::vector<int> > index_grid_type;
 	struct grid_data { int offset, count; };
 	typedef container::darray<grid_data> grid_type;
@@ -36,7 +36,7 @@ public:
 
 	void on_window_resized( int width, int height );
 	void update();
-	void use( const core_program& program, int& texture_unit ) const;
+	void use( const core_program& program, unsigned int& texture_unit ) const;
 
 	int tile_size() const { return tile_size_; }
 	int tiles_x() const { return tiles_x_; }
@@ -56,8 +56,8 @@ private:
 	grid_type grid;
 	index_list_type index_list;
 
-	storage::gpu::texture_buffer<int> gpu_index_list;
-	storage::gpu::texture_buffer<glm::ivec2> gpu_grid;
+	gpu::texture_buffer gpu_index_list;
+	gpu::texture_buffer gpu_grid;
 
 	black_label::renderer::camera& camera;
 	const light_container& lights;

@@ -1,4 +1,5 @@
 build/*
 black_label/stage/*
 cave_demo/stage/*
+*.cache
 .DS_Store

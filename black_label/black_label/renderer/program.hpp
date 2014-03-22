@@ -1,6 +1,8 @@
 #ifndef BLACK_LABEL_RENDERER_PROGRAM_HPP
 #define BLACK_LABEL_RENDERER_PROGRAM_HPP
 
+#include <black_label/path.hpp>
+#include <black_label/renderer/gpu/buffer.hpp>
 #include <black_label/renderer/types_and_constants.hpp>
 #include <black_label/shared_library/utility.hpp>
 
@@ -8,9 +10,6 @@
 #include <bitset>
 #include <iterator>
 #include <vector>
-
-#define BOOST_FILESYSTEM_NO_DEPRECATED
-#include <boost/filesystem/path.hpp>
 
 #include <glm/glm.hpp>
 
@@ -29,8 +28,6 @@ public:
 	const static id_type invalid_id = 0;
 
 	typedef unsigned int shader_type;
-
-	typedef boost::filesystem::path path;
 
 	typedef std::bitset<3> status_type;
 	const static std::size_t 
@@ -96,8 +93,6 @@ public:
 	typedef unsigned int id_type;
 	const static id_type invalid_id = 0;
 
-	typedef shader::path path;
-
 	friend void swap( core_program& rhs, core_program& lhs )
 	{
 		using std::swap;
@@ -116,16 +111,36 @@ public:
 	void link();
 
 	unsigned int get_uniform_location( const std::string& name ) const;
-	void set_uniform( const std::string& name, int value ) const;
-	void set_uniform( const std::string& name, int value1, int value2 ) const;
-	void set_uniform( const std::string& name, float value ) const;
-	void set_uniform( const std::string& name, float value1, float value2, float value3 ) const;
-	void set_uniform( const std::string& name, float value1, float value2, float value3, float value4 ) const;
-	void set_uniform( const std::string& name, const glm::vec2& value ) const;
-	void set_uniform( const std::string& name, const glm::vec3& value ) const;
-	void set_uniform( const std::string& name, const glm::vec4& value ) const;
-	void set_uniform( const std::string& name, const glm::mat3& value ) const;
-	void set_uniform( const std::string& name, const glm::mat4& value ) const;
+	unsigned int get_uniform_block_index( const std::string& name ) const;
+
+	template<typename... T>
+	bool set_uniform( const std::string& name, T&&... values ) const
+	{
+		auto location = get_uniform_location(name);
+		set_uniform(location, values...); // TODO: Implement perfect forwarding. (Didn't work in VS2013 NovCTP)
+		return -1 != location;
+	}
+	void set_uniform( unsigned int location, int value ) const;
+	void set_uniform( unsigned int location, int value1, int value2 ) const;
+	void set_uniform( unsigned int location, float value ) const;
+	void set_uniform( unsigned int location, float value1, float value2, float value3 ) const;
+	void set_uniform( unsigned int location, float value1, float value2, float value3, float value4 ) const;
+	void set_uniform( unsigned int location, const glm::vec2& value ) const;
+	void set_uniform( unsigned int location, const glm::vec3& value ) const;
+	void set_uniform( unsigned int location, const glm::vec4& value ) const;
+	void set_uniform( unsigned int location, const glm::mat3& value ) const;
+	void set_uniform( unsigned int location, const glm::mat4& value ) const;
+	void set_uniform( unsigned int location, const std::vector<glm::vec2>& value ) const;
+
+	template<typename... T>
+	bool set_uniform_block( const std::string& name, unsigned int& binding_point, T&&... values ) const
+	{
+		auto index = get_uniform_block_index(name);
+		if (-1 != index)
+			set_uniform_block(index, binding_point, values...); // TODO: Implement perfect forwarding. (Didn't work in VS2013 NovCTP)
+		return -1 != index;
+	}
+	void set_uniform_block( unsigned int index, unsigned int& binding_point, const gpu::buffer& value ) const;
 
 	id_type id;
 
@@ -182,18 +197,17 @@ public:
 		configuration& shader_directory( const path& shader_directory )
 		{
 			if (!path_to_vertex_shader_.empty())
-				path_to_vertex_shader_ = shader_directory / path_to_vertex_shader_.filename();
+				canonical_and_preferred(path_to_vertex_shader_, shader_directory);
 			if (!path_to_geometry_shader_.empty())
-				path_to_geometry_shader_ = shader_directory / path_to_geometry_shader_.filename();
+				canonical_and_preferred(path_to_geometry_shader_, shader_directory);
 			if (!path_to_fragment_shader_.empty())
-				path_to_fragment_shader_ = shader_directory / path_to_fragment_shader_.filename();
+				canonical_and_preferred(path_to_fragment_shader_, shader_directory);
 
 			return *this;
 		}
 
 
 
-	private:
 		path 
 			path_to_vertex_shader_, 
 			path_to_geometry_shader_, 
@@ -215,10 +229,11 @@ public:
 		swap(rhs.fragment, lhs.fragment);
 	}
 	program() {}
-	program( program&& other ) { swap(*this, other); }
+	program( const program& ) = delete;
+	program( program&& other ) : program{} { swap(*this, other); }
 
 	program( const configuration& configuration )
-		: core_program(black_label::renderer::generate)
+		: core_program{black_label::renderer::generate}
 	{
 		setup(
 			configuration.path_to_vertex_shader_, 
@@ -236,8 +251,7 @@ public:
 
 	BLACK_LABEL_SHARED_LIBRARY ~program();
 
-	program& operator =( program rhs )
-	{ swap(*this, rhs); return *this; }
+	program& operator=( program rhs ) { swap(*this, rhs); return *this; }
 
 	bool is_complete();
 
@@ -249,8 +263,6 @@ public:
 
 
 protected:
-	program( const program& other );
-
 	void setup(
 		const path& path_to_vertex_shader,
 		const path& path_to_geometry_shader = path(),
@@ -272,7 +284,7 @@ protected:
         iterator vertex_attribute_name_first,
         iterator vertex_attribute_name_last)
 	{
-		unsigned int location = 0;
+		unsigned int location = 0;		
 		std::for_each(vertex_attribute_name_first, vertex_attribute_name_last,
 			[&] ( const std::string& name ) { set_attribute_location(location++, name); });
 	}

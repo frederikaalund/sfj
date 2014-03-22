@@ -13,7 +13,7 @@ using namespace cave_demo;
 
 
 
-glm::mat4 make_mat4( float scale, float x, float y, float z )
+glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f )
 {
 	auto m = glm::mat4(); 
 	m[3][0] = x; m[3][1] = y; m[3][2] = z;
@@ -35,12 +35,15 @@ int main( int argc, char const* argv[] )
 /// World Test
 ////////////////////////////////////////////////////////////////////////////////
 
-		{
-			auto an_entity_group = demo.world.static_entities.create_scoped(
-				{"sponza.obj", "cube.fbx", "house.dae", "house.dae"},
-				{"sponza.bullet", "cube.bullet", "house.bullet", "house.bullet"},
-				{make_mat4(0.0, 0.0, 0.0, 0.0), make_mat4(1.0, 0.0, 0.0, 0.0), make_mat4(0.0, 1.0, 0.0, 0.0), make_mat4(0.0, 0.0, 1.0, 0.0)});
-		}
+		demo.all_statics.emplace_back(std::make_shared<entities>(
+			std::initializer_list<entities::model_type>{"models/crytek-sponza/sponza.fbx", "models/teapot/teapot.obj", "models/references/sphere_rough.fbx"},
+			std::initializer_list<entities::dynamic_type>{"sponza.bullet", "cube.bullet", "house.bullet"},
+			std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
+
+		demo.renderer.optimize_for_rendering(demo.all_statics);
+		demo.renderer.add_statics(demo.all_statics);
+		
+
 
 		//world::entities_type::group environment(demo.world.static_entities);
 		//world::entities_type::group doodads(demo.world.dynamic_entities);
@@ -131,8 +134,7 @@ int main( int argc, char const* argv[] )
 ////////////////////////////////////////////////////////////////////////////////
 /// Loop
 ////////////////////////////////////////////////////////////////////////////////
-		while (demo.window_is_open())
-			demo.update();
+		while (demo.window_is_open()) demo.update();
 
 
 	

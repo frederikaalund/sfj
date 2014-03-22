@@ -108,95 +108,69 @@ string shader::get_info_log()
 core_program::core_program( generate_type ) : id(glCreateProgram()) {}
 
 core_program::~core_program()
-{
-	if (id) glDeleteProgram(id);
-}
+{ if (id) glDeleteProgram(id); }
 
 
 
 void core_program::use() const { glUseProgram(id); }
 
 void core_program::set_output_location( unsigned int location, const string& name )
-{
-	glBindFragDataLocation(id, location, name.data());
-}
+{ glBindFragDataLocation(id, location, name.data()); }
 
 void core_program::set_attribute_location( unsigned int location, const string& name )
-{
-	glBindAttribLocation(id, location, name.data());
-}
+{ glBindAttribLocation(id, location, name.data()); }
     
 void core_program::link()
-{
-	glLinkProgram(id);
-}
+{ glLinkProgram(id); }
 
 
 
 unsigned int core_program::get_uniform_location( const string& name ) const
-{
-	return glGetUniformLocation(id, name.data());
-}
+{ return glGetUniformLocation(id, name.data()); }
+unsigned int core_program::get_uniform_block_index( const string& name ) const
+{ return glGetUniformBlockIndex(id, name.data()); }
 
 
-unsigned int core_program::get_uniform_location_checked( const std::string& name ) const
-{
-	auto location = get_uniform_location(name);
-	//assert(-1 != location);
-	return location;
-}
+void core_program::set_uniform( unsigned int location, int value ) const
+{ glUniform1i(location, value); }
+
+void core_program::set_uniform( unsigned int location, int value1, int value2 ) const
+{ glUniform2i(location, value1, value2); }
+
+void core_program::set_uniform( unsigned int location, float value ) const
+{ glUniform1f(location, value); }
+
+void core_program::set_uniform( unsigned int location, float value1, float value2, float value3 ) const
+{ glUniform3f(location, value1, value2, value3); }
+
+void core_program::set_uniform( unsigned int location, float value1, float value2, float value3, float value4 ) const
+{ glUniform4f(location, value1, value2, value3, value4); }
+
+
+void core_program::set_uniform( unsigned int location, const glm::vec2& value ) const
+{ glUniform2fv(location, 1, glm::value_ptr(value)); }
+
+void core_program::set_uniform( unsigned int location, const glm::vec3& value ) const
+{ glUniform3fv(location, 1, glm::value_ptr(value)); }
+
+void core_program::set_uniform( unsigned int location, const glm::vec4& value ) const
+{ glUniform4fv(location, 1, glm::value_ptr(value)); }
+
+void core_program::set_uniform( unsigned int location, const glm::mat3& value ) const
+{ glUniformMatrix3fv(location, 1, GL_FALSE, glm::value_ptr(value)); }
+
+void core_program::set_uniform( unsigned int location, const glm::mat4& value ) const
+{ glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value)); }
+
+void core_program::set_uniform( unsigned int location, const std::vector<glm::vec2>& value ) const
+{ glUniform2fv(location, value.size(), reinterpret_cast<const float*>(value.data())); }
 
 
 
-void core_program::set_uniform( const string& name, int value ) const
-{
-	glUniform1i(get_uniform_location_checked(name), value);
-}
-
-void core_program::set_uniform( const string& name, int value1, int value2 ) const
-{
-	glUniform2i(get_uniform_location_checked(name), value1, value2);
-}
-
-void core_program::set_uniform( const string& name, float value ) const
-{
-	glUniform1f(get_uniform_location_checked(name), value);
-}
-
-void core_program::set_uniform( const string& name, float value1, float value2, float value3 ) const
-{
-	glUniform3f(get_uniform_location_checked(name), value1, value2, value3);
-}
-
-void core_program::set_uniform( const string& name, float value1, float value2, float value3, float value4 ) const
-{
-	glUniform4f(get_uniform_location_checked(name), value1, value2, value3, value4);
-}
-
-
-void core_program::set_uniform( const string& name, const glm::vec2& value ) const
-{
-	glUniform2fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
-}
-
-void core_program::set_uniform( const string& name, const glm::vec3& value ) const
-{
-	glUniform3fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
-}
-
-void core_program::set_uniform( const string& name, const glm::vec4& value ) const
-{
-	glUniform4fv(get_uniform_location_checked(name), 1, glm::value_ptr(value));
-}
-
-void core_program::set_uniform( const string& name, const glm::mat3& value ) const
-{
-	glUniformMatrix3fv(get_uniform_location_checked(name), 1, GL_FALSE, glm::value_ptr(value));
-}
-
-void core_program::set_uniform( const string& name, const glm::mat4& value ) const
-{
-	glUniformMatrix4fv(get_uniform_location_checked(name), 1, GL_FALSE, glm::value_ptr(value));
+void core_program::set_uniform_block( unsigned int index, unsigned int& binding_point, const gpu::buffer& value ) const
+{ 
+	glUniformBlockBinding(id, index, binding_point);
+	glBindBufferBase(GL_UNIFORM_BUFFER, binding_point++, value);
 }
 
 

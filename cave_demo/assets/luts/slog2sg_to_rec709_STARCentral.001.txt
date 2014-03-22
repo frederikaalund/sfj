@@ -1,0 +1,9 @@
+Sony slog2 gamma to REC709 STARCentral.001
+
+LOW CON 01 LUT
+
+- reduces scene contrast
+- slight gamma shift increase
+- small brightness boost
+
+Created March 7th 2013 by www.starcentral.ca

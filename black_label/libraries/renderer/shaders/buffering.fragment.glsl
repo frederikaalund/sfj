@@ -11,8 +11,8 @@ struct vertex_data
 };
 in vertex_data vertex;
 
-out vec3 wc_normal;
-out vec4 albedo;
+layout(location = 0) out vec3 wc_normal;
+layout(location = 1) out vec4 albedo;
 
 
 

@@ -1,13 +1,16 @@
-#define USE_RANDOM_DIRECTION 0
+#define USE_RANDOM_DIRECTION 1
+
+const int poisson_disc_size = 128;
+uniform vec2 poisson_disc[poisson_disc_size];
 
 uniform sampler2D depths;
 uniform sampler2D wc_normals;
-uniform sampler2D random_texture;
+uniform sampler2D random;
 
 uniform vec3 wc_camera_eye_position;
 uniform float z_far;
 
-uniform vec2 tc_window;
+uniform ivec2 window_dimensions;
 
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
@@ -22,37 +25,70 @@ struct vertex_data
 };
 noperspective in vertex_data vertex;
 
-out vec4 ambient_occlusion;
+layout(location = 0) out vec4 ambient_occlusion;
 
 
 
-float tc_depth( in vec2 tc )
+
+////////////////////////////////////////////////////////////////////////////////
+/// Utility Functions
+////////////////////////////////////////////////////////////////////////////////
+vec2 get_one_over_tan_half_fov( in mat4 projection_matrix )
+{ return vec2(projection_matrix[0][0], projection_matrix[1][1]); }
+
+float get_tc_z( 
+	in sampler2D sampler, 
+	in vec2 tc_position )
+{ return texture(sampler, tc_position).z; }
+
+float get_tc_z( 
+	in sampler2D sampler, 
+	in vec2 tc_position, 
+	in vec2 tc_offset )
+{ return get_tc_z(sampler, tc_position + tc_offset); }
+
+float get_ec_z( 
+	in float tc_z,
+	in mat4 projection_matrix )
+{ return projection_matrix[3][2] / (-2.0 * tc_z + 1.0 - projection_matrix[2][2]); }
+
+float get_ec_z( 
+	in sampler2D sampler, 
+	in vec2 tc_position,
+	in mat4 projection_matrix)
+{ return get_ec_z(get_tc_z(sampler, tc_position), projection_matrix); }
+
+vec3 get_ec_position( in vec2 tc_position, in float ec_position_z, in mat4 projection_matrix )
 {
-	return texture(depths, tc).x;
+	vec2 one_over_tan_half_fov = get_one_over_tan_half_fov(projection_matrix);
+	vec2 tan_half_fov = 1.0 / one_over_tan_half_fov;
+
+	vec2 ndc_position = tc_position * vec2(2.0) - vec2(1.0);
+	vec2 cc_position = ndc_position * -ec_position_z;
+	return vec3(tan_half_fov * cc_position, ec_position_z);
 }
 
-float ec_depth( in vec2 tc )
+vec3 get_ec_position( in sampler2D sampler, in vec2 tc_position, in mat4 projection_matrix )
 {
-	float buffer_z = texture(depths, tc).x;
-	return projection_matrix[3][2] / (-2.0 * buffer_z + 1.0 - projection_matrix[2][2]);
+	float ec_position_z = get_ec_z(sampler, tc_position, projection_matrix);
+	return get_ec_position(tc_position, ec_position_z, projection_matrix);
 }
 
+vec2 get_tc_length( in float ec_length, in float ec_position_z, in mat4 projection_matrix )
+{
+	vec2 one_over_tan_half_fov = get_one_over_tan_half_fov(projection_matrix);
+	return 0.5 * ec_length * one_over_tan_half_fov / -ec_position_z;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Trigonometric Functions
+////////////////////////////////////////////////////////////////////////////////
 float tan_to_sin( in float x )
 {
     return x * pow(x * x + 1.0, -0.5);
 }
 
-vec3 tc_to_ec( in vec2 tc )
-{
-	vec3 tc_sample;
-	tc_sample.xy = tc;
-	tc_sample.z = tc_depth(tc_sample.xy);
-	vec3 ndc_sample = tc_sample * 2.0 - 1.0;		
-	vec4 temporary = inverse_view_projection_matrix * vec4(ndc_sample, 1.0);
-	vec3 wc_sample = temporary.xyz / temporary.w;
-	vec3 ec_sample = (view_matrix * vec4(wc_sample, 1.0)).xyz;
-	return ec_sample;
-}
 
 vec3 minimum_difference( in vec3 p, in vec3 p_right, in vec3 p_left )
 {
@@ -61,85 +97,118 @@ vec3 minimum_difference( in vec3 p, in vec3 p_right, in vec3 p_left )
     return (dot(v1, v1) < dot(v2, v2)) ? v1 : v2;
 }
 
+vec3 tangent_eye_pos( in sampler2D sampler, in vec2 tc, in vec4 tangentPlane, in mat4 projection_matrix )
+{
+    // view vector going through the surface point at tc
+    vec3 V = get_ec_position(sampler, tc, projection_matrix);
+    float NdotV = dot(tangentPlane.xyz, V);
+    // intersect with tangent plane except for silhouette edges
+    if (NdotV < 0.0) V *= (tangentPlane.w / NdotV);
+    return V;
+}
+
+
+
 void main()
 {
-	vec2 depths_size = textureSize(depths, 0);
-	vec2 depths_size_inversed = vec2(1.0) / depths_size;
-	vec2 tc_depths = gl_FragCoord.xy / tc_window;
-	vec3 wc_normal = texture(wc_normals, tc_depths).xyz;
-	float ndc_linear_depth = -ec_depth(tc_depths) / z_far;
-	vec3 wc_position = wc_camera_eye_position + vertex.wc_camera_ray_direction * ndc_linear_depth;
-
-	vec3 ec_position = (view_matrix * vec4(wc_position, 1.0)).xyz;
-	float ec_position_depth = ec_position.z;
+	vec2 tc_position = gl_FragCoord.xy / window_dimensions;
+	vec3 ec_position = get_ec_position(depths, tc_position, projection_matrix);
+	vec3 wc_normal = texture(wc_normals, tc_position).xyz;
+	vec3 ec_normal = transpose(inverse(mat3(view_matrix))) * wc_normal;
 
 	ambient_occlusion.a = 0.0;
 	
-	const int base_samples = 0; 
+	const int base_samples = 0;
 	const int min_samples = 8;
-	const float radius = 10.0;
-	const float radius_squared = radius * radius;
-	const float bias = 0.3;
+	const float ec_radius = 100.0;
+	const float ec_radius_squared = ec_radius * ec_radius;
+	const float bias = 0.4;
 
-	int samples = max(int(base_samples / (1.0 + base_samples * ndc_linear_depth)), min_samples);
+	const int samples = min_samples;
 
-	float projected_radius = radius / -ec_depth(tc_depths);
+	vec2 tc_radius = get_tc_length(ec_radius, ec_position.z, projection_matrix);
+	vec2 sc_radius = tc_radius * window_dimensions;
 
-	vec2 inverted_random_texture_size = 1.0 / vec2(textureSize(random_texture, 0));
-	vec2 tc_random_texture = gl_FragCoord.xy * inverted_random_texture_size;
 
-	vec3 random_direction = texture(random_texture, tc_random_texture).xyz;
+	if (sc_radius.x < 1.0)
+	{
+		ambient_occlusion.a = 1.0;
+		return;
+	}
+
+	// Stepping
+	const int max_steps = 4;
+	int steps = min(int(sc_radius.x), max_steps);
+
+
+	vec3 random_direction = texture(random, tc_position).xyz;
 	random_direction = normalize(random_direction * 2.0 - 1.0);
 
  	float angle_step = 2.0 * PI / float(samples);
+ 	float uniform_distribution_random = texture(random, tc_position).x;
+	float alpha = uniform_distribution_random * PI * 2.0;
+	mat2 random_rotation = mat2(cos(alpha), sin(alpha), -sin(alpha), cos(alpha));
+
+	vec3 bent_normal = vec3(0.0);
+
+    vec2 depths_size = textureSize(depths, 0);
+	vec2 depths_size_inversed = vec2(1.0) / depths_size;
+
+    vec3 p_right, p_left, p_top, p_bottom;
+    vec4 tangentPlane = vec4(ec_normal, dot(ec_position, ec_normal));
+    p_right = tangent_eye_pos(depths, tc_position + vec2(depths_size_inversed.x, 0.0), tangentPlane, projection_matrix);
+    p_left = tangent_eye_pos(depths, tc_position + vec2(-depths_size_inversed.x, 0.0), tangentPlane, projection_matrix);
+    p_top = tangent_eye_pos(depths, tc_position + vec2(0.0, depths_size_inversed.y), tangentPlane, projection_matrix);
+    p_bottom = tangent_eye_pos(depths, tc_position + vec2(0.0, -depths_size_inversed.y), tangentPlane, projection_matrix);
+    vec3 dp_du = minimum_difference(ec_position, p_right, p_left);
+    vec3 dp_dv = minimum_difference(ec_position, p_top, p_bottom) * (depths_size.y * depths_size_inversed.x);
+
 	for (int i = 0; i < samples; ++i)
 	{
 #if USE_RANDOM_DIRECTION
-		vec2 sample_random_direction = texture(random_texture, vec2(float(i) * inverted_random_texture_size.x, float(i / textureSize(random_texture, 0).x) * inverted_random_texture_size.y)).xy;
-		sample_random_direction = sample_random_direction * 2.0 - 1.0;
-		vec2 tc_sample_direction = sample_random_direction;
+		vec2 tc_sample_direction = random_rotation * poisson_disc[i];
 #else
 		vec2 tc_sample_direction = vec2(cos(float(i) * angle_step), sin(float(i) * angle_step));
 #endif
-	
-
 	    // Tangent vector
-	    vec3 p_right, p_left, p_top, p_bottom;
-	    p_right = tc_to_ec(tc_depths + vec2(depths_size_inversed.x, 0.0));
-	    p_left = tc_to_ec(tc_depths + vec2(-depths_size_inversed.x, 0.0));
-	    p_top = tc_to_ec(tc_depths + vec2(0.0, depths_size_inversed.y));
-	    p_bottom = tc_to_ec(tc_depths + vec2(0.0, -depths_size_inversed.y));
-	    vec3 dp_du = minimum_difference(ec_position, p_right, p_left);
-	    vec3 dp_dv = minimum_difference(ec_position, p_top, p_bottom) * (depths_size.y * depths_size_inversed.x);
     	vec3 ec_tangent = tc_sample_direction.x * dp_du + tc_sample_direction.y * dp_dv;
-
-
-		const int steps = 6;
-		vec2 tc_step_size = tc_sample_direction * projected_radius / float(steps);
-		vec2 ec_step_size = tc_sample_direction * radius / float (steps);
-
 		float tan_tangent_angle = ec_tangent.z / length(ec_tangent.xy) + tan(bias);
+
+		// Stepping
+		vec2 tc_step_size = tc_sample_direction * tc_radius / float(steps);
+		vec2 random_offset = tc_step_size * uniform_distribution_random;
+
+		// Initialize horizon angle to the tangent angle
 		float tan_horizon_angle = tan_tangent_angle;
 		float sin_horizon_angle = tan_to_sin(tan_horizon_angle);
 
-		for (float j = 1.0; j <= float(steps); j += 1.0)
+		for (float j = 0.0; j < float(steps); j += 1.0)
 		{
-			vec2 tc_sample = vec2(tc_depths + tc_step_size * j);
-			vec3 ec_horizon = vec3(ec_step_size * j, ec_depth(tc_sample) - ec_position_depth);
-			float ec_horizon_length_squared = dot(ec_horizon, ec_horizon);
-			float tan_sample = ec_horizon.z / length(ec_horizon.xy);
+			vec2 tc_sample = vec2(tc_position + tc_step_size * j + random_offset);
+			vec3 ec_sample = get_ec_position(depths, tc_sample, projection_matrix);
+			vec3 ec_ray = ec_sample - ec_position;
+			float ec_ray_length_squared = dot(ec_ray, ec_ray);
+			float tan_sample_angle = ec_ray.z / length(ec_ray.xy);
 
-			if (radius_squared >= ec_horizon_length_squared && tan_sample > tan_horizon_angle)
+			bool in_hemisphere = ec_radius_squared >= ec_ray_length_squared;
+			bool new_occluder = tan_sample_angle > tan_horizon_angle;
+
+			if (in_hemisphere && new_occluder)
 			{
-				float sin_sample = tan_to_sin(tan_sample);
-				float weight = 1.0 - ec_horizon_length_squared / radius_squared;
-				ambient_occlusion.a += (sin_sample - sin_horizon_angle) * weight;
-				tan_horizon_angle = tan_sample;
-				sin_horizon_angle = sin_sample;
+				float sin_sample_angle = tan_to_sin(tan_sample_angle);
+				float falloff = 1.0 - ec_ray_length_squared / ec_radius_squared;
+				float horizon = sin_sample_angle - sin_horizon_angle;
+				ambient_occlusion.a += horizon * falloff;
+				tan_horizon_angle = tan_sample_angle;
+				sin_horizon_angle = sin_sample_angle;
+
+				bent_normal += normalize(ec_ray) * falloff;
 			}
 		}
 	}
-	
+
+	bent_normal = normalize(bent_normal) * 0.5 + 0.5;
+	ambient_occlusion.rgb = bent_normal;
 	ambient_occlusion.a /= samples;
 	ambient_occlusion.a = 1.0 - ambient_occlusion.a;
 }
