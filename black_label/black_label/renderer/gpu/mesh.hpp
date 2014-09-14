@@ -25,7 +25,7 @@ namespace renderer {
 namespace gpu {
 
 using texture_identifier = boost::filesystem::path;
-using texture_container = tbb::concurrent_hash_map<texture_identifier, std::shared_ptr<texture>>;
+using texture_map = tbb::concurrent_hash_map<texture_identifier, std::weak_ptr<texture>>;
 
 class mesh
 {
@@ -37,13 +37,13 @@ public:
 	{
 	public:
 		// Implicitly constructible from vertices
-		configuration( argument::vertices vertices ) : vertices{vertices} {}
+		configuration( argument::vertices vertices ) : vertices(vertices) {}
 		// Implicitly constructible from cpu_mesh
 		configuration( const cpu::mesh& cpu_mesh ) 
-			: vertices{cpu_mesh.vertices}
-			, normals{(cpu_mesh.normals.empty()) ? argument::normals{} : cpu_mesh.normals}
-			, texture_coordinates{(cpu_mesh.texture_coordinates.empty()) ? argument::texture_coordinates{} : cpu_mesh.texture_coordinates}
-			, indices{(cpu_mesh.indices.empty()) ? argument::indices{} : cpu_mesh.indices}
+			: vertices(cpu_mesh.vertices)
+			, normals((cpu_mesh.normals.empty()) ? argument::normals{} : cpu_mesh.normals)
+			, texture_coordinates((cpu_mesh.texture_coordinates.empty()) ? argument::texture_coordinates{} : cpu_mesh.texture_coordinates)
+			, indices((cpu_mesh.indices.empty()) ? argument::indices{} : cpu_mesh.indices)
 			, render_mode{cpu_mesh.render_mode}
 			, material{cpu_mesh.material}
 		{}
@@ -94,14 +94,14 @@ public:
 	mesh( configuration configuration )
 		: mesh{configuration.material, configuration.render_mode}
 	{ load(configuration); }
-	mesh( configuration configuration, texture_container& textures )
+	mesh( configuration configuration, texture_map& textures )
 		: mesh{configuration}
 	{ 
-		texture_container::const_accessor texture;
+		texture_map::const_accessor texture;
 		if (textures.find(texture, material.diffuse_texture))
-			diffuse = texture->second;
+			diffuse = texture->second.lock();
 		if (textures.find(texture, material.specular_texture))
-			specular = texture->second;
+			specular = texture->second.lock();
 	}
 	mesh( const mesh& ) = delete; // Possible, but do you really want to?
 	mesh( mesh&& other ) : mesh{} { swap(*this, other); }

@@ -215,7 +215,7 @@ set(ABI_RELWITHDEBINFOANDDEVELOPERTOOLS ${ABI_RELWITHDEBINFOANDDEVELOPERTOOLS}re
 ##############################################################################
 ## Boost Configuration
 ##############################################################################
-set(COMMON_BOOST_VERSION 1.55.0)
+set(COMMON_BOOST_VERSION 1.56.0)
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME ${ABI_STATIC_RUNTIME_LINKAGE})

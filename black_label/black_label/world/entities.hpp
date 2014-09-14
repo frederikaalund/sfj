@@ -269,6 +269,14 @@ using entities = entities_base<boost::filesystem::path, boost::filesystem::path,
 using group = std::vector<std::shared_ptr<entities>>;
 using const_group = std::vector<std::shared_ptr<const entities>>;
 
+inline const_group const_group_cast( const group& original )
+{
+	const_group result(original.size());
+	std::transform(std::cbegin(original), std::cend(original), std::begin(result),  
+		[] ( const std::shared_ptr<entities>& entities_ ) { return std::const_pointer_cast<const entities>(entities_); });
+	return std::move(result);
+}
+
 } // namespace world
 } // namespace black_label
 

@@ -5,6 +5,7 @@
 
 #include <sstream>
 
+#include <boost/log/trivial.hpp>
 #include <boost/math/constants/constants.hpp>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -84,7 +85,7 @@ void shader::load()
 		status.set(compile_status_bit);
 }
 
-string shader::get_info_log()
+string shader::get_info_log() const
 {
 	string result;
 	GLint info_log_length;
@@ -99,6 +100,15 @@ string shader::get_info_log()
 
 	return result;
 }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Interface
+////////////////////////////////////////////////////////////////////////////////
+namespace interface {
+	const type shader_storage_block = GL_SHADER_STORAGE_BLOCK;
+} // namespace interface
 
 
 
@@ -120,7 +130,7 @@ void core_program::set_output_location( unsigned int location, const string& nam
 void core_program::set_attribute_location( unsigned int location, const string& name )
 { glBindAttribLocation(id, location, name.data()); }
     
-void core_program::link()
+void core_program::link() const
 { glLinkProgram(id); }
 
 
@@ -129,7 +139,8 @@ unsigned int core_program::get_uniform_location( const string& name ) const
 { return glGetUniformLocation(id, name.data()); }
 unsigned int core_program::get_uniform_block_index( const string& name ) const
 { return glGetUniformBlockIndex(id, name.data()); }
-
+unsigned int core_program::get_resource_index( interface::type interface, const string& name ) const
+{ return glGetProgramResourceIndex(id, interface, name.data()); }
 
 void core_program::set_uniform( unsigned int location, int value ) const
 { glUniform1i(location, value); }
@@ -173,6 +184,12 @@ void core_program::set_uniform_block( unsigned int index, unsigned int& binding_
 	glBindBufferBase(GL_UNIFORM_BUFFER, binding_point++, value);
 }
 
+void core_program::set_shader_storage_block( unsigned int index, unsigned int& binding_point, const gpu::buffer& value ) const
+{ 
+	glShaderStorageBlockBinding(id, index, binding_point);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding_point++, value);
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,7 +206,7 @@ BLACK_LABEL_SHARED_LIBRARY program::~program()
 
 
 
-bool program::is_complete()
+bool program::is_complete() const
 {
 	bool result = true;
 
@@ -208,9 +225,44 @@ bool program::is_complete()
 	return result;
 }
 
+void program::reload( path program_file ) {
+	if (program_file == vertex.path_to_shader)
+	{
+		BOOST_LOG_TRIVIAL(info) << "Reloading shader: " << program_file;
 
+		if (is_complete())
+			glDetachShader(id, vertex.id);
 
-std::string program::get_info_log()
+		vertex.load();
+		
+		if (is_complete())
+		{
+			glAttachShader(id, vertex.id);
+			link();
+		}
+	}
+	else if (program_file == fragment.path_to_shader)
+	{
+		BOOST_LOG_TRIVIAL(info) << "Reloading shader: " << program_file;
+
+		if (is_complete())
+			glDetachShader(id, fragment.id);
+
+		fragment.load();
+
+		if (is_complete())
+		{
+			glAttachShader(id, fragment.id);
+			link();
+		}
+	}
+
+	auto info_log = get_aggregated_info_log();
+		if (!info_log.empty())
+			BOOST_LOG_TRIVIAL(error) << info_log;
+}
+
+std::string program::get_info_log() const
 {
 	string result;
 	GLint info_log_length;
@@ -226,7 +278,7 @@ std::string program::get_info_log()
 	return result;
 }
 
-std::string program::get_aggregated_info_log()
+std::string program::get_aggregated_info_log() const
 {
 	string result;
 

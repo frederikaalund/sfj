@@ -1,0 +1,20 @@
+#define BLACK_LABEL_SHARED_LIBRARY_EXPORT
+#include <black_label/renderer/screen_aligned_quad.hpp>
+
+#include <GL/glew.h>
+
+
+
+namespace black_label {
+namespace renderer {
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Screen Aligned Quad
+////////////////////////////////////////////////////////////////////////////////
+
+
+    
+} // namespace renderer
+} // namespace black_label

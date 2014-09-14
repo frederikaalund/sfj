@@ -3,6 +3,38 @@
 #include <tbb/task.h>
 #include <tbb/parallel_for.h>
 
+#include <boost/log/trivial.hpp>
+
+#include <functional>
+#include <chrono>
+#include <future>
+#include <cstdio>
+
+class later
+{
+public:
+    template <class callable, class... arguments>
+    later(int after, bool async, callable&& f, arguments&&... args)
+    {
+        std::function<typename std::result_of<callable(arguments...)>::type()> task(std::bind(std::forward<callable>(f), std::forward<arguments>(args)...));
+
+        if (async)
+        {
+            std::thread([after, task]() {
+                std::this_thread::sleep_for(std::chrono::milliseconds(after));
+                task();
+            }).detach();
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(after));
+            task();
+        }
+    }
+
+};
+
+
 //__itt_domain* domain = __itt_domain_create("Task Domain");
 //__itt_string_handle* UserTask = __itt_string_handle_create("User Task");
 //__itt_string_handle* UserSubTask = __itt_string_handle_create("UserSubTask");
@@ -27,7 +59,7 @@ int main( int argc, char const* argv[] )
 {	
 	try
 	{
-		application demo(argc, argv);
+		application demo{argc, argv};
 
 	
 
@@ -41,9 +73,23 @@ int main( int argc, char const* argv[] )
 			std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
 
 		demo.renderer.optimize_for_rendering(demo.all_statics);
-		demo.renderer.add_statics(demo.all_statics);
 		
-
+		later test1(5000, true, [&] {
+			BOOST_LOG_TRIVIAL(info) << "Adding all statics";
+			demo.renderer.assets.add_statics(const_group_cast(demo.all_statics));
+			later test2(7500, true, [&] {
+				BOOST_LOG_TRIVIAL(info) << "Removing all statics";
+				demo.renderer.assets.remove_statics(const_group_cast(demo.all_statics));
+				later test3(7500, true, [&] {
+					BOOST_LOG_TRIVIAL(info) << "Adding all statics";
+					demo.renderer.assets.add_statics(const_group_cast(demo.all_statics));
+					later test4(7500, true, [&] {
+						BOOST_LOG_TRIVIAL(info) << "Removing all statics";
+						demo.renderer.assets.remove_statics(const_group_cast(demo.all_statics));
+					});
+				});
+			});
+		});
 
 		//world::entities_type::group environment(demo.world.static_entities);
 		//world::entities_type::group doodads(demo.world.dynamic_entities);
@@ -71,64 +117,6 @@ int main( int argc, char const* argv[] )
 		//	doodads.cbegin(),
 		//	doodads.cend());
 
-
-////////////////////////////////////////////////////////////////////////////////
-/// TBB Test
-////////////////////////////////////////////////////////////////////////////////
-	/*
-		__itt_resume();
-	
-	using namespace tbb;
-	typedef std::vector<float> test_type;
-	test_type test(1000, 3.14f);
-
-	class my_task : public task
-	{
-	public:
-		test_type& t;
-		int w;
-
-		my_task( test_type& t, int w ) : t(t), w(w) {}
-
-		task* execute()
-		{
-			__itt_task_begin(domain, __itt_null, __itt_null, UserSubTask);
-			static const int increment = 100;
-			for (int i = 0; increment > i; ++i)
-				parallel_for(w, w+increment, [&] ( int v ) {
-					for (int j = 0; 100 > j; ++j)
-						t[v] *= 10.0;
-				});
-
-			w += increment;
-			if (w < t.size())
-			{
-				empty_task& cont = *new(allocate_continuation()) empty_task();
-
-				my_task& ct = *new(cont.allocate_child()) my_task(t, w);
-				cont.set_ref_count(1);
-				spawn(ct);
-			}
-
-			__itt_task_end(domain);
-			return nullptr;
-		}
-	};
-
-	my_task& mt = *new(task::allocate_root()) my_task(test, 0);
-	 __itt_task_begin(domain, __itt_null, __itt_null, UserTask);
-	task::spawn_root_and_wait(mt);
-	 __itt_task_end(domain);
-
-	
-	parallel_for(blocked_range<std::vector<float>::size_type>(0, test.size()), [&] ( const blocked_range<std::vector<float>::size_type>& r ) {
-		for (auto v = r.begin(); r.end() != v; ++v)
-			for (int i = 0; 10 > i; ++i)
-				test[v] *= 10.0;
-	});
-
-	__itt_pause();
-	*/
 
 
 ////////////////////////////////////////////////////////////////////////////////

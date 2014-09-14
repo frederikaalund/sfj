@@ -22,22 +22,52 @@ using namespace boost::property_tree;
 namespace black_label {
 namespace renderer {
 
+pipeline::pipeline( path shader_directory ) {
+	// Program
+	shared_ptr<program> shadow_program = add_program(
+		program::configuration()
+			.vertex_shader(shader_directory / "null.vertex.glsl")
+			.fragment_shader(shader_directory / "null.fragment.glsl")
+			.preprocessor_commands("#version 330\n"), 
+		shader_directory);
+
+	// Pass
+	shadow_map_pass = {
+		move(shadow_program), 
+		{},
+		{},
+		{},
+		GL_DEPTH_BUFFER_BIT,
+		0u,
+		GL_BACK,
+		true,
+		true,
+		true,
+		false,
+		{}};
+}
+
 bool pipeline::import( path pipeline_file, path shader_directory, std::shared_ptr<camera> camera )
 {
 	try {	
 		ptree ptree;
 		read_json(pipeline_file.string(), ptree);
+		
 
-		pass::buffer_container allocated_buffers;
 
-		for (auto child : ptree.get_child("buffers"))
+////////////////////////////////////////////////////////////////////////////////
+/// Textures
+////////////////////////////////////////////////////////////////////////////////
+		pass::texture_container allocated_textures;
+
+		for (auto child : ptree.get_child("textures"))
 		{
-			auto buffer_ptree = child.second;
-			auto name = buffer_ptree.get<string>("name");
-			auto format_name = buffer_ptree.get<string>("format");
-			auto filter_name = buffer_ptree.get<string>("filter");
-			auto wrap_name = buffer_ptree.get<string>("wrap");
-			auto data = buffer_ptree.get("data", "");
+			auto texture_ptree = child.second;
+			auto name = texture_ptree.get<string>("name");
+			auto format_name = texture_ptree.get<string>("format");
+			auto filter_name = texture_ptree.get<string>("filter");
+			auto wrap_name = texture_ptree.get<string>("wrap");
+			auto data = texture_ptree.get("data", "");
 
 			format::type format;
 			if ("rgba8" == format_name) format = format::rgba8;
@@ -47,7 +77,7 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 			else if ("depth24" == format_name) format = format::depth24;
 			else if ("depth32f" == format_name) format = format::depth32f;
 			else throw exception("Unknown format type.");
-
+			
 			filter::type filter;
 			if ("nearest" == filter_name) filter = filter::nearest;
 			else if ("linear" == filter_name) filter = filter::linear;
@@ -59,7 +89,7 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 			else if ("mirrored_repeat" == wrap_name) wrap = wrap::mirrored_repeat;
 			else throw exception("Unknown wrap type.");
 
-			auto buffer = make_shared<texture>(target::texture_2d, format, filter, wrap);
+			auto texture = make_shared<gpu::texture>(target::texture_2d, format, filter, wrap);
 
 			if ("random" == data)
 			{
@@ -78,13 +108,42 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 					return v * 0.5f + glm::vec3(0.5f);
 				});
 	
-				buffer->bind_and_update(random_texture_size, random_texture_size, random_data.data());
+				texture->bind_and_update(random_texture_size, random_texture_size, random_data.data());
 			}
+			
+			allocated_textures.emplace_back(name, texture);
+			textures.emplace(name, texture);
+		}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Buffers
+////////////////////////////////////////////////////////////////////////////////
+		pass::buffer_container allocated_buffers;
+
+		for (auto child : ptree.get_child("buffers"))
+		{
+			auto buffer_ptree = child.second;
+			auto name = buffer_ptree.get<string>("name");
+			auto target_name = buffer_ptree.get<string>("target");
+			auto size = buffer_ptree.get<buffer::size_type>("size");
+
+			target::type target;
+			if ("shader_storage" == target_name) target = target::shader_storage;
+			else throw exception("Unknown target type.");
+
+			auto buffer = make_shared<gpu::buffer>(target, usage::dynamic_copy, size);
 			
 			allocated_buffers.emplace_back(name, buffer);
 			buffers.emplace(name, buffer);
 		}
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Passes
+////////////////////////////////////////////////////////////////////////////////
 		for (auto pass_child : ptree.get_child("passes"))
 		{
 			auto pass_configuration = pass_child.second;
@@ -100,21 +159,32 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 				preprocessor_commands += preprocessor_command + "\n";
 			}		
 
-			pass::buffer_container input;
-			for (const auto& input_child : pass_configuration.get_child("buffers.input"))
-			{
-				auto buffer_name = input_child.second.get<string>("");
-				auto buffer = buffers.at(buffer_name);
-				input.emplace_back(move(buffer_name), buffer.lock());
-			}
+			pass::texture_container input_textures;
+			if (auto input_texture_children = pass_configuration.get_child_optional("textures.input"))
+				for (const auto& input_textures_child : *input_texture_children)
+				{
+					auto texture_name = input_textures_child.second.get<string>("");
+					auto texture = textures.at(texture_name);
+					input_textures.emplace_back(move(texture_name), texture.lock());
+				}
 
-			pass::buffer_container output;
-			for (const auto& output_child : pass_configuration.get_child("buffers.output"))
-			{
-				auto buffer_name = output_child.second.get<string>("");
-				auto buffer = buffers.at(buffer_name);
-				output.emplace_back(move(buffer_name), buffer.lock());
-			}
+			pass::texture_container output_textures;
+			if (auto output_texture_children = pass_configuration.get_child_optional("textures.output"))
+				for (const auto& output_textures_child : *output_texture_children)
+				{
+					auto texture_name = output_textures_child.second.get<string>("");
+					auto texture = textures.at(texture_name);
+					output_textures.emplace_back(move(texture_name), texture.lock());
+				}
+
+			pass::buffer_container buffers;
+			if (auto buffer_children = pass_configuration.get_child_optional("buffers"))
+				for (const auto& buffers_child : *buffer_children)
+				{
+					auto buffer_name = buffers_child.second.get<string>("");
+					auto buffer = this->buffers.at(buffer_name);
+					buffers.emplace_back(move(buffer_name), buffer.lock());
+				}
 
 			bool render_statics = false, 
 				render_dynamics = false, 
@@ -128,14 +198,34 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 				else throw exception("Invalid model type.");
 			}
 
-			int clearing_mask{0};
-			for (const auto& clear_child : pass_configuration.get_child("clear"))
-			{
-				const auto& clear = clear_child.second.get<string>("");
-				if ("depth" == clear) clearing_mask |= GL_DEPTH_BUFFER_BIT;
-				else if ("color" == clear) clearing_mask |= GL_COLOR_BUFFER_BIT;
-				else throw exception("Unknown clear type.");
-			}
+			unsigned int clearing_mask{0u};
+			if (auto clear_children = pass_configuration.get_child_optional("clear"))
+				for (const auto& clear_child : *clear_children)
+				{
+					const auto& clear = clear_child.second.get<string>("");
+					if ("depth" == clear) clearing_mask |= GL_DEPTH_BUFFER_BIT;
+					else if ("color" == clear) clearing_mask |= GL_COLOR_BUFFER_BIT;
+					else throw exception("Unknown clear type.");
+				}
+
+			unsigned int post_memory_barrier_mask{0u};
+			if (auto post_memory_barrier_children = pass_configuration.get_child_optional("memory_barrier.post"))
+				for (const auto& post_memory_barrier_child : *post_memory_barrier_children)
+				{
+					const auto& post_memory_barrier = post_memory_barrier_child.second.get<string>("");
+					if ("shader_storage" == post_memory_barrier) post_memory_barrier_mask |= GL_SHADER_STORAGE_BARRIER_BIT;
+					else throw exception("Unknown memory_barrier type.");
+				}
+
+			unsigned int face_culling_mode{0u};
+			if (auto culling_children = pass_configuration.get_child_optional("culling"))
+				for (const auto& culling_child : *culling_children)
+				{
+					const auto& culling = culling_child.second.get<string>("");
+					if ("front_faces" == culling) face_culling_mode = (GL_BACK == face_culling_mode) ? GL_FRONT_AND_BACK : GL_FRONT;
+					else if ("back_faces" == culling) face_culling_mode = (GL_FRONT == face_culling_mode) ? GL_FRONT_AND_BACK : GL_BACK;
+					else throw exception("Unknown culling type.");
+				}
 
 			auto test_depth = pass_configuration.get<bool>("test_depth");
 
@@ -145,18 +235,21 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 				configuration.geometry_shader(shader_directory / geometry_program);
 			configuration.fragment_shader(shader_directory / fragment_program);
 			configuration.preprocessor_commands(preprocessor_commands);
-			for (const auto& input_value : input)
-				configuration.add_vertex_attribute(input_value.first);
-			for (const auto& output_value : output)
-				configuration.add_fragment_output(output_value.first);
+			for (const auto& input_textures_value : input_textures)
+				configuration.add_vertex_attribute(input_textures_value.first);
+			for (const auto& output_textures_value : output_textures)
+				configuration.add_fragment_output(output_textures_value.first);
 
 			auto program_ = add_program(configuration, shader_directory);
 
 			passes.emplace_back(
 				move(program_), 
-				move(input), 
-				move(output), 
-				clearing_mask, 
+				move(input_textures), 
+				move(output_textures), 
+				move(buffers),
+				clearing_mask,
+				post_memory_barrier_mask,
+				face_culling_mode,
 				test_depth, 
 				render_statics, 
 				render_dynamics, 
@@ -173,42 +266,29 @@ bool pipeline::import( path pipeline_file, path shader_directory, std::shared_pt
 	return true;
 }
 
-void pipeline::add_shadow_map_pass( light light, path shader_directory )
+
+
+
+
+bool pipeline::reload_program( path program_file, path shader_directory )
 {
-	// Buffer
-	auto shadow_map = make_shared<texture>(target::texture_2d, format::depth32f, filter::nearest, wrap::clamp_to_edge);
-	//shadow_map->bind();
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	shadow_map->bind_and_update(light.camera->window.x, light.camera->window.y);
-	buffers.emplace(light.shadow_map, shadow_map);
-					
-	// Program
-	shared_ptr<program> program_;
-	if (shadow_map_passes.empty())
-	{
-		program_ = add_program(
-			program::configuration()
-				.vertex_shader(shader_directory / "null.vertex.glsl")
-				.fragment_shader(shader_directory / "null.fragment.glsl")
-				.preprocessor_commands("#version 330\n"), 
-			shader_directory);
+	canonical_and_preferred(program_file, shader_directory);
+
+	// Only handle shader files
+	if (".glsl" != program_file.extension()) return false;
+
+	// Look up path to find the associated programs
+	auto program_range = programs.equal_range(program_file);
+	if (program_range.first == program_range.second) return false;
+
+	// Reload each associated program
+	for (auto entry = program_range.first; program_range.second != entry; ++entry) {
+		auto program = entry->second.lock();
+		if (!program) assert(false);
+		program->reload(program_file);
 	}
-	else
-		program_ = shadow_map_passes.front().program_;
 
-	// Pass
-	pass shadow_map_pass{
-		move(program_), 
-		pass::buffer_container{},
-		{{light.shadow_map, shadow_map}},
-		GL_DEPTH_BUFFER_BIT,
-		true,
-		true,
-		true,
-		false,
-		light.camera};
-
-	shadow_map_passes.push_back(move(shadow_map_pass));
+	return true;
 }
 
 std::shared_ptr<program> pipeline::add_program( program::configuration configuration, path shader_directory )

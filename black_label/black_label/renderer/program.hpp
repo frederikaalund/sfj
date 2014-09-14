@@ -25,15 +25,15 @@ class shader
 {
 public:
 	typedef unsigned int id_type;
-	const static id_type invalid_id = 0;
+	const static id_type invalid_id{0};
 
 	typedef unsigned int shader_type;
 
 	typedef std::bitset<3> status_type;
 	const static std::size_t 
-		is_tried_instantiated_bit = 0,
-		shader_file_found_bit = 1,
-		compile_status_bit = 2;
+		is_tried_instantiated_bit{0},
+		shader_file_found_bit{1},
+		compile_status_bit{2};
 
 
 
@@ -67,7 +67,7 @@ public:
 	bool is_complete() const
 	{ return status.all(); };
 
-	std::string get_info_log();
+	std::string get_info_log() const;
 
 	id_type id;
 	status_type status;
@@ -82,6 +82,15 @@ protected:
 	shader( const shader& other );
 };
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Interface
+////////////////////////////////////////////////////////////////////////////////
+namespace interface {
+	using type = unsigned int;
+	extern const type shader_storage_block;
+} // namespace interface
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,16 +117,17 @@ public:
 	void use() const;
 	void set_output_location( unsigned int location, const std::string& name );
 	void set_attribute_location( unsigned int location, const std::string& name );
-	void link();
+	void link() const;
 
 	unsigned int get_uniform_location( const std::string& name ) const;
 	unsigned int get_uniform_block_index( const std::string& name ) const;
+	unsigned int get_resource_index( interface::type interface, const std::string& name ) const;
 
 	template<typename... T>
 	bool set_uniform( const std::string& name, T&&... values ) const
 	{
 		auto location = get_uniform_location(name);
-		set_uniform(location, values...); // TODO: Implement perfect forwarding. (Didn't work in VS2013 NovCTP)
+		set_uniform(location, std::forward<T>(values)...);
 		return -1 != location;
 	}
 	void set_uniform( unsigned int location, int value ) const;
@@ -137,10 +147,20 @@ public:
 	{
 		auto index = get_uniform_block_index(name);
 		if (-1 != index)
-			set_uniform_block(index, binding_point, values...); // TODO: Implement perfect forwarding. (Didn't work in VS2013 NovCTP)
+			set_uniform_block(index, binding_point, std::forward<T>(values)...);
 		return -1 != index;
 	}
 	void set_uniform_block( unsigned int index, unsigned int& binding_point, const gpu::buffer& value ) const;
+
+	template<typename... T>
+	bool set_shader_storage_block( const std::string& name, unsigned int& binding_point, T&&... values ) const
+	{
+		auto index = get_resource_index(interface::shader_storage_block, name);
+		if (-1 != index)
+			set_shader_storage_block(index, binding_point, std::forward<T>(values)...);
+		return -1 != index;
+	}
+	void set_shader_storage_block( unsigned int index, unsigned int& binding_point, const gpu::buffer& value ) const;
 
 	id_type id;
 
@@ -253,10 +273,10 @@ public:
 
 	program& operator=( program rhs ) { swap(*this, rhs); return *this; }
 
-	bool is_complete();
-
-	std::string get_info_log();
-	std::string get_aggregated_info_log();
+	bool is_complete() const;
+	void reload( path program_file );
+	std::string get_info_log() const;
+	std::string get_aggregated_info_log() const;
 
 	shader vertex, geometry, fragment;
 

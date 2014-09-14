@@ -85,7 +85,6 @@ public:
 	}
 
 	basic_texture() : id{invalid_id} {};
-	basic_texture( const basic_texture& ) = delete;
 	basic_texture( basic_texture&& other ) : basic_texture{} { swap(*this, other); };
 	basic_texture( generate_type ) { generate(); };
 	basic_texture( target::type target, filter::type filter, wrap::type wrap )
@@ -414,7 +413,6 @@ public:
 
 
 	texture_buffer() {};
-	texture_buffer( const texture_buffer& ) = delete;
 	texture_buffer( texture_buffer&& other ) { swap(*this, other); };
 	texture_buffer( usage::type usage, format::type format ) 
 		: basic_texture_buffer{usage}

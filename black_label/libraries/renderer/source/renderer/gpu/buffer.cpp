@@ -19,14 +19,16 @@ namespace target {
 		texture = GL_TEXTURE_BUFFER,
 		array = GL_ARRAY_BUFFER,
 		element_array = GL_ELEMENT_ARRAY_BUFFER,
-		uniform_buffer = GL_UNIFORM_BUFFER;
+		uniform_buffer = GL_UNIFORM_BUFFER,
+		shader_storage = GL_SHADER_STORAGE_BUFFER;
 } // namespace target
 
 namespace usage {
 	const type
 		stream_draw = GL_STREAM_DRAW,
 		static_draw = GL_STATIC_DRAW,
-		dynamic_draw = GL_DYNAMIC_DRAW;
+		dynamic_draw = GL_DYNAMIC_DRAW,
+		dynamic_copy = GL_DYNAMIC_COPY;
 } // namespace usage
 
 

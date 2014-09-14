@@ -2,6 +2,7 @@
 #define BLACK_LABEL_RENDERER_LIGHT_HPP
 
 #include <black_label/renderer/camera.hpp>
+#include <black_label/renderer/gpu/texture.hpp>
 #include <black_label/utility/serialization/glm.hpp>
 
 #include <cmath>
@@ -29,13 +30,11 @@ public:
 		light_type type,
 		glm::vec3 position, 
 		glm::vec3 direction, 
-		glm::vec4 color,
-		std::string shadow_map = std::string{} )
+		glm::vec4 color )
 		: type{type}
 		, position{position}
 		, direction{direction}
 		, color{color}
-		, shadow_map{std::move(shadow_map)}
 	{}
 
 	template<typename T>
@@ -48,7 +47,7 @@ public:
 	light_type type;
 	glm::vec3 position, direction;
 	glm::vec4 color;
-	std::string shadow_map;
+	std::shared_ptr<gpu::texture> shadow_map;
 	std::shared_ptr<camera> camera;
 };
 

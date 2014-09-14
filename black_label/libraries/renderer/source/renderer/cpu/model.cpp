@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <queue>
 #include <vector>
 
 #include <fstream>
@@ -73,21 +74,6 @@ bool model::import( path path )
 
 #ifdef DEVELOPER_TOOLS
 
-#ifndef NO_FBX
-    
-////////////////////////////////////////////////////////////////////////////////
-/// Make FBX
-////////////////////////////////////////////////////////////////////////////////
-template<typename fbx_class>
-void destroy_fbx( fbx_class* fbx ) { fbx->Destroy(); }
-
-template<typename fbx_class>
-using unique_fbx_ptr = unique_ptr<fbx_class, void (*)( fbx_class* )>;
-
-template<typename fbx_class, typename... T>
-unique_fbx_ptr<fbx_class> make_fbx(T... arguments)
-{ return unique_fbx_ptr<fbx_class>{fbx_class::Create(arguments...), destroy_fbx}; }
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,6 +141,23 @@ public:
 template<typename callable_type, typename iterator_type>
 apply_iterator<callable_type, iterator_type> apply( callable_type callable, iterator_type iterator )
 { return apply_iterator<callable_type, iterator_type>(callable, iterator); }
+
+
+
+#ifndef NO_FBX
+    
+////////////////////////////////////////////////////////////////////////////////
+/// Make FBX
+////////////////////////////////////////////////////////////////////////////////
+template<typename fbx_class>
+void destroy_fbx( fbx_class* fbx ) { fbx->Destroy(); }
+
+template<typename fbx_class>
+using unique_fbx_ptr = unique_ptr<fbx_class, void (*)( fbx_class* )>;
+
+template<typename fbx_class, typename... T>
+unique_fbx_ptr<fbx_class> make_fbx(T... arguments)
+{ return unique_fbx_ptr<fbx_class>{fbx_class::Create(arguments...), destroy_fbx}; }
 
 
 

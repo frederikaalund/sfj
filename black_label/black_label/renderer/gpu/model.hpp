@@ -29,8 +29,8 @@ public:
 	}
 
 	model() {}
-	model( const cpu::model& cpu_model, texture_container& textures ) 
-		: lights{cpu_model.lights}
+	model( const cpu::model& cpu_model, texture_map& textures ) 
+		: lights(cpu_model.lights)
 		, checksum{cpu_model.checksum}
 	{
 		for (const auto& cpu_mesh : cpu_model.meshes) 

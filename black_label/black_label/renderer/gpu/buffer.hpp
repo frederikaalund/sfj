@@ -17,12 +17,12 @@ namespace gpu {
 /// Targets and Usages
 ////////////////////////////////////////////////////////////////////////////////
 namespace target {
-	extern const type texture, array, element_array, uniform_buffer;
+	extern const type texture, array, element_array, uniform_buffer, shader_storage;
 } // namespace target
 
 namespace usage {
 	using type = unsigned int;
-	extern const type stream_draw, static_draw, dynamic_draw;
+	extern const type stream_draw, static_draw, dynamic_draw, dynamic_copy;
 } // namespace usage
 
 
@@ -47,7 +47,6 @@ public:
 	}
 
 	basic_buffer() : id{invalid_id} {};
-	basic_buffer( const basic_buffer& ) = delete;
 	basic_buffer( basic_buffer&& other ) : basic_buffer{} { swap(*this, other); };
 	basic_buffer( generate_type ) { generate(); }
 	basic_buffer( 

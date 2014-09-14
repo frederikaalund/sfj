@@ -47,10 +47,10 @@ public:
 		vector_container normals = vector_container{},
 		vector_container texture_coordinates = vector_container{},
 		index_container indices = index_container{} )
-		: vertices{std::move(vertices)}
-		, normals{std::move(normals)}
-		, texture_coordinates{std::move(texture_coordinates)}
-		, indices{std::move(indices)}
+		: vertices(std::move(vertices))
+		, normals(std::move(normals))
+		, texture_coordinates(std::move(texture_coordinates))
+		, indices(std::move(indices))
 		, render_mode{std::move(render_mode)}
 		, material{std::move(material)}
 	{}

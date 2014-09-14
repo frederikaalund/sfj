@@ -1,3 +1,7 @@
+#extension GL_NV_shader_buffer_load: enable
+#extension GL_NV_gpu_shader5: enable
+#extension GL_EXT_shader_image_load_store: enable
+
 #define USE_PHYSICAL_SOFT_SHADOWS
 #define USE_OREN_NAYAR_DIFFUSE_REFLECTANCE
 
@@ -36,6 +40,11 @@ struct light_type {
 
 layout(std140) uniform light_block
 { light_type light; };
+
+layout (std430) buffer headers
+{
+	uint32_t counts[];
+};
 
 
 
@@ -374,7 +383,9 @@ void main()
 	color.rgb += 0.125 * albedo * ambient_occlusion_factor;
 
 	// Overrides
-	color.rgb = vec3(ambient_occlusion_factor);
+	//color.rgb = vec3(ambient_occlusion_factor);
+	uint32_t index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
+	//color.rgb = vec3(float(counts[index]) / 20.0);
 
 	// Overbright
 	const float bloom_limit = 1.0;
