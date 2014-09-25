@@ -31,7 +31,7 @@ There are also many [deprecated libraries](https://github.com/frederikaalund/sfj
 
 ##### thread_pool
 
-A good example is the thread_pool which I wrote before I embraced Intel's Threading Building Blocks. It was a good exercise on multi-threaded programming. I'm still really fond of the interface. See the [unit tests](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp) for an example. Basically, `a | b` means *call `a` and `b` in parallel* and `a >> b` means *call `a` and then call `b`*. Both `a` and `b` are *callable*s. I.e., anything that can be invoked like `a()`.
+A good example is the thread_pool which I wrote before I embraced Intel's Threading Building Blocks. It was a good exercise on multi-threaded programming. I'm still really fond of the interface. See the [unit tests](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp) for an example. Basically, `a | b` means *call `a` and `b` in parallel* and `a >> b` means *call `a` and then call `b`*. Both `a` and `b` are *callables*. I.e., anything that can be invoked like `a()`.
 
 ##### lsystem
 
