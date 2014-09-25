@@ -1,7 +1,7 @@
 {
 	"textures": [
 		{ "name": "depths", "format": "depth32f", "filter": "nearest", "wrap": "clamp_to_edge" },
-		{ "name": "albedos", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "albedos", "format": "rgba8", "filter": "nearest", "wrap": "clamp_to_edge" },
 		{ "name": "wc_normals", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
 		{ "name": "random", "format": "rgba16f", "filter": "nearest", "wrap": "repeat", "data": "random" },
 		{ "name": "ambient_occlusion", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge", "width": 0.5, "height": 0.5 },
@@ -9,8 +9,9 @@
 	],
 
 	"buffers": [
-		{ "name": "head_buffer", "target": "shader_storage", "size": 200000000 },
-		{ "name": "data_buffer", "target": "shader_storage", "size": 200000000 },
+		{ "name": "head_buffer", "target": "shader_storage", "size": 30000000 },
+		{ "name": "data_buffer", "target": "shader_storage", "size": 80000000 },
+		{ "name": "debug_view_buffer", "target": "shader_storage", "size": 80000000 },
 		{ "name": "counter", "target": "atomic_counter", "binding": 0, "size": 4, "data": "null", "reset": "pre_first_pass" }
 	],
 
@@ -20,7 +21,33 @@
 			"vertex_program": "pass-through.vertex.glsl",
 			"fragment_program": "clear.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
-			"buffers": [ "head_buffer" ],
+			"buffers": [ "head_buffer", "debug_view_buffer" ],
+			"models": [ "screen_aligned_quad" ],
+			"memory_barrier": {
+				"post": [ "shader_storage" ]
+			}
+		},
+		{ 
+			"name": "oit",
+			"vertex_program": "oit.vertex.glsl",
+			"fragment_program": "oit.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"buffers": [ "head_buffer", "data_buffer", "counter" ],
+			"models": [ "statics", "dynamics" ],
+			"textures": {
+				"output": [ "albedos" ]
+			},
+			"materials": false,
+			"memory_barrier": {
+				"post": [ "shader_storage" ]
+			}
+		},
+		{ 
+			"name": "debug_view",
+			"vertex_program": "pass-through.vertex.glsl",
+			"fragment_program": "debug_view.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"buffers": [ "head_buffer", "data_buffer", "debug_view_buffer" ],
 			"models": [ "screen_aligned_quad" ],
 			"memory_barrier": {
 				"post": [ "shader_storage" ]
@@ -34,13 +61,9 @@
 			"textures": {
 				"output": [ "depths", "wc_normals", "albedos" ]
 			},
-			"buffers": [ "head_buffer", "data_buffer", "counter" ],
 			"models": [ "statics", "dynamics" ],
 			"clear": [ "color", "depth" ],
-			"test_depth": false,
-			"memory_barrier": {
-				"post": [ "shader_storage" ]
-			}
+			"test_depth": true
 		},
 		{ 
 			"name": "ambient_occlusion",
@@ -62,7 +85,7 @@
 				"input": [ "depths", "wc_normals", "albedos", "ambient_occlusion", "random" ],
 				"output": [ "lit" ]
 			},
-			"buffers": [ "head_buffer", "data_buffer" ],
+			"buffers": [ "head_buffer", "data_buffer", "debug_view_buffer" ],
 			"models": [ "screen_aligned_quad" ]
 		},
 		{ 

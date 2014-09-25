@@ -54,6 +54,8 @@ layout (std430) buffer data_buffer
 { oit_data data[]; };
 layout (std430) buffer head_buffer
 { uint32_t heads[]; };
+layout (std430) buffer debug_view_buffer
+{ uint32_t debug_view[]; };
 
 
 
@@ -307,9 +309,14 @@ vec4 blend(vec4 clr, vec4 srf)
 
 void main()
 {
+
+
 	// Get the head node
 	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
 	uint32_t current = heads[heads_index];
+
+
+/*
 
 	// Constants
 	const int max_list_length = 100;
@@ -354,44 +361,10 @@ void main()
 	}
 
 
-
-	return;
-/*
-return;
-	const int M = 64;
-	int num = int(fragment_count[index]);
-
-	if (num > 64) {
-		color.rgb = vec3(1.0, 0.0, 0.0);
-		return;
-	}
-
-	uint32_t valdepth[M];
-	uint32_t valrgba [M];
-
-	for (int i = 0; i < num; i++) {
-		uint32_t depth = data_storage[window_dimensions.x * window_dimensions.y + (ptr + i) * 2];
-		uint32_t rgba = data_storage[window_dimensions.x * window_dimensions.y + (ptr + i) * 2 + 1];
-
-		valdepth[i] = depth;
-		valrgba [i] = rgba;
-	}
-
-
-
-
-
-  vec4 clr = vec4(0.0);
-  // -> combine all fragments
-  for (int k=0 ; k < num ; k++) {
-    //uint depth = valdepth[k];
-    uint rgba  = valrgba[k];
-    clr        = blend(clr,RGBA(rgba));
-  }
- 	color.rgb = clr.rgb;
-
- 	return;
 */
+
+
+
 
 	vec2 tc_window = gl_FragCoord.xy / window_dimensions;
 	float ec_position_z = get_ec_z(depths, tc_window, projection_matrix);
@@ -432,6 +405,12 @@ return;
 
 	// Indirect light
 	color.rgb += 0.125 * albedo * ambient_occlusion_factor;
+
+	// Debug view
+	//color.rgb = vec3(color.r);
+	color.rgb = vec3(0.0);
+	if (1 == debug_view[heads_index])
+		color.rgb = vec3(0.0, debug_view[heads_index], 0.0);
 
 	// Overrides
 	//color.rgb = wc_position;

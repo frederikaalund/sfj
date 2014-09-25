@@ -67,7 +67,7 @@ void main()
 	vec2 tc = gl_FragCoord.xy / vec2(textureSize(lit, 0));
 	result = texture(lit, tc);
 
-	result.rgb = f(result.rgb) / f(vec3(LinearWhite));
+	//result.rgb = f(result.rgb) / f(vec3(LinearWhite));
 
 	// vec3 bloom_ = texture(bloom, tc).rgb;
 	// result.rgb = min(result.rgb + bloom_ * 0.5, vec3(1.0));	
@@ -82,6 +82,6 @@ void main()
 
 
 	// Overrides
-	result.rgb = texture(lit, tc).xyz;
+	//result.rgb = vec4(texture(lit, tc).xyz, 1.0);
 
 }

@@ -195,14 +195,12 @@ public:
 							light.position, 
 							light.position + light.direction, 
 							glm::vec3{0.0, 1.0, 0.0},
-							4096,
-							4096,
+							800,
+							800,
 							10.0f,
 							10000.0f};
 						light.shadow_map = storage_texture{target::texture_2d, format::depth32f, filter::nearest, wrap::clamp_to_edge, 1.0, 1.0};
 						light.shadow_map.bind_and_update(light.view.window.x, light.view.window.y);
-
-					
 
 						struct light_uniform_block {
 							glm::mat4 projection_matrix, view_projection_matrix;

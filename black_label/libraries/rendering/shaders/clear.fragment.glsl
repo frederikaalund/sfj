@@ -9,6 +9,9 @@ uniform ivec2 window_dimensions;
 layout (std430) buffer head_buffer
 { uint32_t heads[]; };
 
+layout (std430) buffer debug_view_buffer
+{ uint32_t debug_view[]; };
+
 
 
 struct vertex_data
@@ -22,4 +25,5 @@ void main()
 {
 	uint32_t index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
 	heads[index] = 0;
+	debug_view[index] = 0;
 }

@@ -78,11 +78,25 @@ public:
 	}
 
 	template<typename assets_type>
-	void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets ) const
-	{ for (const auto& pass : passes) pass.render(framebuffer, assets); }
+	//void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets ) const
+	void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets )
+	//{ for (const auto& pass : passes) pass.render(framebuffer, assets); }
+	{ 
+		for (auto& pass : passes) { 
+			if ("oit" == pass.name) {
+				if (!boost::empty(assets.shadow_casting_lights))
+				{
+					pass.view = &assets.shadow_casting_lights[0].get().view;
+				}
+			}
 
+			pass.render(framebuffer, assets);
+		}
+	}
+			
 	template<typename assets_type>
-	void render( gpu::framebuffer& framebuffer, const assets_type& assets ) const {
+	//void render( gpu::framebuffer& framebuffer, const assets_type& assets ) const {
+	void render( gpu::framebuffer& framebuffer, const assets_type& assets ) {
 		if (!is_complete()) return;
 		auto start_time = std::chrono::high_resolution_clock::now();
 		reset(buffers_to_reset_pre_first_frame);
