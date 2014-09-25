@@ -18,7 +18,7 @@ void file_buffer::load_file( const char* path_to_file )
 	buffer = buffer_type(static_cast<buffer_type::size_type>(
 		shader_source.tellg()));
 	shader_source.seekg(0, ios::beg);
-	shader_source.read(buffer.data(), buffer.capacity());
+	shader_source.read(buffer.data(), buffer.size());
 }
 
 void file_buffer::load_file( const char* path_to_file, null_terminated_type )
@@ -29,8 +29,8 @@ void file_buffer::load_file( const char* path_to_file, null_terminated_type )
 	buffer = buffer_type(static_cast<buffer_type::size_type>(
 		shader_source.tellg())+1);
 	shader_source.seekg(0, ios::beg);
-	shader_source.read(buffer.data(), buffer.capacity()-1);
-	buffer[buffer.capacity()-1] = '\0';
+	shader_source.read(buffer.data(), buffer.size()-1);
+	buffer[buffer.size()-1] = '\0';
 }
 
 } // namespace file_buffer

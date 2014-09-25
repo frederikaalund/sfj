@@ -2,9 +2,10 @@
 #define CAVE_DEMO_APPLICATION_HPP
 
 #include <black_label/file_system_watcher.hpp>
-#include <black_label/renderer.hpp>
+#include <black_label/rendering.hpp>
 #include <black_label/world/entities.hpp>
 
+#include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 
 //#include <ittnotify.h>
@@ -32,6 +33,11 @@ public:
 
 
 
+	using rendering_assets_type = black_label::rendering::assets<
+		int, 
+		black_label::world::entities::model_type*, 
+		black_label::world::entities::transformation_type*>;
+
 	application( int argc, char const* argv[] );
 	application( const application& other ) = delete;
 
@@ -46,10 +52,16 @@ public:
 
 	bool window_is_open() { return window.isOpen(); }
 
-	sf::Window window;
+	sf::RenderWindow window;
+	sf::Font font;
+	sf::Text text;
   
 	black_label::world::group all_statics;
-	black_label::renderer::renderer renderer;
+	black_label::rendering::view view;
+	black_label::rendering::setup setup;
+	black_label::rendering::gpu::framebuffer framebuffer;
+	rendering_assets_type rendering_assets;
+	black_label::rendering::pipeline rendering_pipeline;
 	
 
 

@@ -1,0 +1,91 @@
+{
+	"textures": [
+		{ "name": "depths", "format": "depth32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "albedos", "format": "rgba8", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "wc_normals", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+		{ "name": "random", "format": "rgba16f", "filter": "nearest", "wrap": "repeat", "data": "random" },
+		{ "name": "ambient_occlusion", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge", "width": 0.5, "height": 0.5 },
+		{ "name": "lit", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge" }
+	],
+
+	"buffers": [
+		{ "name": "fragment_count_buffer", "target": "shader_storage", "size": 200000000 },
+		{ "name": "data_buffer", "target": "shader_storage", "size": 200000000 },
+		{ "name": "counter", "target": "atomic_counter", "binding": 0, "size": 4, "data": "null", "reset": "pre_first_pass" }
+	],
+
+	"passes": [
+		{ 
+			"name": "clear",
+			"vertex_program": "pass-through.vertex.glsl",
+			"fragment_program": "clear.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"buffers": [ "fragment_count_buffer", "data_buffer", "counter" ],
+			"models": [ "screen_aligned_quad" ],
+			"memory_barrier": {
+				"post": [ "shader_storage" ]
+			}
+		},
+		{ 
+			"name": "oit",
+			"vertex_program": "buffering.vertex.glsl",
+			"fragment_program": "oit.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"buffers": [ "fragment_count_buffer" ],
+			"models": [ "statics", "dynamics" ],
+			"materials": false,
+			"memory_barrier": {
+				"post": [ "shader_storage" ]
+			}
+		},
+		{ 
+			"name": "buffering",
+			"vertex_program": "buffering.vertex.glsl",
+			"fragment_program": "buffering.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"textures": {
+				"output": [ "depths", "wc_normals", "albedos" ]
+			},
+			"buffers": [ "fragment_count_buffer", "data_buffer" ],
+			"models": [ "statics", "dynamics" ],
+			"clear": [ "color", "depth" ],
+			"test_depth": true,
+			"memory_barrier": {
+				"post": [ "shader_storage" ]
+			}
+		},
+		{ 
+			"name": "ambient_occlusion",
+			"vertex_program": "lighting.vertex.glsl",
+			"fragment_program": "ambient_occlusion.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"textures": {
+				"input": [ "depths", "wc_normals", "random" ],
+				"output": [ "ambient_occlusion" ]
+			},
+			"models": [ "screen_aligned_quad" ]
+		},
+		{ 
+			"name": "lighting",
+			"vertex_program": "lighting.vertex.glsl",
+			"fragment_program": "lighting.fragment.glsl",
+			"preprocessor_commands": [ "#version 430" ],
+			"textures": {
+				"input": [ "depths", "wc_normals", "albedos", "ambient_occlusion", "random" ],
+				"output": [ "lit" ]
+			},
+			"buffers": [ "fragment_count_buffer", "data_buffer", "counter" ],
+			"models": [ "screen_aligned_quad" ]
+		},
+		{ 
+			"name": "tone_mapping",
+			"vertex_program": "pass-through.vertex.glsl",
+			"fragment_program": "tone_mapper.fragment.glsl",
+			"preprocessor_commands": [ "#version 330" ],
+			"textures": {
+				"input": [ "lit" ]
+			},
+			"models": [ "screen_aligned_quad" ]
+		}
+	]
+}

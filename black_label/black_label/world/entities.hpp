@@ -42,21 +42,17 @@ public:
 		entity() {}
 		entity( entities_type* entities_, size_type index )
 			: entities_{entities_}, index{index} {}
-		template<typename other_entities_type>
+		template<
+			typename other_entities_type, 
+			typename std::enable_if_t<std::is_convertible<other_entities_type*, entities_type*>::value>>
 		entity(
-			const entity<other_entities_type>& other,
-			typename std::enable_if<std::is_convertible<other_entities_type*, entities_type*>::value>::type* = nullptr )
+			const entity<other_entities_type>& other )
 			: entities_{ other.entities_ }, index{ other.index } {}
 
 		// Custom members
-		typename std::conditional<std::is_const<entities_type>::value, const model_type, model_type>::type&
-		model() const { return entities_->models[index]; }
-
-		typename std::conditional<std::is_const<entities_type>::value, const dynamic_type, dynamic_type>::type&
-		dynamic() const { return entities_->dynamics[index]; }
-
-		typename std::conditional<std::is_const<entities_type>::value, const transformation_type, transformation_type>::type&
-		transformation() const { return entities_->transformations[index]; }
+		decltype(auto) model() const { return entities_->models[index]; }
+		decltype(auto) dynamic() const { return entities_->dynamics[index]; }
+		decltype(auto) transformation() const { return entities_->transformations[index]; }
 
 		entities_type* entities_;
 		size_type index;
@@ -82,10 +78,11 @@ public:
 		iterator_base( 
 			entities_type* entities_, 
 			value index ) : entities_{entities_}, index{index} {}
-		template<typename other_value>
+		template<
+			typename other_value, 
+			typename std::enable_if_t<std::is_convertible<other_value*, value*>::value>>
 		iterator_base( 
-			const iterator_base<entities_type, other_value>& other,
-			typename std::enable_if<std::is_convertible<other_value*, value*>::value>::type* = nullptr )
+			const iterator_base<entities_type, other_value>& other )
 			: entities_{other.entities_}, index{other.index} {}
 
 	protected:
@@ -114,30 +111,6 @@ public:
 
 	using iterator = iterator_base<entities_base, size_type>;
 	using const_iterator = iterator_base<const entities_base, const size_type>;
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Range & Scoped Range
-////////////////////////////////////////////////////////////////////////////////
-	class range
-	{
-	public:
-		range() {}
-		range( 
-			std::weak_ptr<entities_base> entities_,
-			size_type begin_, 
-			size_type end_ )
-			: entities_(entities_)
-			, begin_{begin_}
-			, end_{end_}
-		{ assert(begin_ <= end_); }
-
-		size_type size() const { return end_ - begin_; }
-
-		std::weak_ptr<entities_base> entities_;
-		size_type begin_, end_;
-	};
 
 
 
@@ -253,7 +226,7 @@ public:
 
 
 
-private:
+
 	template<typename T>
 	T* begin( std::unique_ptr<T[]>& container ) { return container.get(); }
 	template<typename T>

@@ -2,11 +2,11 @@
 #ifndef BLACK_LABEL_DARRAY_HPP
 #define BLACK_LABEL_DARRAY_HPP
 
-#include <black_label/container/darray.hpp>
 #include <black_label/shared_library/utility.hpp>
 #include <black_label/utility/warning_suppression.hpp>
 
 #include <string>
+#include <vector>
 
 
 
@@ -27,7 +27,7 @@ const null_terminated_type null_terminated;
 class BLACK_LABEL_SHARED_LIBRARY file_buffer
 {
 public:
-	typedef container::darray<char> buffer_type;
+	typedef std::vector<char> buffer_type;
 	
 	file_buffer( const std::string& path_to_file )
 	{ load_file(path_to_file.c_str()); }
@@ -39,7 +39,7 @@ public:
 	{ load_file(path_to_file, nt); }
 
 	buffer_type::size_type size() const 
-	{ return buffer.capacity(); }
+	{ return buffer.size(); }
 	const buffer_type::value_type* data() const
 	{ return buffer.data(); }
 	bool empty() const { return nullptr == data(); }

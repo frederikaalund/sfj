@@ -22,7 +22,7 @@ namespace utility {
 class cache_file
 {
 public:
-	void swap( cache_file& lhs, cache_file& rhs )
+	friend void swap( cache_file& lhs, cache_file& rhs )
 	{
 		using std::swap;
 		swap(lhs.checksum, rhs.checksum);
@@ -30,7 +30,6 @@ public:
 
 	cache_file() {}
 	cache_file( path path ) : checksum(std::move(path)) {}
-	cache_file( const cache_file& ) = delete;
 	cache_file( cache_file&& other ) { swap(*this, other); }
 	cache_file& operator=( cache_file rhs ) { swap(*this, rhs); return *this; }
 

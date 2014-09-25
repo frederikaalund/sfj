@@ -204,4 +204,4 @@ endforeach()
 ##############################################################################
 ## Inter-dependencies
 ##############################################################################
-add_dependencies(renderer file_buffer)
+add_dependencies(rendering file_buffer)

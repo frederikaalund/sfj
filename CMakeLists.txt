@@ -26,6 +26,6 @@ add_subdirectory(cave_demo)
 ##############################################################################
 add_dependencies(
 	cave_demo
-	renderer
+	rendering
 	file_system_watcher
 	file_buffer)

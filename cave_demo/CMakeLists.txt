@@ -46,7 +46,7 @@ endif()
 
 # Black Label
 set(BlackLabel_USE_STATIC_LIBS ON)
-find_package(BlackLabel 0.1 QUIET REQUIRED renderer file_system_watcher file_buffer)
+find_package(BlackLabel 0.1 QUIET REQUIRED rendering file_system_watcher file_buffer)
 include_directories(${BlackLabel_INCLUDE_DIRS})
 
 # Boost

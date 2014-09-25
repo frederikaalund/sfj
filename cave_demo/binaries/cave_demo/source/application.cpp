@@ -14,6 +14,7 @@
 #include <boost/log/support/date_time.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
+#include <boost/range/numeric.hpp>
 #include <boost/utility/empty_deleter.hpp>
 
 #include <SFML/OpenGL.hpp>
@@ -24,7 +25,7 @@ namespace cave_demo {
 
 using namespace black_label;
 using namespace black_label::file_system_watcher;
-using namespace black_label::renderer;
+using namespace black_label::rendering;
 using namespace black_label::utility;
 using namespace black_label::world;
 
@@ -107,21 +108,19 @@ application::configuration::configuration( int argc, char const* argv[] )
 			"help,?", "Print the help message."
 		);
 
-	po::options_description renderer_options("Renderer");
-	using renderer_type = black_label::renderer::renderer;
-	renderer_options.add_options()
+	po::options_description rendering_options("Renderer");
+	
+	rendering_options.add_options()
 		(
-			"renderer.shader_directory", 
+			"rendering.shader_directory", 
 			po::value<path>(&this->shader_directory)
-			->default_value(renderer_type::default_shader_directory)
 		)(
-			"renderer.asset_directory", 
+			"rendering.asset_directory", 
 			po::value<path>(&this->asset_directory)
-			->default_value(renderer_type::default_asset_directory)
 		);
 
 	po::options_description subsystem_options, all_options;
-	subsystem_options.add(renderer_options);
+	subsystem_options.add(rendering_options);
 	all_options.add(general_options).add(subsystem_options);
 
 	po::variables_map variables_map;
@@ -167,22 +166,28 @@ application::configuration::configuration( int argc, char const* argv[] )
 ////////////////////////////////////////////////////////////////////////////////
 /// Application
 ////////////////////////////////////////////////////////////////////////////////
-// Lion cam: camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f))
-// Deep cam: camera(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+// Lion cam: view(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(1300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f))
+// Deep cam: view(glm::vec3(1200.0f, 200.0f, 200.0f), glm::vec3(300.0f, 200.0f, -300.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 application::application( int argc, char const* argv[] )
 	: configuration{argc, argv}
 	, window{sf::VideoMode{800, 800}, "OpenGL", 
 		sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize, 
 		sf::ContextSettings{32, 0, 0, 3, 2}}
-	, renderer{std::make_shared<camera>(glm::vec3{1200.0f, 200.0f, 200.0f}, glm::vec3{300.0f, 200.0f, -300.0f}, glm::vec3{0.0f, 1.0f, 0.0f}),
-		configuration.shader_directory,
-		configuration.asset_directory}
+	, view{glm::vec3{1200.0f, 200.0f, 200.0f}, glm::vec3{300.0f, 200.0f, -300.0f}, glm::vec3{0.0f, 1.0f, 0.0f}, static_cast<int>(window.getSize().x), static_cast<int>(window.getSize().y)}
+	, framebuffer{generate}
+	, rendering_assets{configuration.asset_directory}
+	, rendering_pipeline{configuration.shader_directory / "rendering_pipeline.json", configuration.shader_directory, view}
 	, increment{1.0f}
 	, strafe{0.0f}
 	, is_window_focused{true}
 { 
-	// Visual Studio 2013 doesn't like list initialization in the initializer list
+	if (!font.loadFromFile((configuration.asset_directory / "fonts/Vegur-Regular.ttf").string())) {
+		BOOST_LOG_TRIVIAL(error) << "Error loading font.";
+		return;
+	}
+	text.setFont(font);
+
 	fsw = {
 		{configuration.asset_directory, filter::write | filter::access | filter::file_name},
 		{configuration.shader_directory, filter::write | filter::access | filter::file_name}
@@ -221,7 +226,7 @@ void application::process_mouse_movement_event( const sf::Event& event )
 		dx = static_cast<float>(last_x-event.mouseMove.x),
 		dy = static_cast<float>(last_y-event.mouseMove.y);
 
-	renderer.camera->pan(dx, dy);
+	view.pan(dx, dy);
 
 	last_x = event.mouseMove.x;
 	last_y = event.mouseMove.y;
@@ -258,6 +263,9 @@ void application::update_movement()
 
 void application::update_window()
 {
+	using namespace std;
+	using namespace std::chrono;
+
 	sf::Event event;
 	while (window.pollEvent(event))
 	{
@@ -267,7 +275,11 @@ void application::update_window()
 			{ window.close(); return; }
 			break;
 		case sf::Event::Resized:
-			{ renderer.on_window_resized(event.size.width, event.size.height); }
+			{ 
+				window.setView(sf::View{sf::FloatRect{0.f, 0.f, static_cast<float>(event.size.width), static_cast<float>(event.size.height)}});
+				view.on_window_resized(event.size.width, event.size.height);
+				rendering_pipeline.on_window_resized(event.size.width, event.size.height);
+			}
 			break;
 
 		case sf::Event::KeyPressed:
@@ -300,23 +312,72 @@ void application::update_window()
 	}
 
 	update_movement();
-	renderer.camera->strafe(strafe);
-	renderer.render_frame();
-	window.display();
+	view.strafe(strafe);
+	rendering_assets.update();
+	rendering_pipeline.render(framebuffer, rendering_assets);
+	
+	gpu::vertex_array::unbind();
+	gpu::buffer::unbind();
+	gpu::framebuffer::unbind();
+	window.resetGLStates();
 
-	static int frames = 0;
-	static sf::Clock clock;
-	if (frames++ < 1000)
-	{
-		sf::Time elapsed_time = clock.restart();
-		if (sf::Time::Zero < elapsed_time)
-		{
-			std::stringstream ss;
-			ss << "FPS: " << 1000000/elapsed_time.asMicroseconds();
-			window.setTitle(ss.str());
+	static bool has_written_message{false};
+	if (rendering_pipeline.is_complete()) {
+		has_written_message = false;
+		static unordered_map<string, double> averages;
+		stringstream ss;
+		ss.precision(3);
+		auto output_pass = [&] ( const std::string& name, const chrono::high_resolution_clock::duration& render_duration )
+		{ 
+			if (10s < render_duration || 10us > render_duration) return;
+			auto render_time = duration_cast<duration<double, milli>>(render_duration).count();
+			static const double alpha{0.05};
+			averages[name] = alpha * render_time + (1.0 - alpha) * averages[name];
+			ss << name << " [ms]: " << averages[name] << "\n"; 
+		};
+
+		output_pass("rendering_pipeline.json", rendering_pipeline.render_time);
+
+		output_pass(
+			"\t" + rendering_pipeline.shadow_mapping.name, 
+			rendering_pipeline.shadow_mapping.render_time);
+
+		auto all_passes = rendering_pipeline.shadow_mapping.render_time;
+		for (const auto& pass : rendering_pipeline.passes) {
+			output_pass("\t" + pass.name, pass.render_time);
+			all_passes += pass.render_time;
 		}
+	
+		output_pass("\t(sequencing overhead)", rendering_pipeline.render_time - all_passes);
 
-		frames = 0;
+		text.setString(ss.str());
+		text.setCharacterSize(16);
+
+		text.setColor(sf::Color::Black);
+		text.setPosition(6, 1);
+		window.draw(text);
+
+		text.setColor(sf::Color::White);
+		text.setPosition(5, 0);
+		window.draw(text);
+		window.display();
+	}
+	else if (!has_written_message) {
+		has_written_message = true;
+		auto window_size = window.getSize();
+		sf::RectangleShape rectangle{sf::Vector2f{window_size}};
+		rectangle.setFillColor(sf::Color{0, 0, 0, 180});
+		window.draw(rectangle);
+		
+		text.setString("Error in rendering configuration.");
+		text.setCharacterSize(22);
+		sf::FloatRect textBounds = text.getLocalBounds();
+		text.setPosition(sf::Vector2f(
+			floor(window_size.x / 2.0f - (textBounds.left + textBounds.width / 2.0f)), 
+			floor(window_size.y / 2.0f - (textBounds.top  + textBounds.height / 2.0f))));
+		text.setColor(sf::Color::White);
+		window.draw(text);
+		window.display();
 	}
 }
 
@@ -324,8 +385,11 @@ void application::update_file_system_watcher()
 {
 	fsw.update();
 
-	for (path modified_path : fsw.get_unique_modified_paths(std::chrono::seconds(1)))
-		renderer.reload_asset(modified_path);
+	for (path modified_path : fsw.get_unique_modified_paths(std::chrono::seconds(1))) {
+		rendering_assets.reload_model(modified_path);
+		rendering_assets.reload_texture(modified_path);
+		rendering_pipeline.reload(modified_path, configuration.shader_directory, view);
+	}
 }
 
 } // namespace cave_demo

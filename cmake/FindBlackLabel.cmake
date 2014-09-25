@@ -22,7 +22,7 @@ endfunction()
 
 
 
-find_path(BlackLabel_INCLUDE_DIR "black_label/renderer.hpp"
+find_path(BlackLabel_INCLUDE_DIR "black_label/rendering.hpp"
 	HINTS ${SFJ_CMAKE_DIR}/../black_label)
 
 

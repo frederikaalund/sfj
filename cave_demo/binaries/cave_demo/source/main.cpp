@@ -1,9 +1,16 @@
 #include <cave_demo/application.hpp>
 
+#include <iterator>
+
 #include <tbb/task.h>
 #include <tbb/parallel_for.h>
 
 #include <boost/log/trivial.hpp>
+
+
+
+
+
 
 #include <functional>
 #include <chrono>
@@ -35,6 +42,10 @@ public:
 };
 
 
+
+
+
+
 //__itt_domain* domain = __itt_domain_create("Task Domain");
 //__itt_string_handle* UserTask = __itt_string_handle_create("User Task");
 //__itt_string_handle* UserSubTask = __itt_string_handle_create("UserSubTask");
@@ -42,6 +53,8 @@ public:
 using namespace black_label::utility;
 using namespace black_label::world;
 using namespace cave_demo;
+
+using namespace std;
 
 
 
@@ -66,57 +79,41 @@ int main( int argc, char const* argv[] )
 ////////////////////////////////////////////////////////////////////////////////
 /// World Test
 ////////////////////////////////////////////////////////////////////////////////
-
 		demo.all_statics.emplace_back(std::make_shared<entities>(
 			std::initializer_list<entities::model_type>{"models/crytek-sponza/sponza.fbx", "models/teapot/teapot.obj", "models/references/sphere_rough.fbx"},
 			std::initializer_list<entities::dynamic_type>{"sponza.bullet", "cube.bullet", "house.bullet"},
 			std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
 
-		demo.renderer.optimize_for_rendering(demo.all_statics);
+		using rendering_entities = application::rendering_assets_type::external_entities;
+
+		vector<rendering_entities> asset_data;
+		asset_data.reserve(demo.all_statics.size());
+		int id{0};
+		for (const auto& entity : demo.all_statics)
+			asset_data.emplace_back(
+				id++, 
+				boost::make_iterator_range(entity->begin(entity->models), entity->end(entity->models)),
+				boost::make_iterator_range(entity->begin(entity->transformations), entity->end(entity->transformations)));
+
+		demo.rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
 		
-		later test1(5000, true, [&] {
-			BOOST_LOG_TRIVIAL(info) << "Adding all statics";
-			demo.renderer.assets.add_statics(const_group_cast(demo.all_statics));
-			later test2(7500, true, [&] {
-				BOOST_LOG_TRIVIAL(info) << "Removing all statics";
-				demo.renderer.assets.remove_statics(const_group_cast(demo.all_statics));
-				later test3(7500, true, [&] {
-					BOOST_LOG_TRIVIAL(info) << "Adding all statics";
-					demo.renderer.assets.add_statics(const_group_cast(demo.all_statics));
-					later test4(7500, true, [&] {
-						BOOST_LOG_TRIVIAL(info) << "Removing all statics";
-						demo.renderer.assets.remove_statics(const_group_cast(demo.all_statics));
-					});
-				});
-			});
-		});
-
-		//world::entities_type::group environment(demo.world.static_entities);
-		//world::entities_type::group doodads(demo.world.dynamic_entities);
-
-		////auto scene_2 = environment.create("scene_2.fbx", "scene_2.bullet");
-		////environment.create("scene_2.dae", make_mat4(1.0f, 0.0f, 0.0f, -10.0f));
-		//auto sponza = environment.create("sponza.obj", "sponza.bullet");
-		//environment.create("default_light.fbx", "", make_mat4(1.0f, 500.0, 3500.0f, 600.0f));
-		////environment.create("inverted_cube.obj", "", make_mat4(8000.0f, 0.0f, 0.0f, -4000.0f));
-
-		//for (int i = 0; i < 10; ++i)
-		//{
-		//	auto sphere = doodads.create("dynamica_test_1.fbx", "dynamica_test_1.bullet", make_mat4(10.0f, 10.0f * rand() / RAND_MAX, 10.0f + i * 20.0f, 10.0f * rand() / RAND_MAX));
-		//}
+		//later test1(5000, true, [&] {
+		//	BOOST_LOG_TRIVIAL(info) << "Adding all statics";
+		//	demo.rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
+		//	later test2(1000, true, [&] {
+		//		BOOST_LOG_TRIVIAL(info) << "Removing all statics";
+		//		demo.rendering_assets.remove_statics(cbegin(asset_data), cend(asset_data));
+		//		later test3(7500, true, [&] {
+		//			BOOST_LOG_TRIVIAL(info) << "Adding all statics";
+		//			demo.rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
+		//			later test4(7500, true, [&] {
+		//				BOOST_LOG_TRIVIAL(info) << "Removing all statics";
+		//				demo.rendering_assets.remove_statics(cbegin(asset_data), cend(asset_data));
+		//			});
+		//		});
+		//	});
+		//});
 		
-		//demo.renderer.report_dirty_models(
-		//	demo.world.models.cbegin(),
-		//	demo.world.models.cend());
-	
-		//demo.renderer.report_dirty_static_entities(
-		//	environment.cbegin(),
-		//	environment.cend());
-
-		//demo.renderer.report_dirty_dynamic_entities(
-		//	doodads.cbegin(),
-		//	doodads.cend());
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +130,7 @@ int main( int argc, char const* argv[] )
 	}
 	catch (const std::exception& e)
 	{
-		std::cerr << e.what() << std::endl;
+		BOOST_LOG_TRIVIAL(info) << "Exception: " << e.what();
 		return 1;
 	}
 }
