@@ -32,26 +32,28 @@ uniform float z_near, z_far;
 
 uniform mat4 projection_matrix;
 
+
+
 struct light_type {
 	mat4 projection_matrix, view_projection_matrix;
 	vec4 wc_direction;
 	float radius;
 };
 
-layout(binding = 0, offset = 0) uniform atomic_uint count;
-
 layout(std140) uniform light_block
 { light_type light; };
 
-layout (std430) buffer fragment_count_buffer
-{
-	uint32_t fragment_count[];
+
+
+struct oit_data {
+	uint32_t next, compressed_diffuse;
+	float depth;
 };
 
 layout (std430) buffer data_buffer
-{
-	uint32_t data_storage[];
-};
+{ oit_data data[]; };
+layout (std430) buffer head_buffer
+{ uint32_t heads[]; };
 
 
 
@@ -290,12 +292,12 @@ vec4 get_reflected_light(
 
 
 
-vec4 RGBA(uint32_t rgba)
+vec4 decompress(uint32_t rgba)
 {
   return vec4( float((rgba>>24u)&255u),float((rgba>>16u)&255u),float((rgba>>8u)&255u),float(rgba&255u) ) / 255.0;
 }
 
-vec4 blend(vec4 clr,vec4 srf)
+vec4 blend(vec4 clr, vec4 srf)
 {
   return clr + (1.0 - clr.w) * vec4(srf.xyz * srf.w , srf.w);  
 }
@@ -305,14 +307,56 @@ vec4 blend(vec4 clr,vec4 srf)
 
 void main()
 {
-	color.rgb = vec3(float(atomicCounter(count)) / float(window_dimensions.x * window_dimensions.y));
+	// Get the head node
+	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
+	uint32_t current = heads[heads_index];
 
+	// Constants
+	const int max_list_length = 100;
+
+	// Local arrays
+	float valdepth[max_list_length];
+	uint32_t valrgba[max_list_length];
+	
+	// Copy the list into the local arrays
+	int list_length = 0;
+	while (0 != current && list_length < max_list_length) {
+		valdepth[list_length] = data[current].depth;
+		valrgba[list_length] = data[current].compressed_diffuse;
+
+		current = data[current].next;
+		list_length++;
+	}
+
+	if (list_length == max_list_length) {
+		color = vec4(1.0, 0.0, 0.0, 0.0);
+		return;
+	}
+
+	// Sort the local arrays according to depth
+	for (int i = (list_length - 2); i >= 0; --i) {
+		for (int j = 0; j <= i; ++j) {
+			if (valdepth[j] >= valdepth[j+1]) {
+				float tmp       = valdepth[j];
+				valdepth[j]     = valdepth[j+1];
+				valdepth[j+1]   = tmp;
+				uint32_t tmp2   = valrgba[j];
+				valrgba[j]      = valrgba[j+1];
+				valrgba[j+1]    = tmp2;
+			}
+		}
+	}
+
+	// Blend the color in the sorted array
+	color = vec4(0.0);
+	for (int k = 0; k < list_length; k++) {
+		color = blend(color, decompress(valrgba[k]));
+	}
+
+
+
+	return;
 /*
-	uint32_t index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
-
-	uint32_t ptr = index + fragment_count[index];
-	uint32_t count = data_storage[index];
-	color.rgb = vec3(float(count) / 20.0);
 return;
 	const int M = 64;
 	int num = int(fragment_count[index]);
@@ -335,18 +379,7 @@ return;
 
 
 
-  for (int i = (num - 2); i >= 0; --i) {
-    for (int j = 0; j <= i; ++j) {
-      if (valdepth[j] < valdepth[j+1]) {
-        uint32_t tmp  = valdepth[j];
-        valdepth[j]     = valdepth[j+1];
-        valdepth[j+1]   = tmp;
-        tmp             = valrgba[j];
-        valrgba[j]      = valrgba[j+1];
-        valrgba[j+1]    = tmp;
-      }
-    }
-  }
+
 
   vec4 clr = vec4(0.0);
   // -> combine all fragments

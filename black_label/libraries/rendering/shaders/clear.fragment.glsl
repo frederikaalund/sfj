@@ -4,17 +4,12 @@
 
 uniform ivec2 window_dimensions;
 
-layout(binding = 0, offset = 0) uniform atomic_uint count;
 
-layout (std430) buffer fragment_count_buffer
-{
-	uint32_t fragment_count[];
-};
 
-layout (std430) buffer data_buffer
-{
-	uint32_t data_storage[];
-};
+layout (std430) buffer head_buffer
+{ uint32_t heads[]; };
+
+
 
 struct vertex_data
 {
@@ -25,8 +20,6 @@ layout(pixel_center_integer) in uvec2 gl_FragCoord;
 
 void main()
 {
-	atomicCounterIncrement(count);
 	uint32_t index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
-	fragment_count[index] = 0;
-	data_storage[index] = 0;
+	heads[index] = 0;
 }

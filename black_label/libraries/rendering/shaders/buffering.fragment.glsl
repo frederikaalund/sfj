@@ -8,17 +8,18 @@ uniform float specular_exponent;
 uniform ivec2 window_dimensions;
 uniform float z_far, z_near;
 
-layout (std430) buffer fragment_count_buffer
-{
-	uint32_t fragment_count[];
-};
 
-layout (std430) buffer data_buffer
-{
-	uint32_t data_storage[];
+
+struct oit_data {
+	uint32_t next, compressed_diffuse;
+	float depth;
 };
 
 layout(binding = 0, offset = 0) uniform atomic_uint count;
+layout (std430) buffer data_buffer
+{ oit_data data[]; };
+layout (std430) buffer head_buffer
+{ uint32_t heads[]; };
 
 
 
@@ -26,7 +27,7 @@ struct vertex_data
 {
 	vec3 wc_normal;
 	vec2 oc_texture_coordinate;
-	float ec_position_z;
+	float normalized_ec_position_z;
 };
 in vertex_data vertex;
 layout(pixel_center_integer) in uvec2 gl_FragCoord;
@@ -36,7 +37,9 @@ layout(location = 1) out vec4 albedo;
 
 
 
-
+uint32_t allocate() {
+	return atomicCounterIncrement(count);
+}
 
 uint32_t compress( vec4 value ) {
 	float opacity = 0.5;
@@ -44,9 +47,6 @@ uint32_t compress( vec4 value ) {
 }
 
 
-
-
-#define MAX_ITER 200
 
 void main()
 {
@@ -68,15 +68,18 @@ void main()
 
 	// A-buffer
 #define MAX_DEPTH (1u<<24u)
-	uint32_t data = compress(diffuse);
-	uint32_t depth = uint32_t((vertex.ec_position_z * MAX_DEPTH));
+	uint32_t compressed_diffuse = compress(diffuse);
 
-	uint32_t index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
-	uint32_t ptr = index * fragment_count[index];
+	// Calculate indices
+	uint32_t head_index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
+	uint32_t data_index = allocate();
 
-	uint32_t count = atomicAdd(data_storage[index], 1);
-	ptr += count;
-
-	data_storage[window_dimensions.x * window_dimensions.y + ptr * 2] = depth;
-	data_storage[window_dimensions.x * window_dimensions.y + ptr * 2 + 1] = data;
+	// Store fragment data in node
+	data[data_index].compressed_diffuse = compressed_diffuse;
+	data[data_index].depth = vertex.normalized_ec_position_z;
+	
+	// Update head index
+	uint32_t old_head = atomicExchange(heads[head_index], data_index);
+	// Store next index
+	data[data_index].next = old_head;
 }
