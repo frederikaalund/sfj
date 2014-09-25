@@ -70,7 +70,7 @@ Don't re-invent the wheel. E.g., don't implement a [thread_pool](https://github.
      * YAMLCPP
    * GLI
    * Squish
-   * 
+
 Furthermore, the cave_demo [depends on](https://github.com/frederikaalund/sfj/blob/master/cave_demo/CMakeLists.txt) (besides black_label):
 
  * Boost
