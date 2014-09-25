@@ -31,7 +31,7 @@ There are also many [deprecated libraries](https://github.com/frederikaalund/sfj
 
 ##### thread_pool
 
-A good example is the thread_pool which I wrote before I embraced Intel's Threading Building Blocks. It was a good exercise on multi-threaded programming. I'm still really fond of the interface. See the [unit tests](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp) for an example. Basically, the `a | b` means *call `a` and `b` in parallel* and the `a >> b operator` means *call `a` and then call `b`*. Both `a` and `b` are *callable*s. I.e., anything that can be invoked like `a()`.
+A good example is the thread_pool which I wrote before I embraced Intel's Threading Building Blocks. It was a good exercise on multi-threaded programming. I'm still really fond of the interface. See the [unit tests](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp) for an example. Basically, `a | b` means *call `a` and `b` in parallel* and `a >> b` means *call `a` and then call `b`*. Both `a` and `b` are *callable*s. I.e., anything that can be invoked like `a()`.
 
 ##### lsystem
 
@@ -42,6 +42,8 @@ Some libraries like the [lsystem](https://github.com/frederikaalund/sfj/blob/mas
 There are also some [containers](https://github.com/frederikaalund/sfj/tree/master/deprecated/black_label/black_label/container) like the [darray](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/black_label/container/darray.hpp) and the [svector](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/black_label/container/svector.hpp). Both are very simply and use contiguous memory for storage. They have an STL-like interface complete with iterators (though no allocators). Without going into too much detail they make stricter usage assumptions than, say, `std::vector` which allows them to skip certain bound checks. I liked and used both the [darray](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/black_label/container/darray.hpp) and the [svector](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/black_label/container/svector.hpp) all over the place. They have been deprecated simply because it was too much of a hassle to maintain a fully conformant STL-like interface.
 
 ### Building
+
+##### Compiler
 
 Your compiler must support subset of C++14/1z. The following compilers are known to work:
  * Visual Studio 14 CTP3.
