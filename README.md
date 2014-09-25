@@ -43,6 +43,8 @@ There are also some [containers](https://github.com/frederikaalund/sfj/tree/mast
 
 ### Building
 
+Both black_label and cave_demo use the CMake build system.
+
 ##### Compiler
 
 Your compiler must support subset of C++14/1z. The following compilers are known to work:
@@ -51,7 +53,7 @@ Your compiler must support subset of C++14/1z. The following compilers are known
 
 ##### Dependencies 
 
-Don't re-invent the wheel. E.g., don't implement a [thread_pool](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp). Therefore, black_label rely on *a lot* of 3rd party libraries:
+Don't re-invent the wheel. E.g., don't implement a [thread_pool](https://github.com/frederikaalund/sfj/blob/master/deprecated/black_label/libraries/thread_pool/test/test_1.cpp). Therefore, black_label relies on *a lot* of 3rd party libraries:
 
  * [Common dependencies](https://github.com/frederikaalund/sfj/blob/master/black_label/cmake/dependencies_common.cmake)
    * Boost
