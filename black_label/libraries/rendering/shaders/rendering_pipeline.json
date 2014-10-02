@@ -9,8 +9,8 @@
 	],
 
 	"buffers": [
-		{ "name": "data_buffer", "target": "shader_storage", "size": 80000000 },
-		{ "name": "debug_view_buffer", "target": "shader_storage", "size": 80000000 },
+		{ "name": "data_buffer", "target": "shader_storage", "size": 90000000 },
+		{ "name": "debug_view_buffer", "target": "shader_storage", "size": 90000000 },
 		{ "name": "counter", "target": "atomic_counter", "binding": 0, "size": 4, "data": "null", "reset": "pre_first_pass" }
 	],
 

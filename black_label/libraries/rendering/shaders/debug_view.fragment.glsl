@@ -32,6 +32,7 @@ layout (std430) buffer debug_view_buffer
 
 void main()
 {
+	// TODO: Not necessary to subtract 0.5. Test for consistency,
 	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
 	uint32_t current = data[heads_index].next;
 

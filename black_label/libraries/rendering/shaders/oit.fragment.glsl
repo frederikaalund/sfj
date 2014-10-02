@@ -84,13 +84,14 @@ void main()
 				break;
 			// Another thread updated data[previous].next before us...
 			else
-				// ...so we continue from previous_next (which aliases data[previous].next).
+				// ...so we continue from previous_next
 				current = previous_next;
 		// We are still searching for a place to insert the new node...
 		} else {
 			// ...so we advance to the next node in the list.
 			previous = current;
-			current  = data[previous].next;
+			uint32_t temp123 = data[previous].next;
+			current = atomicAnd(data[previous].next, 0xFFFFFFFF); // Atomic read
 		}
 	}
 
