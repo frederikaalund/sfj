@@ -97,7 +97,7 @@ public:
 			unique(begin(unique_modified_paths), end(unique_modified_paths))
 			- begin(unique_modified_paths));
 
-		return move(unique_modified_paths);
+		return unique_modified_paths;
 	}
 
 	static bool is_expired( 
@@ -134,7 +134,7 @@ public:
 			}
 		}
 
-		return move(unique_modified_paths);
+		return unique_modified_paths;
 	}
 
 	void clear_logged_paths()

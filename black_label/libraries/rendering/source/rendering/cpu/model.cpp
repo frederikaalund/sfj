@@ -104,7 +104,7 @@ public:
 			*iterator++ = static_cast<cast_type>(vector[i]);
 	}
 	elementwise_iterator& operator++() { ++iterator; return *this; }
-	elementwise_iterator operator++( int ) { auto before = *this; iterator++; return std::move(before); }
+	elementwise_iterator operator++( int ) { auto before = *this; iterator++; return before; }
 
 	iterator_type iterator;
 };
@@ -132,7 +132,7 @@ public:
 	template<typename T> 
 	void operator=( T value ) { *iterator = callable(value); }
 	apply_iterator& operator++() { ++iterator; return *this; }
-	apply_iterator operator++( int ) { auto before = *this; iterator++; return std::move(before); }
+	apply_iterator operator++( int ) { auto before = *this; iterator++; return before; }
 
 	callable_type callable;
 	iterator_type iterator;

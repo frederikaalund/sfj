@@ -63,7 +63,7 @@ glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f
 	auto m = glm::mat4(); 
 	m[3][0] = x; m[3][1] = y; m[3][2] = z;
 	m[0][0] = m[1][1] = m[2][2] = scale;
-	return std::move(m);
+	return m;
 }
 
 

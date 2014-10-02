@@ -23,51 +23,20 @@ struct oit_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
-
 layout (std430) buffer data_buffer
 { oit_data data[]; };
-layout (std430) buffer head_buffer
-{ uint32_t heads[]; };
 layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-/// Utility Functions
-////////////////////////////////////////////////////////////////////////////////
-float get_tc_z( 
-	in sampler2D sampler, 
-	in vec2 tc_position )
-{ return texture(sampler, tc_position).z; }
-
-float get_tc_z( 
-	in sampler2D sampler, 
-	in vec2 tc_position, 
-	in vec2 tc_offset )
-{ return get_tc_z(sampler, tc_position + tc_offset); }
-
-float get_ec_z( 
-	in float tc_z,
-	in mat4 projection_matrix )
-{ return projection_matrix[3][2] / (-2.0 * tc_z + 1.0 - projection_matrix[2][2]); }
-
-float get_ec_z( 
-	in sampler2D sampler, 
-	in vec2 tc_position,
-	in mat4 projection_matrix)
-{ return get_ec_z(get_tc_z(sampler, tc_position), projection_matrix); }
-
 
 
 
 void main()
 {
 	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
-	uint32_t current = heads[heads_index];
+	uint32_t current = data[heads_index].next;
 
 	// Constants
-	const int max_list_length = 100;
+	const int max_list_length = 200;
 
 	// Loop over each point
 	int list_length = 0;

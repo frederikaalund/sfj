@@ -9,7 +9,6 @@
 	],
 
 	"buffers": [
-		{ "name": "head_buffer", "target": "shader_storage", "size": 30000000 },
 		{ "name": "data_buffer", "target": "shader_storage", "size": 80000000 },
 		{ "name": "debug_view_buffer", "target": "shader_storage", "size": 80000000 },
 		{ "name": "counter", "target": "atomic_counter", "binding": 0, "size": 4, "data": "null", "reset": "pre_first_pass" }
@@ -21,7 +20,7 @@
 			"vertex_program": "pass-through.vertex.glsl",
 			"fragment_program": "clear.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
-			"buffers": [ "head_buffer", "debug_view_buffer" ],
+			"buffers": [ "data_buffer", "debug_view_buffer" ],
 			"models": [ "screen_aligned_quad" ],
 			"memory_barrier": {
 				"post": [ "shader_storage" ]
@@ -32,12 +31,12 @@
 			"vertex_program": "oit.vertex.glsl",
 			"fragment_program": "oit.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
-			"buffers": [ "head_buffer", "data_buffer", "counter" ],
+			"buffers": [ "data_buffer", "counter" ],
 			"models": [ "statics", "dynamics" ],
 			"textures": {
 				"output": [ "albedos" ]
 			},
-			"materials": false,
+			"materials": true, // TODO: Should be false.
 			"memory_barrier": {
 				"post": [ "shader_storage" ]
 			}
@@ -47,7 +46,7 @@
 			"vertex_program": "pass-through.vertex.glsl",
 			"fragment_program": "debug_view.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
-			"buffers": [ "head_buffer", "data_buffer", "debug_view_buffer" ],
+			"buffers": [ "data_buffer", "debug_view_buffer" ],
 			"models": [ "screen_aligned_quad" ],
 			"memory_barrier": {
 				"post": [ "shader_storage" ]
@@ -85,7 +84,7 @@
 				"input": [ "depths", "wc_normals", "albedos", "ambient_occlusion", "random" ],
 				"output": [ "lit" ]
 			},
-			"buffers": [ "head_buffer", "data_buffer", "debug_view_buffer" ],
+			"buffers": [ "data_buffer", "debug_view_buffer" ],
 			"models": [ "screen_aligned_quad" ]
 		},
 		{ 

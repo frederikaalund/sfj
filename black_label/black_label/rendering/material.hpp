@@ -83,17 +83,17 @@ struct material
 };
 
 inline material operator+( material material, argument::ambient ambient )
-{ return std::move(material.set(ambient)); }
+{ return material.set(ambient); }
 inline material operator+( material material, argument::diffuse diffuse )
-{ return std::move(material.set(diffuse)); }
+{ return material.set(diffuse); }
 inline material operator+( material material, argument::specular specular )
-{ return std::move(material.set(specular)); }
+{ return material.set(specular); }
 inline material operator+( material material, argument::emissive emissive )
-{ return std::move(material.set(emissive)); }
+{ return material.set(emissive); }
 inline material operator+( material material, argument::alpha alpha )
-{ return std::move(material.set(alpha)); }
+{ return material.set(alpha); }
 inline material operator+( material material, argument::shininess shininess )
-{ return std::move(material.set(shininess)); }
+{ return material.set(shininess); }
 
 } // namespace rendering
 } // namespace black_label

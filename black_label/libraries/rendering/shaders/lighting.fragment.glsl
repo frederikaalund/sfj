@@ -49,11 +49,8 @@ struct oit_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
-
 layout (std430) buffer data_buffer
 { oit_data data[]; };
-layout (std430) buffer head_buffer
-{ uint32_t heads[]; };
 layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
 
@@ -312,11 +309,11 @@ void main()
 
 
 	// Get the head node
-	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.x;
-	uint32_t current = heads[heads_index];
-
+	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
+	uint32_t current = data[heads_index].next;
 
 /*
+
 
 	// Constants
 	const int max_list_length = 100;
@@ -326,10 +323,20 @@ void main()
 	uint32_t valrgba[max_list_length];
 	
 	// Copy the list into the local arrays
+	// int list_length = 0;
+	// while (0 != current && list_length < max_list_length) {
+	// 	valdepth[list_length] = data[current].depth;
+	// 	valrgba[list_length] = data[current].compressed_diffuse;
+
+	// 	current = data[current].next;
+	// 	list_length++;
+	// }
+
 	int list_length = 0;
+	color = vec4(0.0);
 	while (0 != current && list_length < max_list_length) {
-		valdepth[list_length] = data[current].depth;
-		valrgba[list_length] = data[current].compressed_diffuse;
+		//color = blend(decompress(data[current].compressed_diffuse), color);
+		color = blend(decompress(data[current].compressed_diffuse), color);
 
 		current = data[current].next;
 		list_length++;
@@ -339,32 +346,32 @@ void main()
 		color = vec4(1.0, 0.0, 0.0, 0.0);
 		return;
 	}
-
+	
 	// Sort the local arrays according to depth
-	for (int i = (list_length - 2); i >= 0; --i) {
-		for (int j = 0; j <= i; ++j) {
-			if (valdepth[j] >= valdepth[j+1]) {
-				float tmp       = valdepth[j];
-				valdepth[j]     = valdepth[j+1];
-				valdepth[j+1]   = tmp;
-				uint32_t tmp2   = valrgba[j];
-				valrgba[j]      = valrgba[j+1];
-				valrgba[j+1]    = tmp2;
-			}
-		}
-	}
+	// for (int i = (list_length - 2); i >= 0; --i) {
+	// 	for (int j = 0; j <= i; ++j) {
+	// 		if (valdepth[j] >= valdepth[j+1]) {
+	// 			float tmp       = valdepth[j];
+	// 			valdepth[j]     = valdepth[j+1];
+	// 			valdepth[j+1]   = tmp;
+	// 			uint32_t tmp2   = valrgba[j];
+	// 			valrgba[j]      = valrgba[j+1];
+	// 			valrgba[j+1]    = tmp2;
+	// 		}
+	// 	}
+	// }
 
 	// Blend the color in the sorted array
-	color = vec4(0.0);
-	for (int k = 0; k < list_length; k++) {
-		color = blend(color, decompress(valrgba[k]));
-	}
+	// color = vec4(0.0);
+	// for (int k = 0; k < list_length; k++) {
+	// 	color = blend(color, decompress(valrgba[k]));
+	// }
 
+
+
+return;
 
 */
-
-
-
 
 	vec2 tc_window = gl_FragCoord.xy / window_dimensions;
 	float ec_position_z = get_ec_z(depths, tc_window, projection_matrix);

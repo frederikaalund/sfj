@@ -247,7 +247,7 @@ inline const_group const_group_cast( const group& original )
 	const_group result(original.size());
 	std::transform(std::cbegin(original), std::cend(original), std::begin(result),  
 		[] ( const std::shared_ptr<entities>& entities_ ) { return std::const_pointer_cast<const entities>(entities_); });
-	return std::move(result);
+	return result;
 }
 
 } // namespace world

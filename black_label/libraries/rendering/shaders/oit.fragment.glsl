@@ -2,6 +2,8 @@
 #extension GL_NV_gpu_shader5: enable
 #extension GL_EXT_shader_image_load_store: enable
 
+uniform sampler2D diffuse_texture;
+
 uniform ivec2 window_dimensions;
 
 
@@ -14,36 +16,93 @@ struct oit_data {
 layout(binding = 0, offset = 0) uniform atomic_uint count;
 layout (std430) buffer data_buffer
 { oit_data data[]; };
-layout (std430) buffer head_buffer
-{ uint32_t heads[]; };
 
 
 
 struct vertex_data
-{ float negative_ec_position_z; };
+{
+	float negative_ec_position_z;
+	vec2 oc_texture_coordinate;
+};
 in vertex_data vertex;
 layout(pixel_center_integer) in uvec2 gl_FragCoord;
 
 
 
-uint32_t allocate() { return atomicCounterIncrement(count); }
+uint32_t allocate() { return window_dimensions.x * window_dimensions.y + atomicCounterIncrement(count); }
+
+
+uint32_t computeData(vec4 clr) { 
+
+	return (uint32_t(clr.x*255.0) << 24u) + (uint32_t(clr.y*255.0) << 16u) + (uint32_t(clr.z*255.0) << 8u) + (uint32_t(0.1*255.0)); 
+} 
 
 
 
+#define MAX_ITER                2048     // never reached on normal operation
 void main()
 {
-	uint32_t compressed_diffuse = 0xFFFFFF3F;
+	vec2 tc_texture_coordinates = vec2(vertex.oc_texture_coordinate.x, 1.0 - vertex.oc_texture_coordinate.y);
+	vec4 diffuse = texture(diffuse_texture, tc_texture_coordinates);
+
+	uint32_t compressed_diffuse = computeData(diffuse);
+	float depth = vertex.negative_ec_position_z;
 
 	// Calculate indices
-	uint32_t head_index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
-	uint32_t data_index = allocate();
+	uint32_t head = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
+	uint32_t new = allocate();
 
 	// Store fragment data in node
-	data[data_index].compressed_diffuse = compressed_diffuse;
-	data[data_index].depth = vertex.negative_ec_position_z;
+	data[new].compressed_diffuse = compressed_diffuse;
+	data[new].depth = depth;
+
+	// Start with the head node
+	uint32_t previous = head;
+	uint32_t current = data[head].next;
+
+	// Insert the new node while maintaining a sorted list.
+	// The algorithm finishes in a finite yet indeterminate number of steps.
+	// Indeterminate, since some steps may be repeated due to concurrent updates.
+	// Thus the total number of steps required for a single insertion
+	// is not be known beforehand. However, finiteness guarantees
+	// that the algorithm terminates eventually. Still, the number of steps
+	// is capped due to hardware constraints.
+	for (int i = 0; i < MAX_ITER; ++i) {
+		// We are either at the end of the list or just before a node of greater depth...
+		if (current == 0 || depth < data[current].depth) {
+			// ...so we attempt to insert the new node here.
+			data[new].next = current;
+
+			// Atomically update the previous node to point to new node
+			// if the previous node still points to the current node.
+			// Returns the original content of data[previous].next (regardless of the update).
+			uint32_t previous_next = atomicCompSwap(data[previous].next, current, new);
+
+			// The atomic update occurred...
+			if (previous_next == current)
+				// ...so we are done.
+				break;
+			// Another thread updated data[previous].next before us...
+			else
+				// ...so we continue from previous_next (which aliases data[previous].next).
+				current = previous_next;
+		// We are still searching for a place to insert the new node...
+		} else {
+			// ...so we advance to the next node in the list.
+			previous = current;
+			current  = data[previous].next;
+		}
+	}
+
+
+	// // Using post-lin
+	// // Store fragment data in node
+	// data[new].compressed_diffuse = compressed_diffuse;
+	// data[new].depth = vertex.negative_ec_position_z;
 	
-	// Update head index
-	uint32_t old_head = atomicExchange(heads[head_index], data_index);
-	// Store next index
-	data[data_index].next = old_head;
+	// // Update head index
+	// uint32_t old_head = atomicExchange(data[head].next, new);
+	// // Store next index
+	// data[new].next = old_head;
+
 }

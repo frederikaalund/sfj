@@ -331,7 +331,7 @@ std::shared_ptr<program> pipeline::add_program(program::configuration configurat
 	auto info_log = program_->get_aggregated_info_log();
 	if (!info_log.empty()) BOOST_LOG_TRIVIAL(error) << info_log;
 
-	return move(program_);
+	return program_;
 }
 
 

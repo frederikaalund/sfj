@@ -5,9 +5,12 @@
 uniform ivec2 window_dimensions;
 
 
-
-layout (std430) buffer head_buffer
-{ uint32_t heads[]; };
+struct oit_data {
+	uint32_t next, compressed_diffuse;
+	float depth;
+};
+layout (std430) buffer data_buffer
+{ oit_data data[]; };
 
 layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
@@ -24,6 +27,6 @@ layout(pixel_center_integer) in uvec2 gl_FragCoord;
 void main()
 {
 	uint32_t index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
-	heads[index] = 0;
+	data[index].next = 0;
 	debug_view[index] = 0;
 }
