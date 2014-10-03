@@ -94,7 +94,6 @@ void main()
 		} else {
 			// ...so we advance to the next node in the list.
 			previous = current;
-			uint32_t temp123 = data[previous].next;
 			current = atomicAdd(data[previous].next, 0); // Atomic read
 		}
 	}
