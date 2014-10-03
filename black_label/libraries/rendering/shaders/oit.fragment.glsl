@@ -65,15 +65,19 @@ void main()
 	// Indeterminate, since some steps may be repeated due to concurrent updates.
 	// Thus the total number of steps required for a single insertion
 	// is not be known beforehand. However, finiteness guarantees
-	// that the algorithm terminates eventually. Still, the number of steps
+	// that the algorithm terminates eventually. Still, the number of iterations
 	// is capped due to hardware constraints.
 	for (int i = 0; i < MAX_ITER; ++i) {
 		// We are either at the end of the list or just before a node of greater depth...
 		if (current == 0 || depth < data[current].depth) {
-			// ...so we attempt to insert the new node here.
+			// ...so we attempt to insert the new node here. First,
+			// the new node is set to point to the current node. It is crucial
+			// that this change happens now since the next step can potentially
+			// make the new node visible to other threads (so the new node must
+			// be in a complete state).
 			data[new].next = current;
 
-			// Atomically update the previous node to point to new node
+			// Then the previous node is atomically updated to point to new node
 			// if the previous node still points to the current node.
 			// Returns the original content of data[previous].next (regardless of the update).
 			uint32_t previous_next = atomicCompSwap(data[previous].next, current, new);
@@ -91,7 +95,7 @@ void main()
 			// ...so we advance to the next node in the list.
 			previous = current;
 			uint32_t temp123 = data[previous].next;
-			current = atomicAnd(data[previous].next, 0xFFFFFFFF); // Atomic read
+			current = atomicAdd(data[previous].next, 0); // Atomic read
 		}
 	}
 
