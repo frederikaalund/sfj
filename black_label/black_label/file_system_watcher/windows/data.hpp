@@ -5,6 +5,7 @@
 #include <black_label/file_system_watcher/types_and_constants.hpp>
 #include <black_label/shared_library/utility.hpp>
 
+#include <atomic>
 #include <memory>
 #include <utility>
 
@@ -29,7 +30,7 @@ public:
 	class BLACK_LABEL_SHARED_LIBRARY path_watcher
 	{
 	public:
-		const static size_t buffer_size = 1024 * 64; // 640 KiB
+		const static size_t buffer_size{1024 * 640}; // 640 KiB
 
 		friend void swap( path_watcher& lhs, path_watcher& rhs )
 		{
@@ -70,6 +71,8 @@ public:
 		HANDLE directory_or_file_handle;
 		void* buffer;
 		OVERLAPPED over;
+
+		std::atomic<bool> terminated{false};
 	};
 
 

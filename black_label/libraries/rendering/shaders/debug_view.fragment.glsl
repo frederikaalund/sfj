@@ -23,9 +23,9 @@ struct oit_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
-layout (std430) buffer data_buffer
+readonly restrict layout (std430) buffer data_buffer
 { oit_data data[]; };
-layout (std430) buffer debug_view_buffer
+writeonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
 
 

@@ -24,8 +24,7 @@ namespace black_label {
 namespace rendering {
 namespace gpu {
 
-using texture_identifier = boost::filesystem::path;
-using texture_map = tbb::concurrent_hash_map<texture_identifier, std::weak_ptr<texture>>;
+using texture_map = resource_map<texture>;
 
 class mesh
 {

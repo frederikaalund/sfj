@@ -218,11 +218,11 @@ public:
 		configuration& shader_directory( const path& shader_directory )
 		{
 			if (!path_to_vertex_shader_.empty())
-				canonical_and_preferred(path_to_vertex_shader_, shader_directory);
+				try_canonical_and_preferred(path_to_vertex_shader_, shader_directory);
 			if (!path_to_geometry_shader_.empty())
-				canonical_and_preferred(path_to_geometry_shader_, shader_directory);
+				try_canonical_and_preferred(path_to_geometry_shader_, shader_directory);
 			if (!path_to_fragment_shader_.empty())
-				canonical_and_preferred(path_to_fragment_shader_, shader_directory);
+				try_canonical_and_preferred(path_to_fragment_shader_, shader_directory);
 
 			return *this;
 		}

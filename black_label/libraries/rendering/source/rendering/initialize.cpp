@@ -1,5 +1,5 @@
 #define BLACK_LABEL_SHARED_LIBRARY_EXPORT
-#include <black_label/rendering/setup.hpp>
+#include <black_label/rendering/initialize.hpp>
 
 #include <stdexcept>
 
@@ -12,7 +12,7 @@ namespace rendering {
 
 using namespace std;
 
-setup::setup()
+void initialize()
 {
 	glewExperimental = GL_TRUE;
 	GLenum glew_error = glewInit();
@@ -34,13 +34,14 @@ setup::setup()
 	if (!GLEW_ARB_shader_image_load_store)
 		throw runtime_error{"Requires GLEW_ARB_shader_image_load_store."};
 
-	// TODO: Refactor the following to somewhere else since it is not related to glew.
 	if (GLEW_ARB_texture_storage)
 		glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 	glEnable(GL_FRAMEBUFFER_SRGB);
-	glClearColor(0.9f, 0.934f, 1.0f, 1.0f);
 }
 
+void set_clear_color( glm::vec4 color ) {
+	glClearColor(color.r, color.g, color.b, color.a);
+}
 
 } // namespace rendering
 } // namespace black_label

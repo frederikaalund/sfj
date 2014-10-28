@@ -20,8 +20,6 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/glm.hpp>
 
-#include <GL/glew.h> // TODO: Remove. just debugging
-
 namespace black_label {
 namespace rendering {
 
@@ -175,7 +173,7 @@ protected:
 		set_depth_test();
 		set_face_culling_mode();
 		if (!set_framebuffer(framebuffer, output_textures)) {
-			BOOST_LOG_TRIVIAL(error) << "The framebuffer is not complete.";
+			BOOST_LOG_TRIVIAL(warning) << "The framebuffer is not complete.";
 			return;
 		}
 		set_clearing_mask();
@@ -201,7 +199,7 @@ public:
 	using buffer_container = std::vector<std::pair<std::string, std::shared_ptr<gpu::buffer>>>;
 	using index_bound_buffer_container = std::vector<std::pair<std::string, std::shared_ptr<gpu::index_bound_buffer>>>;
 
-	pass() {}
+	pass() : view{nullptr} {}
 	pass( 
 		std::string name,
 		std::shared_ptr<black_label::rendering::program> program, 

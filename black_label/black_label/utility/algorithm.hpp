@@ -14,6 +14,41 @@ namespace utility {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+/// Find Last or nth
+///
+/// Let m be the number of occurences of value in the range [first, last).
+///
+///  1) If m > 0 and n >  0: Returns an iterator to the min(m, n)'th occurence of
+///                          value in the range.
+///  2) If m > 0 and n <= 0: Returns an iterator to the the m'th occurence of value 
+///                          in the range.
+///  3) If m = 0           : Returns last.
+///
+////////////////////////////////////////////////////////////////////////////////
+template<typename input_iterator, typename T, typename counter>
+input_iterator find_last_or_nth( input_iterator first, input_iterator last, const T& value, counter n = 0 ) {
+	// Default to the m = 0 case
+	auto result = last;
+	// Loops until end of the range...
+	// ...or n times if n > 0.
+	if (0 < n) ++n;
+	while (first != last && --n) {
+		// Advance to the next occurence of value
+		first = std::find(first, last, value);
+		// Not yet end of range...
+		if (first != last) {
+			// ...so store last occurrence...
+			result = first;
+			// ...and advance to the remainding range.
+			++first;
+		}
+	}
+	return result;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 /// Forward As
 /// 
 /// Forwards u of type U as T would be forwarded. I.e., u is forwarded

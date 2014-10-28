@@ -94,10 +94,7 @@ file_system_watcher::path_watcher::path_watcher(
 
 	buffer = _aligned_malloc(buffer_size, sizeof(DWORD));
 
-	std::fill(
-		reinterpret_cast<char*>(&over), 
-		reinterpret_cast<char*>(&over) + sizeof(OVERLAPPED), 
-		0);
+	std::fill_n(reinterpret_cast<char*>(&over), sizeof(OVERLAPPED), 0);
 	over.hEvent = static_cast<HANDLE>(this);
 
 	if (filter::write & filter_) win_filters |= FILE_NOTIFY_CHANGE_LAST_WRITE;
@@ -108,7 +105,7 @@ file_system_watcher::path_watcher::path_watcher(
 }
 
 file_system_watcher::path_watcher::~path_watcher()
-{ try { release_resources(); } catch( const std::exception& ) { assert(false); } }
+{ try { release_resources(); } catch( const std::exception& exception ) { assert(false); } }
 
 
 
@@ -132,22 +129,28 @@ void file_system_watcher::path_watcher::read_changes()
 
 void file_system_watcher::path_watcher::release_resources()
 {
+	// No resources were allocated
 	if (INVALID_HANDLE_VALUE == directory_or_file_handle) return;
-	
-	_aligned_free(buffer);
 
-	if (!CancelIoEx(directory_or_file_handle, NULL))
+	// Terminate the completion routine
+	if (!CancelIo(directory_or_file_handle))
 		throw std::system_error{
 			static_cast<int>(GetLastError()),
 			std::system_category(), 
 			error_message{last}};
 
+	// Wait for termination
+	while (!terminated) { SleepEx(INFINITE, TRUE); }
+
+	// Free resources
+	_aligned_free(buffer);
 	if (!CloseHandle(directory_or_file_handle))
-		throw std::system_error{
+		throw std::system_error{ 
 			static_cast<int>(GetLastError()), 
 			std::system_category(), 
 			error_message{last}};
 
+	// Flag that resources have been freed
 	directory_or_file_handle = INVALID_HANDLE_VALUE;
 }
 
@@ -158,10 +161,20 @@ VOID CALLBACK file_system_watcher::path_watcher::completion(
 	DWORD dwNumberOfBytesTransfered, 
 	LPOVERLAPPED lpOverlapped )
 {
-	if (dwErrorCode || 0 == dwNumberOfBytesTransfered) return;
-
+	// Retrieve the path_watcher pointer (essentially making this function pseudo-non-static)
 	auto pw = static_cast<path_watcher*>(lpOverlapped->hEvent);
 
+	// The watch is over...
+	if (ERROR_OPERATION_ABORTED == dwErrorCode) {
+		// ...so signal that the completion routine has been called the last time.
+		pw->terminated = true;
+		return;
+	}
+
+	// Any error (including buffer overflows) are silently ignored
+	if (dwErrorCode || 0 == dwNumberOfBytesTransfered) return;
+
+	// Process the linked list of notifications
 	auto fni = static_cast<FILE_NOTIFY_INFORMATION*>(pw->buffer);
 	do 
 	{
@@ -175,6 +188,7 @@ VOID CALLBACK file_system_watcher::path_watcher::completion(
 		fni = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(reinterpret_cast<char*>(fni) + fni->NextEntryOffset);
 	} while (0 < fni->NextEntryOffset);
 
+	// Reissue the watcher
 	pw->read_changes();
 }
 

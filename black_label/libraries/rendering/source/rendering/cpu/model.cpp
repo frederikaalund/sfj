@@ -611,7 +611,7 @@ void parse_mesh(
 	model& model, 
 	const aiScene* const scene,
 	const aiMesh* const ai_mesh,
-	path path, 
+	path file, 
 	const aiMatrix4x4 transformation )
 {
 	aiMatrix3x3 transformation3x3{transformation};
@@ -672,15 +672,20 @@ void parse_mesh(
 	ai_material->Get(AI_MATKEY_OPACITY, material.alpha);
 	ai_material->Get(AI_MATKEY_SHININESS, material.shininess);
 
+	auto set_texture = [model_directory = file.parent_path()] ( path& material_file, path texture_file ) {
+		if (try_canonical_and_preferred(texture_file, model_directory))
+			material_file = std::move(texture_file);
+	};
+
 	aiString texture_string;
 	if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_AMBIENT, 0), texture_string))
-		material.ambient_texture = path.parent_path() / std::string(texture_string.data, &texture_string.data[texture_string.length]);
+		set_texture(material.ambient_texture, texture_string.data);
 	if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), texture_string))
-		material.diffuse_texture = path.parent_path() / std::string(texture_string.data, &texture_string.data[texture_string.length]);
+		set_texture(material.diffuse_texture, texture_string.data);
 	if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_SPECULAR, 0), texture_string))
-		material.specular_texture = path.parent_path() / std::string(texture_string.data, &texture_string.data[texture_string.length]);
+		set_texture(material.specular_texture, texture_string.data);
 	if (AI_SUCCESS == ai_material->Get(AI_MATKEY_TEXTURE(aiTextureType_HEIGHT, 0), texture_string))
-		material.height_texture = path.parent_path() / std::string(texture_string.data, &texture_string.data[texture_string.length]);
+		set_texture(material.height_texture, texture_string.data);
 
 	model.meshes.emplace_back(
 		std::move(material),
@@ -771,8 +776,7 @@ bool model::import_assimp( path path )
 			int user_properties;
 			if (meta_data->Get("radius", user_properties))
 			{
-				int breakpoint = 2;
-				breakpoint = 3;
+				// TODO: Actually do something here.
 			}
 
 		}

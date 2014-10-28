@@ -1,7 +1,13 @@
 #ifndef BLACK_LABEL_RENDERING_TYPES_AND_CONSTANTS_HPP
 #define BLACK_LABEL_RENDERING_TYPES_AND_CONSTANTS_HPP
 
+#include <black_label/path.hpp>
+
+#include <memory>
+
 #include <boost/serialization/access.hpp>
+
+#include <tbb/concurrent_hash_map.h>
 
 
 
@@ -47,6 +53,14 @@ public:
 
 	type internal;
 };
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Containers
+////////////////////////////////////////////////////////////////////////////////
+template<typename resource>
+using resource_map = tbb::concurrent_hash_map<path, std::weak_ptr<resource>>;
 
 
 

@@ -3,8 +3,8 @@
 #define BLACK_LABEL_RENDERING_HPP
 
 #include <black_label\rendering\assets.hpp>
+#include <black_label\rendering\initialize.hpp>
 #include <black_label\rendering\pipeline.hpp>
-#include <black_label\rendering\setup.hpp>
 #include <black_label\rendering\view.hpp>
 
 #endif

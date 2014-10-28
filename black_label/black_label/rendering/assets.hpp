@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
+#include <type_traits>
 
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/combine.hpp>
@@ -30,28 +31,33 @@ namespace rendering {
 ////////////////////////////////////////////////////////////////////////////////
 template<
 	typename id_type,
-	typename model_iterator, 
+	typename model_file_iterator, 
 	typename transformation_iterator>
 class assets {
+private:
+	using model_file_type = typename std::iterator_traits<model_file_iterator>::value_type;
+	static_assert(std::is_convertible<model_file_type*, path*>::value, 
+		"The model_file_iterator must reference a type which can be converted to a path.");
+
 public:
-	using model_range = boost::iterator_range<model_iterator>;
+	using model_file_range = boost::iterator_range<model_file_iterator>;
 	using transformation_range = boost::iterator_range<transformation_iterator>;
 	using model_container = std::vector<std::shared_ptr<gpu::model>>;
 	using external_entities = std::tuple<
 		id_type,
-		model_range, 
+		model_file_range, 
 		transformation_range>;
 	using entities = std::tuple<
-		model_range, 
+		model_file_range, 
 		transformation_range, 
 		model_container>;
 	using entities_container = std::unordered_map<id_type, entities>;
 
-	using model_identifier = typename std::iterator_traits<model_iterator>::value_type;
-	using model_map = tbb::concurrent_hash_map<model_identifier, std::weak_ptr<gpu::model>>;
+	using model_map = resource_map<gpu::model>;
 
 	using dirty_entities_container = tbb::concurrent_queue<external_entities>;
-	using dirty_model_container = tbb::concurrent_queue<model_identifier>;
+	using dirty_model_file_container = tbb::concurrent_queue<path>;
+	using missing_model_file_container = dirty_model_file_container;
 
 	using light_container = std::vector<std::reference_wrapper<light>>;
 
@@ -67,14 +73,19 @@ public:
 	// Emptied by calling update
 	dirty_entities_container dirty_statics, removed_statics;
 	// Emptied by calling update
-	dirty_model_container dirty_models;
+	dirty_model_file_container dirty_model_files;
+	// Emptied by calling import_missing_models
+	missing_model_file_container missing_model_files;
 
 	// Emptied by calling update
 	light_container lights, shadow_casting_lights;
 	// N/A
 	gpu::buffer light_buffer;
 
+	// Not thread-safe. Do not change while member functions are running
+	// except for import_task (which creates a local copy).
 	path asset_directory;
+	// N/A
 	tbb::task_group import_group;
 
 
@@ -109,18 +120,18 @@ public:
 			auto existing = statics.find(get<id_type>(entities));
 
 			// Associated models
+			auto& model_files = get<model_file_range>(entities);
 			vector<shared_ptr<model>> associated_models;
-			auto& model_range_ = get<model_range>(entities);
-			associated_models.reserve(model_range_.size());
-			for (const auto& model_identifier : model_range_) 
+			associated_models.reserve(model_files.size());
+			for (auto file : model_files) 
 			{
+				file.make_preferred();
 				{
-					using model_map = decltype(this->models);
 					model_map::accessor accessor;
 					auto new_model = make_shared<model>();
 
 					// Attempt to insert new_model
-					models.insert(accessor, {model_identifier, new_model});
+					models.insert(accessor, {file, new_model});
 					// The returned model can be either the new_model or an existing model
 					auto model = accessor->second.lock();
 					// The model has expired. Thus the insertion must have returned an existing model...
@@ -132,29 +143,41 @@ public:
 				}
 			
 				// Mark the entity's model as dirty
-				dirty_models.push(model_identifier);
+				dirty_model_files.push(std::move(file));
 			}
 
 			// Existing entities
 			if (statics.end() != existing) get<model_container>(existing->second) = move(associated_models);
 			// New entities
-			else statics.emplace(std::piecewise_construct, forward_as_tuple(get<id_type>(entities)), forward_as_tuple(get<model_range>(entities), get<transformation_range>(entities), move(associated_models)));
+			else statics.emplace(std::piecewise_construct, forward_as_tuple(get<id_type>(entities)), forward_as_tuple(get<model_file_range>(entities), get<transformation_range>(entities), move(associated_models)));
 		}
 	}
 	// Thread-safe; immediate (enqueues a parallel task and returns)
 	void update_models() {
-		for (model_identifier model; dirty_models.try_pop(model);)
-			import_group.run([this, model = std::move(model)] { import_model(std::move(model)); });
+		for (path file; dirty_model_files.try_pop(file);)
+			import_group.run([this, file = std::move(file)] { import_model(std::move(file), asset_directory); });
+	}
+	// Thread-safe; immediate (enqueues a parallel task and returns)
+	void import_missing_models() {
+		// Make a local copy of the currently missing model files...
+		std::vector<path> local_missing_model_files;
+		for (path file; missing_model_files.try_pop(file);)
+			local_missing_model_files.emplace_back(file);
+
+		// ...to avoid an infinite loop here (as the models might still be missing and
+		// continuously added to missing_model_files).
+		for (auto file : local_missing_model_files)
+			import_group.run([this, file = std::move(file)] { import_model(std::move(file), asset_directory); });
 	}
 	// Must be called by an OpenGL thread
 	void upload_models() {
 		bool static_lights_need_update{false};
 		for (models_to_upload_container::value_type entry; models_to_upload.try_pop(entry);)
 		{
-			auto& model_identifier = std::get<0>(entry);
+			auto& file = std::get<0>(entry);
 
 			model_map::accessor accessor;
-			if (!models.find(accessor, model_identifier)) assert(false);
+			if (!models.find(accessor, file)) assert(false);
 
 			auto gpu_model = accessor->second.lock();
 
@@ -226,10 +249,10 @@ public:
 		using namespace gpu;
 
 		for (textures_to_upload_container::value_type entry; textures_to_upload.try_pop(entry);) {
-			auto& texture_identifier = entry.first;
+			auto& file = entry.first;
 
 			texture_map::accessor accessor;
-			if (!textures.find(accessor, texture_identifier)) assert(false);
+			if (!textures.find(accessor, file)) assert(false);
 		
 			auto gpu_texture = accessor->second.lock();
 
@@ -251,24 +274,30 @@ public:
 		upload_models();
 	}
 	// Thread-safe; immediate (enqueues a parallel task and returns)
-	bool reload_model( path path ) {
-		canonical_and_preferred(path, asset_directory);
+	bool reload_model( path file ) {
+		if (!try_canonical_and_preferred(file, asset_directory))
+			return false;
 	
-		if (!models.count(path)) return false;
+		if (!models.count(file)) return false;
 
-		BOOST_LOG_TRIVIAL(info) << "Reloading model: " << path;
-		import_group.run([this, path = std::move(path)] { import_model(std::move(path)); });
+		BOOST_LOG_TRIVIAL(info) << "Reloading model: " << file;
+		import_group.run([this, file = std::move(file)] { import_model(std::move(file), asset_directory); });
 		return true;
 	}
 	// Thread-safe; immediate (enqueues a parallel task and returns)
-	bool reload_texture( path path ) {
-		canonical_and_preferred(path, asset_directory);
+	bool reload_texture( path file ) {
+		if (!try_canonical_and_preferred(file, asset_directory))
+			return false;
 
-		if (!textures.count(path)) return false;
+		if (!textures.count(file)) return false;
 
-		BOOST_LOG_TRIVIAL(info) << "Reloading texture: " << path;
-		import_group.run([this, path = std::move(path)] { import_texture(std::move(path)); });
+		BOOST_LOG_TRIVIAL(info) << "Reloading texture: " << file;
+		import_group.run([this, file = std::move(file)] { import_texture(std::move(file)); });
 		return true;
+	}
+	// Thread-safe; immediate (enqueues a parallel task and returns)
+	bool reload( const path& file ) {
+		return reload_model(file) || reload_texture(file);
 	}
 
 	// Thread-safe; immediate (registers work and awaits an update call)
@@ -290,8 +319,8 @@ public:
 
 
 private:
-	using models_to_upload_container = tbb::concurrent_queue<std::tuple<model_identifier, cpu::model, std::vector<std::shared_ptr<gpu::texture>>>>;
-	using textures_to_upload_container = tbb::concurrent_queue<std::pair<gpu::texture_identifier, cpu::texture>>;
+	using models_to_upload_container = tbb::concurrent_queue<std::tuple<path, cpu::model, std::vector<std::shared_ptr<gpu::texture>>>>;
+	using textures_to_upload_container = tbb::concurrent_queue<std::pair<path, cpu::texture>>;
 
 	// Emptied by calling update
 	models_to_upload_container models_to_upload;
@@ -301,87 +330,90 @@ private:
 
 
 	// Thread-safe; blocking
-	void import_model( model_identifier path ) {
+	template<typename resource>
+	bool try_get( const resource_map<resource>& map, const path& file, std::shared_ptr<resource>& resource_ ) {
+		resource_map<resource>::const_accessor accessor;
+		if (!map.find(accessor, file) || !(resource_ = accessor->second.lock()))
+			return false;
+		return true;
+	}
+
+	// Thread-safe; blocking
+	void import_model( path file, path directory ) {
 		using namespace std;
 		using namespace gpu;
 
-		shared_ptr<model> gpu_model;
-		{
-			model_map::const_accessor accessor;
-			if (!models.find(accessor, path)) return;
-			if (!(gpu_model = accessor->second.lock())) return;
-		}
-
-		auto original_path = path;
-		if (!canonical_and_preferred(path, asset_directory))
-		{
-			BOOST_LOG_TRIVIAL(warning) << "Missing model " << path;
+		system::error_code error_code;
+		auto canonical_file = canonical_and_preferred(file, directory, error_code);
+		if (error_code) {
+			missing_model_files.emplace(file);
+			BOOST_LOG_TRIVIAL(warning) << "Missing model " << file;
 			return;
 		}
 
+		// Attempt to get the GPU model associated with the file. This may fail if the model
+		// is deleted before this function is called.
+		shared_ptr<model> gpu_model;
+		if (!try_get(models, file, gpu_model)) return;
 
-		cpu::model cpu_model{path, defer_import};
+
+		cpu::model cpu_model{canonical_file, defer_import};
 
 		// No need to load unmodified models
 		if (gpu_model->checksum == cpu_model.checksum) return;
 
 		// Import the model
-		if (cpu_model.import(path))
+		if (!cpu_model.import(canonical_file)) return;
+
+		// Handle textures
+		unordered_set<path> texture_files;
+		for (const auto& mesh : cpu_model.meshes)
 		{
-			// Handle textures
-			unordered_set<black_label::path> texture_paths;
-			for (const auto& mesh : cpu_model.meshes)
-			{
-				if (!mesh.material.diffuse_texture.empty())
-					texture_paths.emplace(mesh.material.diffuse_texture);
-				if (!mesh.material.specular_texture.empty())
-					texture_paths.emplace(mesh.material.specular_texture);
-			}
-
-			vector<shared_ptr<texture>> gpu_textures(texture_paths.size());
-			for (const auto& texture_path : texture_paths)
-			{
-				texture_map::accessor accessor;
-				auto new_texture = make_shared<texture>();
-
-				// Attempt to insert new_texture
-				textures.insert(accessor, {texture_path, new_texture});
-				// The returned texture can be either the new_texture or an existing texture
-				auto texture = accessor->second.lock();
-				// The texture has expired. Thus the insertion must have returned an existing texture...
-				if (!texture)
-					// ...which is replaced.
-					accessor->second = texture = move(new_texture);
-
-				gpu_textures.emplace_back(move(texture));
-			}
-
-			for (const auto& texture_path : texture_paths) 
-				import_group.run([this, texture_path] { import_texture(move(texture_path)); });
-
-			models_to_upload.push(make_tuple(move(original_path), move(cpu_model), move(gpu_textures)));
+			if (!mesh.material.diffuse_texture.empty())
+				texture_files.emplace(mesh.material.diffuse_texture);
+			if (!mesh.material.specular_texture.empty())
+				texture_files.emplace(mesh.material.specular_texture);
 		}
+
+		vector<shared_ptr<texture>> gpu_textures(texture_files.size());
+		for (const auto& texture_file : texture_files)
+		{
+			texture_map::accessor accessor;
+			auto new_texture = make_shared<texture>();
+
+			// Attempt to insert new_texture
+			textures.insert(accessor, {texture_file, new_texture});
+			// The returned texture can be either the new_texture or an existing texture
+			auto texture = accessor->second.lock();
+			// The texture has expired. Thus the insertion must have returned an existing texture...
+			if (!texture)
+				// ...which is replaced.
+				accessor->second = texture = move(new_texture);
+
+			gpu_textures.emplace_back(move(texture));
+		}
+
+		for (const auto& texture_file : texture_files) 
+			import_group.run([this, texture_file] { import_texture(move(texture_file)); });
+
+		models_to_upload.push(make_tuple(move(file), move(cpu_model), move(gpu_textures)));
 	}
 	// Thread-safe; blocking
-	void import_texture( path path ) {
+	void import_texture( path file ) {
 		using namespace std;
 		using namespace gpu;
 
 		shared_ptr<texture> gpu_texture;
-		{
-			texture_map::accessor accessor;
-			if (!textures.find(accessor, path)) return;
-			if (!(gpu_texture = accessor->second.lock())) return;
-		}
+		if (!try_get(textures, file, gpu_texture)) return;
 
-		cpu::texture cpu_texture{path, defer_import};
+		cpu::texture cpu_texture{file, defer_import};
 
 		// No need to load unmodified textures
 		if (gpu_texture->checksum == cpu_texture.checksum) return;
 
 		// Import the texture
-		if (cpu_texture.import(path))
-			textures_to_upload.push({move(path), move(cpu_texture)});
+		if (cpu_texture.import(file))
+			textures_to_upload.push({move(file), move(cpu_texture)});
 	}
 };
 

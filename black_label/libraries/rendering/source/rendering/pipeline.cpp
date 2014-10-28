@@ -22,25 +22,29 @@ using namespace boost::property_tree;
 namespace black_label {
 namespace rendering {
 
-pipeline::pipeline( path shader_directory )
-	: complete{false}
-	, shadow_mapping{
+void pipeline::reload_shadow_mapping() {
+	auto vertex_file = shader_directory / "null.vertex.glsl";
+	auto fragment_file = shader_directory / "null.fragment.glsl";
+	if (!is_regular_file(vertex_file) || !is_regular_file(fragment_file)) return;
+
+	shadow_mapping = basic_pass{
 		"shadow_mapping",
 		add_program(program::configuration()
 			.vertex_shader(shader_directory / "null.vertex.glsl")
 			.fragment_shader(shader_directory / "null.fragment.glsl")
-			.preprocessor_commands("#version 330\n"), 
-			shader_directory),
+			.preprocessor_commands("#version 330\n")),
 		GL_DEPTH_BUFFER_BIT,
 		GL_BACK,
 		render_mode{}
 			.set(render_mode::statics)
 			.set(render_mode::dynamics)
-			.set(render_mode::test_depth)}
-{}
+			.set(render_mode::test_depth)};
+}
 
-bool pipeline::import( path pipeline_file, path shader_directory, const view& view )
+bool pipeline::import( path pipeline_file )
 {
+	BOOST_LOG_TRIVIAL(info) << "Importing pipeline file " << pipeline_file << "...";
+
 	programs.clear();
 	textures.clear();
 	buffers.clear();
@@ -49,6 +53,8 @@ bool pipeline::import( path pipeline_file, path shader_directory, const view& vi
 	passes.clear();
 
 	try {
+		pipeline_file = canonical_and_preferred(pipeline_file, shader_directory);
+
 		ptree ptree;
 		read_json(pipeline_file.string(), ptree);
 		
@@ -275,7 +281,7 @@ bool pipeline::import( path pipeline_file, path shader_directory, const view& vi
 			for (const auto& output_textures_value : output_textures)
 				configuration.add_fragment_output(output_textures_value.first);
 
-			auto program_ = add_program(configuration, shader_directory);
+			auto program_ = add_program(configuration);
 
 			passes.emplace_back(
 				move(name),
@@ -288,16 +294,20 @@ bool pipeline::import( path pipeline_file, path shader_directory, const view& vi
 				post_memory_barrier_mask,
 				face_culling_mode,
 				render_mode,
-				&view);
+				view);
 		}
 	} 
-	catch (exception exception)
+	catch (const exception& exception)
 	{
-		BOOST_LOG_TRIVIAL(error) << "Error reading " << pipeline_file << ": " << exception.what(); 
+		BOOST_LOG_TRIVIAL(warning) << "Error reading " << pipeline_file << ": " << exception.what(); 
 		return complete = false;
 	}
 
-	on_window_resized(view.window.x, view.window.y);
+	reload_shadow_mapping();
+	on_window_resized(view->window.x, view->window.y);
+
+	BOOST_LOG_TRIVIAL(info) << "Imported pipeline file " << pipeline_file << ".";
+
 	return complete = true;
 }
 
@@ -317,7 +327,7 @@ bool pipeline::reload_program( path program_file )
 	return true;
 }
 
-std::shared_ptr<program> pipeline::add_program(program::configuration configuration, path shader_directory)
+std::shared_ptr<program> pipeline::add_program( program::configuration configuration )
 {
 	auto program_ = make_shared<program>(configuration.shader_directory(shader_directory));
 		
@@ -329,7 +339,7 @@ std::shared_ptr<program> pipeline::add_program(program::configuration configurat
 		programs.insert({configuration.path_to_fragment_shader_, program_});
 
 	auto info_log = program_->get_aggregated_info_log();
-	if (!info_log.empty()) BOOST_LOG_TRIVIAL(error) << info_log;
+	if (!info_log.empty()) BOOST_LOG_TRIVIAL(warning) << info_log;
 
 	return program_;
 }

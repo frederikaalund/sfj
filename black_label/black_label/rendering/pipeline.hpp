@@ -33,6 +33,8 @@ public:
 	{
 		using std::swap;
 		swap(lhs.complete, rhs.complete);
+		swap(lhs.view, rhs.view);
+		swap(lhs.shader_directory, rhs.shader_directory);
 		swap(lhs.programs, rhs.programs);
 		swap(lhs.textures, rhs.textures);
 		swap(lhs.buffers, rhs.buffers);
@@ -42,27 +44,35 @@ public:
 		swap(lhs.shadow_mapping, rhs.shadow_mapping);
 	}
 
-	pipeline( path shader_directory );
-	pipeline( path pipeline_file, path shader_directory, const view& view )
-		: pipeline{shader_directory}
-	{ import(pipeline_file, shader_directory, view); }
-	pipeline( pipeline&& other ) : pipeline{""} { swap(*this, other); };
+	pipeline( const black_label::rendering::view* view = nullptr, path shader_directory = path{} )
+		: complete{false}
+		, view{view}
+		, shader_directory{std::move(shader_directory)}	
+	{}
+	pipeline( const black_label::rendering::view* view, path shader_directory, path pipeline_file)
+		: pipeline{view, std::move(shader_directory)}
+	{ import(pipeline_file); }
+	pipeline( pipeline&& other ) : pipeline{} { swap(*this, other); };
 	pipeline& operator=( pipeline rhs ) { swap(*this, rhs); return *this; }
 
 	bool is_complete() const {
-		return complete && boost::algorithm::all_of(programs | boost::adaptors::map_values, 
+		return complete && shadow_mapping.program->is_complete()
+			&& boost::algorithm::all_of(programs | boost::adaptors::map_values, 
 			[] ( const auto& program ) { return program.lock()->is_complete(); });
 	}
-	bool import( path pipeline_file, path shader_directory, const view& view );
-	bool reload( path path_, path shader_directory, const view& view ) {
-		canonical_and_preferred(path_, shader_directory);
+	bool import( path pipeline_file );
+	bool reload( path file ) {
+		if (!try_canonical_and_preferred(file, shader_directory))
+			return false;
 
 		// Program files
-		if (".glsl" == path_.extension())
-			return reload_program(path_);
-		// Program files
-		if (".json" == path_.extension())
-			return import(path_, shader_directory, view);;
+		if (".glsl" == file.extension())
+			return reload_program(file);
+		// Pipeline files
+		if (".pipeline.json" == extension(file, 2)) {
+			BOOST_LOG_TRIVIAL(info) << "Reloading pipeline file: " << file;
+			return import(file);
+		}
 
 		return false;
 	}
@@ -136,6 +146,8 @@ public:
 
 
 	bool complete;
+	const view* view;
+	path shader_directory;
 	program_container programs;
 	texture_container textures;
 	buffer_container buffers;
@@ -148,8 +160,9 @@ public:
 
 
 private:
+	void reload_shadow_mapping();
 	bool reload_program( path program_file );
-	std::shared_ptr<program> add_program( program::configuration configuration, path shader_directory );
+	std::shared_ptr<program> add_program( program::configuration configuration );
 };
 
 

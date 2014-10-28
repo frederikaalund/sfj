@@ -260,7 +260,7 @@ void program::reload( path program_file ) {
 
 	auto info_log = get_aggregated_info_log();
 		if (!info_log.empty())
-			BOOST_LOG_TRIVIAL(error) << info_log;
+			BOOST_LOG_TRIVIAL(warning) << info_log;
 }
 
 std::string program::get_info_log() const
