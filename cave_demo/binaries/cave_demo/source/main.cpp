@@ -75,7 +75,8 @@ void create_world( rendering_assets_type& rendering_assets ) {
 	//});
 }
 void strafe_view( view& view ) {
-	const float increment{1.0f};
+	auto increment = (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
+		? 5.0f : 1.0f;
 
 	glm::vec3 strafe{0.0f};
 
@@ -150,6 +151,13 @@ int main( int argc, char const* argv[] )
 			glm::vec3{300.0f, 200.0f, -300.0f}, 
 			glm::vec3{0.0f, 1.0f, 0.0f}, 
 			options.window.width, options.window.height};
+		//view view{
+		//	glm::vec3{1200.0f, 200.0f, 200.0f}, 
+		//	glm::vec3{300.0f, 200.0f, -300.0f}, 
+		//	glm::vec3{0.0f, 1.0f, 0.0f}, 
+		//	options.window.width, options.window.height,
+		//	-100.0f, 100.0f,
+		//	-100.0f, 100.0f};
 		window window{view.window.x, view.window.y};
 		
 		black_label::rendering::initialize();
@@ -234,7 +242,7 @@ int main( int argc, char const* argv[] )
 			// Overlay rendering statistics
 			draw_statistics(window, options.rendering.asset_directory, rendering_pipeline, options.is_complete());
 
-			export_rendering_assets_information(rendering_assets);
+			//export_rendering_assets_information(rendering_assets);
 
 			// Check for configuration, shader, and asset updates
 			file_system_watcher.update();

@@ -5,6 +5,7 @@
 uniform sampler2D diffuse_texture;
 
 uniform ivec2 window_dimensions;
+uniform uint32_t total_data_offset;
 
 
 
@@ -25,31 +26,29 @@ struct vertex_data
 	vec2 oc_texture_coordinate;
 };
 in vertex_data vertex;
-layout(pixel_center_integer) in uvec2 gl_FragCoord;
 
 
 
-uint32_t allocate() { return window_dimensions.x * window_dimensions.y + atomicCounterIncrement(count); }
+uint32_t allocate() { return total_data_offset + atomicCounterIncrement(count); }
 
 
 uint32_t computeData(vec4 clr) { 
-
 	return (uint32_t(clr.x*255.0) << 24u) + (uint32_t(clr.y*255.0) << 16u) + (uint32_t(clr.z*255.0) << 8u) + (uint32_t(0.1*255.0)); 
 } 
 
 
 
-#define MAX_ITER                2048     // never reached on normal operation
 void main()
 {
 	vec2 tc_texture_coordinates = vec2(vertex.oc_texture_coordinate.x, 1.0 - vertex.oc_texture_coordinate.y);
 	vec4 diffuse = texture(diffuse_texture, tc_texture_coordinates);
 
 	uint32_t compressed_diffuse = computeData(diffuse);
+	//float depth = gl_FragCoord.z;
 	float depth = vertex.negative_ec_position_z;
 
 	// Calculate indices
-	uint32_t head = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
+	uint32_t head = total_data_offset + uint32_t(gl_FragCoord.x) + uint32_t(gl_FragCoord.y) * window_dimensions.x;
 	uint32_t new = allocate();
 
 	// Store fragment data in node
@@ -68,7 +67,8 @@ void main()
 	// that the algorithm terminates eventually. Still, the number of iterations
 	// is capped due to hardware constraints.
 	//for (;;) {
-	for (int i = 0; i < MAX_ITER; ++i) {
+	const int max_iterations = 2048;
+	for (int i = 0; i < max_iterations; ++i) {
 		// We are either at the end of the list or just before a node of greater depth...
 		if (current == 0 || depth < data[current].depth) {
 			// ...so we attempt to insert the new node here. First,
@@ -100,16 +100,4 @@ void main()
 			current = atomicAdd(data[current].next, 0); // Atomic read
 		}
 	}
-
-
-	// // Using post-lin
-	// // Store fragment data in node
-	// data[new].compressed_diffuse = compressed_diffuse;
-	// data[new].depth = vertex.negative_ec_position_z;
-	
-	// // Update head index
-	// uint32_t old_head = atomicExchange(data[head].next, new);
-	// // Store next index
-	// data[new].next = old_head;
-
 }

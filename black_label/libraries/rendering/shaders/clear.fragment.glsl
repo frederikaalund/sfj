@@ -27,6 +27,9 @@ layout(pixel_center_integer) in uvec2 gl_FragCoord;
 void main()
 {
 	uint32_t index = gl_FragCoord.x + gl_FragCoord.y * window_dimensions.x;
-	data[index].next = 0;
+	//data[index].next = 0; // TODO: Reset for ALL views. Not just the first!
+	for (int i = 0; i < 10; ++i)
+		data[i*window_dimensions.x*window_dimensions.y + index].next = 0;
+
 	debug_view[index] = 0;
 }

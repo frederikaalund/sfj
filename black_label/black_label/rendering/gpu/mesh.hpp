@@ -24,7 +24,7 @@ namespace black_label {
 namespace rendering {
 namespace gpu {
 
-using texture_map = resource_map<texture>;
+using texture_map = concurrent_resource_map<texture>;
 
 class mesh
 {

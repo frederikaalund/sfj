@@ -41,8 +41,19 @@ void view::on_window_resized( int width, int height )
 	window_f.x = static_cast<float>(window.x);
 	window_f.y = static_cast<float>(window.y);
 	aspect_ratio = window_f.x / window_f.y;
-	projection_matrix = glm::perspective(fovy, aspect_ratio, z_near, z_far);
-	view_projection_matrix = projection_matrix * view_matrix;
+	switch (projection) {
+	case orthographic:
+		projection_matrix = glm::ortho(left, right_, bottom, top, z_near, z_far);
+		break;
+	case perspective:
+		projection_matrix = glm::perspective(fovy, aspect_ratio, z_near, z_far);
+		break;
+	case none: break;
+	default: assert(false);
+	}
+
+	if (none != projection)
+		view_projection_matrix = projection_matrix * view_matrix;
 }
 
 } // namespace rendering

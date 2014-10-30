@@ -17,15 +17,63 @@ namespace rendering {
 class BLACK_LABEL_SHARED_LIBRARY view
 {
 public:
+	enum projection { perspective, orthographic, none };
+
 	view() {}
 
+	// None
+	view( int width, int height ) 
+		: projection{none}
+	{ on_window_resized(width, height); }
+
+	// Orthographic
+	view( 
+		const glm::vec3 eye,
+		const glm::vec3 target, 
+		const glm::vec3 sky,
+		float left,
+		float right_,
+		float bottom,
+		float top,
+		float z_near = 10.0f,
+		float z_far = 10000.0f )
+		: projection{orthographic}
+		, eye{eye}
+		, target{target}
+		, sky{sky}
+		, left{left}
+		, right_{right_}
+		, bottom{bottom}
+		, top{top}
+		, z_near{z_near}
+		, z_far{z_far}
+	{ on_view_moved(); }
+
+	// Orthographic
+	view( 
+		const glm::vec3 eye,
+		const glm::vec3 target, 
+		const glm::vec3 sky,
+		int width,
+		int height,
+		float left,
+		float right_,
+		float bottom,
+		float top,
+		float z_near = 10.0f,
+		float z_far = 10000.0f )
+		: view{eye, target, sky, left, right_, bottom, top, z_near, z_far}
+	{ on_window_resized(width, height); }
+
+	// Perspective
 	view( 
 		const glm::vec3 eye,
 		const glm::vec3 target, 
 		const glm::vec3 sky,
 		float z_near = 10.0f,
 		float z_far = 10000.0f )
-		: eye{eye}
+		: projection{perspective}
+		, eye{eye}
 		, target{target}
 		, sky{sky}
 		, fovy{glm::radians(45.0f)}
@@ -58,13 +106,20 @@ public:
 
 MSVC_PUSH_WARNINGS(4251)
   
+	projection projection;
+
 	glm::mat4 view_matrix, projection_matrix, view_projection_matrix;
 	glm::vec3 eye, target, sky;
 
 	glm::ivec2 window;
 	glm::vec2 window_f;
 	
-	float 
+	// TODO: Divide into a union (orthographic / perspective)
+	float
+		left,
+		right_,
+		bottom,
+		top,
 		fovy,
 		aspect_ratio,
 		z_near,

@@ -301,78 +301,246 @@ vec4 blend(vec4 clr, vec4 srf)
   return clr + (1.0 - clr.w) * vec4(srf.xyz * srf.w , srf.w);  
 }
 
-
-
-
-void main()
-{
-
-
+vec4 oit() {
 	// Get the head node
 	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
 	uint32_t current = data[heads_index].next;
 
-/*
-
-
 	// Constants
 	const int max_list_length = 100;
 
-	// Local arrays
-	float valdepth[max_list_length];
-	uint32_t valrgba[max_list_length];
-	
-	// Copy the list into the local arrays
-	// int list_length = 0;
-	// while (0 != current && list_length < max_list_length) {
-	// 	valdepth[list_length] = data[current].depth;
-	// 	valrgba[list_length] = data[current].compressed_diffuse;
-
-	// 	current = data[current].next;
-	// 	list_length++;
-	// }
-
+	vec4 color = vec4(0.0);
 	int list_length = 0;
-	color = vec4(0.0);
 	while (0 != current && list_length < max_list_length) {
 		//color = blend(decompress(data[current].compressed_diffuse), color);
 		color = blend(decompress(data[current].compressed_diffuse), color);
 
 		current = data[current].next;
-		list_length++;
+		++list_length;
 	}
 
-	if (list_length == max_list_length) {
-		color = vec4(1.0, 0.0, 0.0, 0.0);
-		return;
+	if (list_length == max_list_length)
+		return vec4(1.0, 0.0, 0.0, 0.0);
+
+	return color;
+}
+
+
+
+
+vec4 get_view_color( in int view_id ) {
+	const vec4 colors[3] = {vec4(0.0, 1.0, 0.0, 0.0), vec4(0.0, 0.0, 1.0, 0.0), vec4(1.0, 0.0, 0.0, 0.0)};
+	return colors[view_id % 3];
+}
+
+
+vec4 get_debug_view() {
+	// Get the head nodes
+	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
+	uint32_t current = data[heads_index].next;
+
+	if (0 < debug_view[heads_index])
+		return get_view_color(int(debug_view[heads_index] - 1));
+	return vec4(0.0);
+}
+
+
+
+
+
+
+struct view_type {
+	mat4 view_matrix, projection_matrix, view_projection_matrix;
+	vec4 eye;
+	vec4 right, forward, up;
+	ivec2 dimensions;
+};
+
+layout(std140) uniform user_view_block
+{ view_type user_view; };
+
+layout(std140) uniform view_block
+{ view_type views[7]; };
+
+layout(std140) uniform data_offset_block
+{ uvec4 data_offsets[7]; };
+
+
+vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
+	view_type view = views[view_id];
+	uint32_t data_offset = data_offsets[view_id];
+
+	// Coordinate transformations
+	vec4 cc_position = view.view_projection_matrix * vec4(wc_position, 1.0);
+	if (cc_position.x > cc_position.w || cc_position.x < -cc_position.w
+		|| cc_position.y > cc_position.w || cc_position.y < -cc_position.w
+		|| cc_position.z > cc_position.w || cc_position.z < -cc_position.w)
+		return vec4(0.1, 0.1, 0.1, 0.0);
+	vec3 ndc_position = cc_position.xyz / cc_position.w;
+	vec3 tc_position = (ndc_position + vec3(1.0)) * 0.5;
+	uvec2 window_position = uvec2(tc_position.xy * view.dimensions);
+
+	vec3 wc_eye = view.eye.xyz;
+	vec3 right = view.right.xyz;
+	vec3 forward = view.forward.xyz;
+	vec3 up = view.up.xyz;
+
+	// Othographic
+	const float right_scale = 1000.0;
+	const float top_scale = 1000.0;
+
+
+//float depth = -(view.view_matrix * vec4(wc_position, 1.0)).z;
+//vec3 direction = (
+//	forward * depth
+//	+ right * right_scale * ndc_position.x
+//	+ up * top_scale * ndc_position.y);
+//vec3 wc_sample_position = wc_eye + direction;
+//return vec4(wc_position / 1000.0, 0.0);
+//return vec4(wc_sample_position / 1000.0, 0.0);
+
+
+
+	// Get the head node
+	uint32_t heads_index = data_offset + window_position.x + window_position.y * view.dimensions.x;
+	uint32_t current = data[heads_index].next;
+
+	if (0 == current)
+		return vec4(1.0, 1.0, 1.0, 0.0);
+
+	const int max_list_length = 200;
+	const float distance_threshold = 0.1;
+	float min_distance = distance_threshold;
+	int list_length = 0;
+	while (0 != current && list_length < max_list_length) {
+		float depth = data[current].depth;
+		vec3 direction = (
+			forward * depth
+			+ right * right_scale * ndc_position.x
+			+ up * top_scale * ndc_position.y);
+		vec3 wc_sample_position = wc_eye + direction;
+
+		float sample_distance = distance(wc_sample_position, wc_position);
+		if (sample_distance < min_distance) {
+			min_distance = sample_distance;
+		}
+
+		current = data[current].next;
+		++list_length;
 	}
-	
-	// Sort the local arrays according to depth
-	// for (int i = (list_length - 2); i >= 0; --i) {
-	// 	for (int j = 0; j <= i; ++j) {
-	// 		if (valdepth[j] >= valdepth[j+1]) {
-	// 			float tmp       = valdepth[j];
-	// 			valdepth[j]     = valdepth[j+1];
-	// 			valdepth[j+1]   = tmp;
-	// 			uint32_t tmp2   = valrgba[j];
-	// 			valrgba[j]      = valrgba[j+1];
-	// 			valrgba[j+1]    = tmp2;
-	// 		}
-	// 	}
-	// }
 
-	// Blend the color in the sorted array
-	// color = vec4(0.0);
-	// for (int k = 0; k < list_length; k++) {
-	// 	color = blend(color, decompress(valrgba[k]));
-	// }
+	if (max_list_length == list_length)
+		return vec4(1.0, 1.0, 1.0, 0.0);
+
+	if (distance_threshold > min_distance)
+		return get_view_color(view_id);
+
+	return vec4(0.0);
+}
+
+vec4 sampling_test( in vec3 wc_position ) {
+	vec4 result = vec4(0.0);
+	for (int i = 0; i < 1; ++i)
+		result += draw_view_as_points(i, wc_position);
+	return result;
+}
 
 
 
-return;
 
-*/
 
+float visibility( in vec3 wc_view_direction, in vec3 wc_normal, in float occluder_distance ) {
+	float weight = max(dot(wc_view_direction, wc_normal), 0.0);
+	return 1.0 - weight * min(200.0 / (occluder_distance * occluder_distance), 1.0);	
+}
+
+float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 wc_normal ) {
+	// Normal bias (virtually translate scene along normal vectors)
+	float cos_alpha = clamp(dot(wc_normal, light.wc_direction.xyz), 0.0, 1.0);
+    float normal_bias_coefficient = sqrt(1.0 - cos_alpha * cos_alpha); // <=> sin(acos(wc_normal, light_direction));
+	wc_position += wc_normal * normal_bias_coefficient * 4.0;
+
+s
+	view_type view = views[view_id];
+	uint32_t data_offset = data_offsets[view_id];
+
+	// Coordinate transformations
+	vec4 cc_position = view.view_projection_matrix * vec4(wc_position, 1.0);
+	if (cc_position.x > cc_position.w || cc_position.x < -cc_position.w
+		|| cc_position.y > cc_position.w || cc_position.y < -cc_position.w
+		|| cc_position.z > cc_position.w || cc_position.z < -cc_position.w)
+		return vec4(1.0);
+	vec3 ndc_position = cc_position.xyz / cc_position.w;
+	vec3 tc_position = (ndc_position + vec3(1.0)) * 0.5;
+	uvec2 window_position = uvec2(tc_position.xy * view.dimensions);
+
+	vec3 wc_eye = view.eye.xyz;
+	vec3 right = view.right.xyz;
+	vec3 forward = view.forward.xyz;
+	vec3 up = view.up.xyz;
+
+	// Othographic
+	const float right_scale = 1000.0;
+	const float top_scale = 1000.0;
+
+	// Get the head node
+	uint32_t heads_index = data_offset + window_position.x + window_position.y * view.dimensions.x;
+	uint32_t current = data[heads_index].next;
+
+	const int max_list_length = 200;
+	const float distance_threshold = 999999.0;
+	float min_distance = distance_threshold;
+	float previous_distance = min_distance;
+	float next_distance = min_distance;
+	bool get_next = false;
+
+	int list_length = 0;
+	while (0 != current && list_length < max_list_length) {
+		float depth = data[current].depth;
+		vec3 direction = (
+			forward * depth
+			+ right * right_scale * ndc_position.x
+			+ up * top_scale * ndc_position.y);
+		vec3 wc_sample_position = wc_eye + direction;
+
+		float sample_distance = distance(wc_sample_position, wc_position);
+
+		if (get_next) {
+			get_next = false;
+			next_distance = sample_distance;
+		}
+
+		if (sample_distance < min_distance) {
+			previous_distance = min_distance;
+			min_distance = sample_distance;
+			get_next = true;
+		}
+
+		current = data[current].next;
+		++list_length;
+	}
+	if (get_next)
+		next_distance = distance_threshold;
+
+	float V1 = visibility(view.forward.xyz, wc_normal, next_distance);
+	float V2 = visibility(-view.forward.xyz, wc_normal, previous_distance);
+
+	return (V1 + V2) / 2.0;
+}
+
+float visibility( in vec3 wc_position, in vec3 wc_normal ) {
+	float result = 0.0;
+	const int views = 7;
+	for (int i = 0; i < views; ++i)
+		result += visibility_both_directions(i, wc_position, wc_normal);
+	return result / float(views);
+}
+
+
+
+
+void main()
+{
 	vec2 tc_window = gl_FragCoord.xy / window_dimensions;
 	float ec_position_z = get_ec_z(depths, tc_window, projection_matrix);
 	vec3 wc_position = wc_view_eye_position + vertex.wc_view_ray_direction * -ec_position_z / z_far;
@@ -411,15 +579,15 @@ return;
 		 	uniform_distribution_random);
 
 	// Indirect light
-	color.rgb += 0.125 * albedo * ambient_occlusion_factor;
-
-	// Debug view
-	//color.rgb = vec3(color.r);
-	color.rgb = vec3(0.0);
-	if (1 == debug_view[heads_index])
-		color.rgb = vec3(0.0, debug_view[heads_index], 0.0);
+	color.rgb += 0.08 * albedo;
+	//color.rgb += 0.08 * albedo * ambient_occlusion_factor;
 
 	// Overrides
+	//color = oit();
+	//color.rgb *= 0.1;
+	//color += get_debug_view();
+	color = vec4(visibility(wc_position, wc_normal));
+	//color += sampling_test(wc_position);
 	//color.rgb = wc_position;
 	//color.rgb = vec3(ambient_occlusion_factor);	
 	//color.rgb = vec3(float(counts[index]) / 20.0);

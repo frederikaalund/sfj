@@ -147,7 +147,8 @@ public:
 
 	void render_screen_aligned_quad( const view& view ) const {
 		static screen_aligned_quad screen_aligned_quad;
-		screen_aligned_quad.update(view);
+		if (black_label::rendering::view::perspective == view.projection)
+			screen_aligned_quad.update(view);
 		screen_aligned_quad.mesh.render();
 	}
 
@@ -196,6 +197,7 @@ class pass : public basic_pass
 {
 public:
 	using basic_pass::texture_container;
+	using view_container = std::vector<std::pair<std::string, std::shared_ptr<view>>>;
 	using buffer_container = std::vector<std::pair<std::string, std::shared_ptr<gpu::buffer>>>;
 	using index_bound_buffer_container = std::vector<std::pair<std::string, std::shared_ptr<gpu::index_bound_buffer>>>;
 
@@ -205,13 +207,16 @@ public:
 		std::shared_ptr<black_label::rendering::program> program, 
 		texture_container input_textures,
 		texture_container output_textures,
+		view_container auxiliary_views,
 		buffer_container buffers,
 		index_bound_buffer_container index_bound_buffers,
 		unsigned int clearing_mask,
 		unsigned int post_memory_barrier_mask,
 		unsigned int face_culling_mode,
 		black_label::rendering::render_mode render_mode,
-		const black_label::rendering::view* view ) 
+		const black_label::rendering::view* view,
+		const black_label::rendering::view* user_view,
+		int preincrement_buffer_counter = 0 ) 
 		: basic_pass{
 			std::move(name),
 			std::move(program), 
@@ -220,14 +225,17 @@ public:
 			render_mode}
 		, input_textures(std::move(input_textures))
 		, output_textures(std::move(output_textures))
+		, auxiliary_views(std::move(auxiliary_views))
 		, buffers(std::move(buffers))
 		, index_bound_buffers(std::move(index_bound_buffers))
 		, post_memory_barrier_mask{post_memory_barrier_mask}
 		, view{std::move(view)}
+		, user_view{std::move(user_view)}
+		, preincrement_buffer_counter{preincrement_buffer_counter}
 	{}
 
 	void set_input_textures( unsigned int& texture_unit ) const;
-	void set_buffers( unsigned int& binding_point ) const;
+	void set_buffers( unsigned int& shader_storage_binding_point, unsigned int& uniform_binding_point ) const;
 	void set_uniforms() const;
 	template<typename light_container>
 	void set_lights( 
@@ -275,6 +283,7 @@ public:
 		program->set_uniform("lights_size", light_count);
 #endif
 	}
+	void set_auxiliary_views( unsigned int& uniform_binding_point ) const;
 	void set_memory_barrier() const;
 
 	template<typename assets_type>
@@ -287,9 +296,10 @@ public:
 			shader_storage_binding_point{0};
 		program->use();
 		set_input_textures(texture_unit);
-		set_buffers(shader_storage_binding_point);
+		set_buffers(shader_storage_binding_point, uniform_binding_point);
 		set_uniforms();
 		set_lights(assets.lights, assets.light_buffer, texture_unit, uniform_binding_point);
+		set_auxiliary_views(uniform_binding_point);
 		basic_pass::render(
 			framebuffer, 
 			assets, 
@@ -304,10 +314,14 @@ public:
 	}
 
 	texture_container input_textures, output_textures;
+	view_container auxiliary_views;
 	buffer_container buffers;
 	index_bound_buffer_container index_bound_buffers;
 	unsigned int post_memory_barrier_mask;
-	const black_label::rendering::view* view;
+	const black_label::rendering::view
+		* view,
+		* user_view;
+	int preincrement_buffer_counter;
 };
 
 

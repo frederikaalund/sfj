@@ -149,6 +149,9 @@ void core_program::set_uniform( unsigned int location, int value ) const
 void core_program::set_uniform( unsigned int location, int value1, int value2 ) const
 { glUniform2i(location, value1, value2); }
 
+void core_program::set_uniform( unsigned int location, unsigned int value ) const
+{ glUniform1ui(location, value); }
+
 void core_program::set_uniform( unsigned int location, float value ) const
 { glUniform1f(location, value); }
 

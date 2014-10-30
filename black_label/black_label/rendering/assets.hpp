@@ -53,7 +53,7 @@ public:
 		model_container>;
 	using entities_container = std::unordered_map<id_type, entities>;
 
-	using model_map = resource_map<gpu::model>;
+	using model_map = concurrent_resource_map<gpu::model>;
 
 	using dirty_entities_container = tbb::concurrent_queue<external_entities>;
 	using dirty_model_file_container = tbb::concurrent_queue<path>;
@@ -92,7 +92,7 @@ public:
 
 	assets( path asset_directory ) 
 		: asset_directory(std::move(asset_directory)) 
-		, light_buffer{gpu::target::uniform_buffer, gpu::usage::dynamic_draw, 128}
+		, light_buffer{gpu::target::uniform_buffer, gpu::usage::dynamic_draw, 148}
 	{}
 	assets( const assets& other ) = delete;
 	~assets() {
@@ -331,8 +331,8 @@ private:
 
 	// Thread-safe; blocking
 	template<typename resource>
-	bool try_get( const resource_map<resource>& map, const path& file, std::shared_ptr<resource>& resource_ ) {
-		resource_map<resource>::const_accessor accessor;
+	bool try_get( const concurrent_resource_map<resource>& map, const path& file, std::shared_ptr<resource>& resource_ ) {
+		concurrent_resource_map<resource>::const_accessor accessor;
 		if (!map.find(accessor, file) || !(resource_ = accessor->second.lock()))
 			return false;
 		return true;

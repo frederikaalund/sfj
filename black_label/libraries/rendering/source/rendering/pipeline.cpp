@@ -6,6 +6,8 @@
 #include <boost/log/trivial.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/range/adaptor/map.hpp>
+#include <boost/range/algorithm/find.hpp>
 
 #include <GL/glew.h>
 
@@ -47,6 +49,7 @@ bool pipeline::import( path pipeline_file )
 
 	programs.clear();
 	textures.clear();
+	views.clear();
 	buffers.clear();
 	index_bound_buffers.clear();
 	buffers_to_reset_pre_first_frame.clear();
@@ -55,9 +58,67 @@ bool pipeline::import( path pipeline_file )
 	try {
 		pipeline_file = canonical_and_preferred(pipeline_file, shader_directory);
 
-		ptree ptree;
-		read_json(pipeline_file.string(), ptree);
+		ptree root;
+		read_json(pipeline_file.string(), root);
 		
+		static auto get_vec3 = [] ( const ptree& root ) {
+			assert(3 == root.size());
+			auto first = root.begin();
+			auto x = (*first++).second.get<float>("");
+			auto y = (*first++).second.get<float>("");
+			auto z = (*first++).second.get<float>("");
+			return glm::vec3(x, y, z);
+		};
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// Views
+////////////////////////////////////////////////////////////////////////////////
+		pass::view_container allocated_views;
+		
+		for (auto view_root : root.get_child("views") | boost::adaptors::map_values)
+		{
+			auto name = view_root.get<string>("name");
+			auto width = view_root.get<int>("width");
+			auto height = view_root.get<int>("height");
+
+			// Reserved names
+			static const auto reserved_names = {"user"};
+			if (end(reserved_names) != boost::find(reserved_names, name))
+				throw exception{("Name \"" + name + "\" is reserved.").c_str()};
+
+			shared_ptr<view> view;
+
+			// Orthographic
+			if (auto orthographic_root = view_root.get_child_optional("orthographic")) {
+				auto eye = get_vec3(view_root.get_child("eye"));
+				auto target = get_vec3(view_root.get_child("target"));
+				view = make_shared<black_label::rendering::view>(
+					eye,
+					target,
+					glm::vec3{0.0f, 1.0f, 0.0f},
+					width,
+					height,
+					orthographic_root->get<float>("left"),
+					orthographic_root->get<float>("right"),
+					orthographic_root->get<float>("bottom"),
+					orthographic_root->get<float>("top"),
+					orthographic_root->get<float>("near"),
+					orthographic_root->get<float>("far")
+				);
+			}
+			// Perspective
+			else if (auto perspective_root = view_root.get_child_optional("perspective"))
+				throw exception{"Perspective views are not yet implemented."};
+			// None
+			else
+				view = make_shared<black_label::rendering::view>(width, height);
+
+			allocated_views.emplace_back(name, view);
+			views.emplace(name, view);
+		}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +126,7 @@ bool pipeline::import( path pipeline_file )
 ////////////////////////////////////////////////////////////////////////////////
 		pass::texture_container allocated_textures;
 
-		for (auto child : ptree.get_child("textures"))
+		for (auto child : root.get_child("textures"))
 		{
 			auto texture_ptree = child.second;
 			auto name = texture_ptree.get<string>("name");
@@ -81,18 +142,18 @@ bool pipeline::import( path pipeline_file )
 			else if ("depth16" == format_name) format = format::depth16;
 			else if ("depth24" == format_name) format = format::depth24;
 			else if ("depth32f" == format_name) format = format::depth32f;
-			else throw exception("Unknown format type.");
+			else throw exception{"Unknown format type."};
 			
 			filter::type filter;
 			if ("nearest" == filter_name) filter = filter::nearest;
 			else if ("linear" == filter_name) filter = filter::linear;
-			else throw exception("Unknown filter type.");
+			else throw exception{"Unknown filter type."};
 
 			wrap::type wrap;
 			if ("clamp_to_edge" == wrap_name) wrap = wrap::clamp_to_edge;
 			else if ("repeat" == wrap_name) wrap = wrap::repeat;
 			else if ("mirrored_repeat" == wrap_name) wrap = wrap::mirrored_repeat;
-			else throw exception("Unknown wrap type.");
+			else throw exception{"Unknown wrap type."};
 
 			auto width = texture_ptree.get<float>("width", 1.0);
 			auto height = texture_ptree.get<float>("height", 1.0);
@@ -117,7 +178,7 @@ bool pipeline::import( path pipeline_file )
 					});
 	
 					texture->bind_and_update(random_texture_size, random_texture_size, random_data.data());
-				} else throw exception("Unknown data type.");
+				} else throw exception{"Unknown data type."};
 			}
 			
 			allocated_textures.emplace_back(name, texture);
@@ -132,7 +193,7 @@ bool pipeline::import( path pipeline_file )
 		pass::buffer_container allocated_buffers;
 		pass::index_bound_buffer_container allocated_index_bound_buffers;
 
-		for (auto child : ptree.get_child("buffers"))
+		for (auto child : root.get_child("buffers"))
 		{
 			auto buffer_ptree = child.second;
 			auto name = buffer_ptree.get<string>("name");
@@ -145,13 +206,13 @@ bool pipeline::import( path pipeline_file )
 			target::type target;
 			if ("shader_storage" == target_name) target = target::shader_storage;
 			else if ("atomic_counter" == target_name) target = target::atomic_counter;
-			else throw exception("Unknown target type.");
+			else throw exception{"Unknown target type."};
 
 			vector<uint8_t> data;
 			if (data_name) {
 				if ("null" == *data_name)
 					data.resize(size);
-				else throw exception("Unknown data type.");
+				else throw exception{"Unknown data type."};
 			}
 
 			shared_ptr<gpu::buffer> buffer;
@@ -167,10 +228,10 @@ bool pipeline::import( path pipeline_file )
 			}
 
 			if (reset_name) {
-				if (data.empty()) throw exception("Reset is specified without data.");
+				if (data.empty()) throw exception{"Reset is specified without data."};
 				if ("pre_first_pass" == *reset_name)
 					buffers_to_reset_pre_first_frame.emplace_back(move(buffer), move(data));
-				else throw exception("Unknown reset type.");
+				else throw exception{"Unknown reset type."};
 			}
 		}
 
@@ -179,7 +240,7 @@ bool pipeline::import( path pipeline_file )
 ////////////////////////////////////////////////////////////////////////////////
 /// Passes
 ////////////////////////////////////////////////////////////////////////////////
-		for (auto pass_child : ptree.get_child("passes"))
+		for (auto pass_child : root.get_child("passes"))
 		{
 			auto pass_configuration = pass_child.second;
 			auto name = pass_configuration.get<string>("name");
@@ -193,6 +254,26 @@ bool pipeline::import( path pipeline_file )
 				const auto& preprocessor_command = preprocessor_command_child.second.get<string>("");
 				preprocessor_commands += preprocessor_command + "\n";
 			}		
+
+			const view* view;
+			auto view_name = pass_configuration.get<string>("view", "user");
+			if ("user" == view_name)
+				view = user_view;
+			else {
+				auto result = views.find(view_name);
+				if (views.end() == result)
+					throw exception{("View \"" + view_name + "\" is not defined.").c_str()};
+				view = result->second.lock().get();
+			}
+
+			pass::view_container auxiliary_views;
+			if (auto auxiliary_views_root = pass_configuration.get_child_optional("auxiliary_views"))
+				for (const auto& auxiliary_view : *auxiliary_views_root | boost::adaptors::map_values)
+				{
+					auto name = auxiliary_view.get<string>("");
+					auto view = views.at(name);
+					auxiliary_views.emplace_back(move(name), view.lock());
+				}
 
 			pass::texture_container input_textures;
 			if (auto input_texture_children = pass_configuration.get_child_optional("textures.input"))
@@ -235,7 +316,7 @@ bool pipeline::import( path pipeline_file )
 				if ("statics" == model_value) render_mode.set(render_mode::statics);
 				else if ("dynamics" == model_value) render_mode.set(render_mode::dynamics);
 				else if ("screen_aligned_quad" == model_value) render_mode.set(render_mode::screen_aligned_quad);
-				else throw exception("Invalid model type.");
+				else throw exception{"Invalid model type."};
 			}
 
 			unsigned int clearing_mask{0u};
@@ -245,7 +326,7 @@ bool pipeline::import( path pipeline_file )
 					const auto& clear = clear_child.second.get<string>("");
 					if ("depth" == clear) clearing_mask |= GL_DEPTH_BUFFER_BIT;
 					else if ("color" == clear) clearing_mask |= GL_COLOR_BUFFER_BIT;
-					else throw exception("Unknown clear type.");
+					else throw exception{"Unknown clear type."};
 				}
 
 			unsigned int post_memory_barrier_mask{0u};
@@ -254,7 +335,7 @@ bool pipeline::import( path pipeline_file )
 				{
 					const auto& post_memory_barrier = post_memory_barrier_child.second.get<string>("");
 					if ("shader_storage" == post_memory_barrier) post_memory_barrier_mask |= GL_SHADER_STORAGE_BARRIER_BIT;
-					else throw exception("Unknown memory_barrier type.");
+					else throw exception{"Unknown memory_barrier type."};
 				}
 
 			unsigned int face_culling_mode{0u};
@@ -264,8 +345,11 @@ bool pipeline::import( path pipeline_file )
 					const auto& culling = culling_child.second.get<string>("");
 					if ("front_faces" == culling) face_culling_mode = (GL_BACK == face_culling_mode) ? GL_FRONT_AND_BACK : GL_FRONT;
 					else if ("back_faces" == culling) face_culling_mode = (GL_FRONT == face_culling_mode) ? GL_FRONT_AND_BACK : GL_BACK;
-					else throw exception("Unknown culling type.");
+					else throw exception{"Unknown culling type."};
 				}
+
+			// TODO: Generalize this feature.
+			auto preincrement_buffer_counter = pass_configuration.get<int>("preincrement_buffer.counter", 0);
 
 			render_mode.set(render_mode::test_depth, pass_configuration.get<bool>("test_depth", false));
 			render_mode.set(render_mode::materials, pass_configuration.get<bool>("materials", true));
@@ -287,14 +371,17 @@ bool pipeline::import( path pipeline_file )
 				move(name),
 				move(program_), 
 				move(input_textures), 
-				move(output_textures), 
+				move(output_textures),
+				move(auxiliary_views),
 				move(pass_buffers),
 				move(pass_index_bound_buffers),
 				clearing_mask,
 				post_memory_barrier_mask,
 				face_culling_mode,
 				render_mode,
-				view);
+				view,
+				user_view,
+				preincrement_buffer_counter);
 		}
 	} 
 	catch (const exception& exception)
@@ -304,7 +391,7 @@ bool pipeline::import( path pipeline_file )
 	}
 
 	reload_shadow_mapping();
-	on_window_resized(view->window.x, view->window.y);
+	on_window_resized(user_view->window.x, user_view->window.y);
 
 	BOOST_LOG_TRIVIAL(info) << "Imported pipeline file " << pipeline_file << ".";
 

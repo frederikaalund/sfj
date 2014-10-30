@@ -4,6 +4,7 @@
 #include <black_label/path.hpp>
 
 #include <memory>
+#include <unordered_map>
 
 #include <boost/serialization/access.hpp>
 
@@ -60,7 +61,10 @@ public:
 /// Containers
 ////////////////////////////////////////////////////////////////////////////////
 template<typename resource>
-using resource_map = tbb::concurrent_hash_map<path, std::weak_ptr<resource>>;
+using resource_map = std::unordered_map<std::string, std::weak_ptr<resource>>;
+
+template<typename resource>
+using concurrent_resource_map = tbb::concurrent_hash_map<path, std::weak_ptr<resource>>;
 
 
 

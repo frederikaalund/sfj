@@ -133,6 +133,7 @@ public:
 	}
 	void set_uniform( unsigned int location, int value ) const;
 	void set_uniform( unsigned int location, int value1, int value2 ) const;
+	void set_uniform( unsigned int location, unsigned int value ) const;
 	void set_uniform( unsigned int location, float value ) const;
 	void set_uniform( unsigned int location, float value1, float value2, float value3 ) const;
 	void set_uniform( unsigned int location, float value1, float value2, float value3, float value4 ) const;

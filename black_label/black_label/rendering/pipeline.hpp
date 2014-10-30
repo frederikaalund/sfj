@@ -23,19 +23,21 @@ class pipeline
 {
 public:
 	using pass_container = std::vector<pass>;
-	using program_container = tbb::concurrent_unordered_multimap<path, std::weak_ptr<program>>;
-	using texture_container = std::unordered_map<std::string, std::weak_ptr<gpu::storage_texture>>;
-	using buffer_container = std::unordered_map<std::string, std::weak_ptr<gpu::buffer>>;
-	using index_bound_buffer_container = std::unordered_map<std::string, std::weak_ptr<gpu::index_bound_buffer>>;
+	using program_map = concurrent_resource_map<program>;
+	using view_map = resource_map<view>;
+	using texture_map = resource_map<gpu::storage_texture>;
+	using buffer_map = resource_map<gpu::buffer>;
+	using index_bound_buffer_map = resource_map<gpu::index_bound_buffer>;
 	using reset_container = std::vector<std::pair<std::weak_ptr<gpu::buffer>, const std::vector<std::uint8_t>>>;
 
 	friend void swap( pipeline& lhs, pipeline& rhs )
 	{
 		using std::swap;
 		swap(lhs.complete, rhs.complete);
-		swap(lhs.view, rhs.view);
+		swap(lhs.user_view, rhs.user_view);
 		swap(lhs.shader_directory, rhs.shader_directory);
 		swap(lhs.programs, rhs.programs);
+		swap(lhs.views, rhs.views);
 		swap(lhs.textures, rhs.textures);
 		swap(lhs.buffers, rhs.buffers);
 		swap(lhs.index_bound_buffers, rhs.index_bound_buffers);
@@ -44,13 +46,13 @@ public:
 		swap(lhs.shadow_mapping, rhs.shadow_mapping);
 	}
 
-	pipeline( const black_label::rendering::view* view = nullptr, path shader_directory = path{} )
+	pipeline( const black_label::rendering::view* user_view = nullptr, path shader_directory = path{} )
 		: complete{false}
-		, view{view}
+		, user_view{user_view}
 		, shader_directory{std::move(shader_directory)}	
 	{}
-	pipeline( const black_label::rendering::view* view, path shader_directory, path pipeline_file)
-		: pipeline{view, std::move(shader_directory)}
+	pipeline( const black_label::rendering::view* user_view, path shader_directory, path pipeline_file)
+		: pipeline{user_view, std::move(shader_directory)}
 	{ import(pipeline_file); }
 	pipeline( pipeline&& other ) : pipeline{} { swap(*this, other); };
 	pipeline& operator=( pipeline rhs ) { swap(*this, rhs); return *this; }
@@ -91,18 +93,7 @@ public:
 	//void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets ) const
 	void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets )
 	//{ for (const auto& pass : passes) pass.render(framebuffer, assets); }
-	{ 
-		for (auto& pass : passes) { 
-			if ("oit" == pass.name) {
-				if (!boost::empty(assets.shadow_casting_lights))
-				{
-					pass.view = &assets.shadow_casting_lights[0].get().view;
-				}
-			}
-
-			pass.render(framebuffer, assets);
-		}
-	}
+	{ for (auto& pass : passes) pass.render(framebuffer, assets); }
 			
 	template<typename assets_type>
 	//void render( gpu::framebuffer& framebuffer, const assets_type& assets ) const {
@@ -146,12 +137,13 @@ public:
 
 
 	bool complete;
-	const view* view;
+	const view* user_view;
 	path shader_directory;
-	program_container programs;
-	texture_container textures;
-	buffer_container buffers;
-	index_bound_buffer_container index_bound_buffers;
+	program_map programs;
+	view_map views;
+	texture_map textures;
+	buffer_map buffers;
+	index_bound_buffer_map index_bound_buffers;
 	reset_container buffers_to_reset_pre_first_frame;
 	pass_container passes;
 	basic_pass shadow_mapping;

@@ -32,6 +32,8 @@ public:
 	}
 
 	void update( const view& view ) const {
+		assert(view::perspective == view.projection);
+
 		auto tan_alpha = tan(view.fovy * 0.5);
 		auto y = tan_alpha * view.z_far;
 		auto x = y * view.aspect_ratio;
