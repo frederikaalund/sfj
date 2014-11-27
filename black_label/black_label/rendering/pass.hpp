@@ -135,6 +135,8 @@ public:
 				// Uniforms
 				program->set_uniform("normal_matrix", 
 					glm::inverseTranspose(glm::mat3(model_matrix)));
+				program->set_uniform("model_matrix", 
+					model_matrix);
 				program->set_uniform("model_view_matrix", 
 					view.view_matrix * model_matrix);
 				program->set_uniform("model_view_projection_matrix", 

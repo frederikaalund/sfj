@@ -32,9 +32,8 @@ in vertex_data vertex;
 uint32_t allocate() { return total_data_offset + atomicCounterIncrement(count); }
 
 
-uint32_t computeData(vec4 clr) { 
-	return (uint32_t(clr.x*255.0) << 24u) + (uint32_t(clr.y*255.0) << 16u) + (uint32_t(clr.z*255.0) << 8u) + (uint32_t(0.1*255.0)); 
-} 
+uint32_t compress( in vec4 clr )
+{ return (uint32_t(clr.x*255.0) << 24u) + (uint32_t(clr.y*255.0) << 16u) + (uint32_t(clr.z*255.0) << 8u) + (uint32_t(0.1*255.0)); } 
 
 
 
@@ -43,7 +42,7 @@ void main()
 	vec2 tc_texture_coordinates = vec2(vertex.oc_texture_coordinate.x, 1.0 - vertex.oc_texture_coordinate.y);
 	vec4 diffuse = texture(diffuse_texture, tc_texture_coordinates);
 
-	uint32_t compressed_diffuse = computeData(diffuse);
+	uint32_t compressed_diffuse = compress(diffuse);
 	//float depth = gl_FragCoord.z;
 	float depth = vertex.negative_ec_position_z;
 
@@ -64,8 +63,9 @@ void main()
 	// Indeterminate, since some steps may be repeated due to concurrent updates.
 	// Thus the total number of steps required for a single insertion
 	// is not known beforehand. However, finiteness guarantees
-	// that the algorithm terminates eventually. Still, the number of iterations
-	// is capped due to hardware constraints.
+	// that the algorithm terminates eventually. In other words,
+	// it is a lock-free algorithm (though not wait-free).
+	// Still, the number of iterations is capped due to hardware constraints.
 	//for (;;) {
 	const int max_iterations = 2048;
 	for (int i = 0; i < max_iterations; ++i) {
@@ -96,8 +96,8 @@ void main()
 		} else {
 			// ...so we advance to the next node in the list.
 			previous = current;
-			//current = data[current].next;
-			current = atomicAdd(data[current].next, 0); // Atomic read
+			current = data[current].next;
+			//current = atomicAdd(data[current].next, 0); // Atomic read
 		}
 	}
 }

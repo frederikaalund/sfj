@@ -109,8 +109,19 @@ bool pipeline::import( path pipeline_file )
 				);
 			}
 			// Perspective
-			else if (auto perspective_root = view_root.get_child_optional("perspective"))
-				throw exception{"Perspective views are not yet implemented."};
+			else if (auto perspective_root = view_root.get_child_optional("perspective")) {
+				auto eye = get_vec3(view_root.get_child("eye"));
+				auto target = get_vec3(view_root.get_child("target"));
+				view = make_shared<black_label::rendering::view>(
+					eye,
+					target,
+					glm::vec3{0.0f, 1.0f, 0.0f},
+					width,
+					height,
+					perspective_root->get<float>("near"),
+					perspective_root->get<float>("far")
+				);
+			}
 			// None
 			else
 				view = make_shared<black_label::rendering::view>(width, height);

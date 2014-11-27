@@ -152,9 +152,24 @@ void pass::set_auxiliary_views( unsigned int& uniform_binding_point ) const {
 	};
 	static_assert(sizeof(float) * (16 * 3 + 4 * 4 + 2) + sizeof(int) * 2 == sizeof(view_type), "view_type must match the OpenGL GLSL layout(140) specification.");
 
+	// Current view
+	static gpu::buffer current_view_buffer{gpu::target::uniform_buffer, gpu::usage::dynamic_draw, sizeof(view_type)};
+	view_type gpu_current_view;
+	gpu_current_view.projection_matrix = view->projection_matrix;
+	gpu_current_view.view_matrix = view->view_matrix;
+	gpu_current_view.view_projection_matrix = view->view_projection_matrix;
+	gpu_current_view.eye = glm::vec4(view->eye, 1.0);
+	gpu_current_view.right = glm::vec4(view->right(), 1.0);
+	gpu_current_view.forward = glm::vec4(view->forward(), 1.0);
+	gpu_current_view.up = glm::vec4(view->up(), 1.0);
+	gpu_current_view.dimensions = view->window;
+	current_view_buffer.bind_and_update(sizeof(view_type), &gpu_current_view);
+	program->set_uniform_block("current_view_block", uniform_binding_point, current_view_buffer);
+
 	// User view
 	static gpu::buffer user_view_buffer{gpu::target::uniform_buffer, gpu::usage::dynamic_draw, sizeof(view_type)};
 	view_type gpu_user_view;
+	gpu_user_view.projection_matrix = user_view->projection_matrix;
 	gpu_user_view.view_matrix = user_view->view_matrix;
 	gpu_user_view.view_projection_matrix = user_view->view_projection_matrix;
 	gpu_user_view.dimensions = user_view->window;

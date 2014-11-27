@@ -19,10 +19,10 @@ layout(std140) uniform user_view_block
 { view_type user_view; };
 
 layout(std140) uniform view_block
-{ view_type views[7]; };
+{ view_type views[9]; };
 
 layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[7]; };
+{ uvec4 data_offsets[9]; };
 
 
 
@@ -94,6 +94,6 @@ void main() {
 	vec2 tc_position = vec2(gl_FragCoord) / window_dimensions;
 	vec2 ndc_position = tc_position * 2.0 - vec2(1.0);
 
-	for (int i = 0; i < 7; ++i)
+	for (int i = 0; i < 9; ++i)
 		draw_layered_depth_map(ndc_position, views[i], data_offsets[i][0], i + 1);
 }

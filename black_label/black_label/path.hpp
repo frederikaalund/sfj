@@ -39,12 +39,12 @@ inline bool try_canonical_and_preferred( path& path_, const path& base = current
 ////////////////////////////////////////////////////////////////////////////////
 /// Extension
 ///
-/// Negative or zero "dots" value returns all extensions. E.g.:
+/// Zero "max_dots" value returns all extensions. E.g.:
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", -2) -> ".vertex.shader.glsl.cache"
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", -1) -> ".vertex.shader.glsl.cache"
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", 0)  -> ".vertex.shader.glsl.cache"
 ///
-/// Positive "dots" value returns at most "dots" extensions (counting from the end of the path). E.g.:
+/// Positive "max_dots" value returns at most "max_dots" extensions (counting from the end of the path). E.g.:
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", 1)  -> ".cache"
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", 2)  -> ".glsl.cache"
 /// extension("/usr/lib.cpp/file.vertex.shader.glsl.cache", 3)  -> ".shader.glsl.cache"
@@ -68,14 +68,16 @@ inline bool try_canonical_and_preferred( path& path_, const path& base = current
 /// extension("var/file.cpp...abc..", 4)  -> "..abc.."
 ///
 ////////////////////////////////////////////////////////////////////////////////
-inline path extension( const path& path_, int dots = 0 ) {
+inline path extension( const path& path_, int max_dots = 1 ) {
+	assert(0 <= max_dots);
+
 	// Get the filename to ensure that some edge cases are dealt with. E.g.:
 	// path{"/var/foo.bar/baz.txt"}.filename() -> path{"baz.txt"}
 	auto filename = path_.filename();
 	const auto& native = filename.native();
 
 	// Reverse search for the nth dot
-	auto nth_dot = utility::find_last_or_nth(native.crbegin(), native.crend(), '.', dots).base();
+	auto nth_dot = utility::find_last_or_nth(native.crbegin(), native.crend(), '.', max_dots).base();
 	// Compensate for reverse_iterator -> iterator conversion
 	if (native.cbegin() != nth_dot) --nth_dot;
 

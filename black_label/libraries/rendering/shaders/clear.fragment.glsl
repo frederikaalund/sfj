@@ -15,6 +15,12 @@ writeonly restrict layout (std430) buffer data_buffer
 writeonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
 
+struct color_data {
+	uint32_t r, g, b;
+};
+writeonly restrict layout (std430) buffer photon_splat_buffer
+{ color_data photon_splats[]; };
+
 
 
 struct vertex_data
@@ -32,4 +38,7 @@ void main()
 		data[i*window_dimensions.x*window_dimensions.y + index].next = 0;
 
 	debug_view[index] = 0;
+	photon_splats[index].r = 0;
+	photon_splats[index].g = 0;
+	photon_splats[index].b = 0;
 }

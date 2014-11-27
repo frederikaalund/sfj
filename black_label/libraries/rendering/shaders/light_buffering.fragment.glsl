@@ -13,8 +13,7 @@ struct vertex_data
 in vertex_data vertex;
 
 layout(location = 0) out vec3 wc_normal;
-layout(location = 1) out vec3 wc_position;
-layout(location = 2) out vec4 albedo;
+layout(location = 1) out vec4 albedo;
 
 
 
@@ -30,7 +29,6 @@ void main()
 	float specular_exponent_ = specular_exponent * texture(specular_texture, tc_texture_coordinates).r;
 
 	wc_normal = normalize(vertex.wc_normal);
-	wc_position = vertex.wc_position;
 	albedo.rgb = diffuse.rgb;
 	albedo.a = specular_exponent_;
 }

@@ -39,7 +39,7 @@ input_iterator find_last_or_nth( input_iterator first, input_iterator last, cons
 		if (first != last) {
 			// ...so store last occurrence...
 			result = first;
-			// ...and advance to the remainding range.
+			// ...and advance to the remaining range.
 			++first;
 		}
 	}

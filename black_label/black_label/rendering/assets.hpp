@@ -130,6 +130,10 @@ public:
 					model_map::accessor accessor;
 					auto new_model = make_shared<model>();
 
+					// Ignore if the file doesn't exist in the asset_directory
+					// since missing models will be caught in a later step.
+					try_canonical_and_preferred(file, asset_directory);
+
 					// Attempt to insert new_model
 					models.insert(accessor, {file, new_model});
 					// The returned model can be either the new_model or an existing model
@@ -143,7 +147,7 @@ public:
 				}
 			
 				// Mark the entity's model as dirty
-				dirty_model_files.push(std::move(file));
+				dirty_model_files.push(move(file));
 			}
 
 			// Existing entities
@@ -396,7 +400,7 @@ private:
 		for (const auto& texture_file : texture_files) 
 			import_group.run([this, texture_file] { import_texture(move(texture_file)); });
 
-		models_to_upload.push(make_tuple(move(file), move(cpu_model), move(gpu_textures)));
+		models_to_upload.push(make_tuple(move(canonical_file), move(cpu_model), move(gpu_textures)));
 	}
 	// Thread-safe; blocking
 	void import_texture( path file ) {

@@ -9,7 +9,7 @@ const int poisson_disc_size = 16;
 uniform vec2 poisson_disc[poisson_disc_size];
 
 uniform sampler2D depths;
-uniform sampler2D wc_normals;
+uniform sampler2D wc_normals, wc_positions;
 uniform sampler2D albedos;
 uniform sampler2D random;
 uniform sampler2D ambient_occlusion;
@@ -53,6 +53,12 @@ readonly restrict layout (std430) buffer data_buffer
 { oit_data data[]; };
 readonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
+struct color_data {
+	uint32_t r, g, b;
+};
+readonly restrict layout (std430) buffer photon_splat_buffer
+{ color_data photon_splats[]; };
+
 
 
 
@@ -335,15 +341,19 @@ vec4 get_view_color( in int view_id ) {
 
 
 vec4 get_debug_view() {
-	// Get the head nodes
-	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
-	uint32_t current = data[heads_index].next;
+	uint32_t index = uint32_t(gl_FragCoord.x) + uint32_t(gl_FragCoord.y) * window_dimensions.x;
 
-	if (0 < debug_view[heads_index])
-		return get_view_color(int(debug_view[heads_index] - 1));
+	if (0 < debug_view[index])
+		return get_view_color(int(debug_view[index] - 1));
 	return vec4(0.0);
 }
 
+
+vec4 get_photon_splats() {
+	uint32_t index = uint32_t(gl_FragCoord.x) + uint32_t(gl_FragCoord.y) * window_dimensions.x;
+	color_data color = photon_splats[index];
+	return vec4(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0, 1.0);
+}
 
 
 
@@ -360,10 +370,10 @@ layout(std140) uniform user_view_block
 { view_type user_view; };
 
 layout(std140) uniform view_block
-{ view_type views[7]; };
+{ view_type views[9]; };
 
 layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[7]; };
+{ uvec4 data_offsets[9]; };
 
 
 vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
@@ -451,16 +461,15 @@ vec4 sampling_test( in vec3 wc_position ) {
 
 float visibility( in vec3 wc_view_direction, in vec3 wc_normal, in float occluder_distance ) {
 	float weight = max(dot(wc_view_direction, wc_normal), 0.0);
-	return 1.0 - weight * min(200.0 / (occluder_distance * occluder_distance), 1.0);	
+	return 1.0 - weight * min(400.0 / (occluder_distance * occluder_distance), 1.0);	
 }
 
 float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 wc_normal ) {
 	// Normal bias (virtually translate scene along normal vectors)
 	float cos_alpha = clamp(dot(wc_normal, light.wc_direction.xyz), 0.0, 1.0);
     float normal_bias_coefficient = sqrt(1.0 - cos_alpha * cos_alpha); // <=> sin(acos(wc_normal, light_direction));
-	wc_position += wc_normal * normal_bias_coefficient * 4.0;
+	wc_position += wc_normal * normal_bias_coefficient * 2.0;
 
-s
 	view_type view = views[view_id];
 	uint32_t data_offset = data_offsets[view_id];
 
@@ -498,7 +507,7 @@ s
 	while (0 != current && list_length < max_list_length) {
 		float depth = data[current].depth;
 		vec3 direction = (
-			forward * depth
+			forward * (depth)
 			+ right * right_scale * ndc_position.x
 			+ up * top_scale * ndc_position.y);
 		vec3 wc_sample_position = wc_eye + direction;
@@ -530,7 +539,7 @@ s
 
 float visibility( in vec3 wc_position, in vec3 wc_normal ) {
 	float result = 0.0;
-	const int views = 7;
+	const int views = 9;
 	for (int i = 0; i < views; ++i)
 		result += visibility_both_directions(i, wc_position, wc_normal);
 	return result / float(views);
@@ -583,12 +592,15 @@ void main()
 	//color.rgb += 0.08 * albedo * ambient_occlusion_factor;
 
 	// Overrides
+	//color.rgb = texture(wc_positions, tc_window).xyz;
 	//color = oit();
 	//color.rgb *= 0.1;
 	//color += get_debug_view();
-	color = vec4(visibility(wc_position, wc_normal));
+	//color = vec4(visibility(wc_position, wc_normal));
+	color = get_photon_splats();
 	//color += sampling_test(wc_position);
 	//color.rgb = wc_position;
+	//color.rgb = albedo;
 	//color.rgb = vec3(ambient_occlusion_factor);	
 	//color.rgb = vec3(float(counts[index]) / 20.0);
 
