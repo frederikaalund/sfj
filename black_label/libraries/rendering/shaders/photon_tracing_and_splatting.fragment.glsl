@@ -22,11 +22,12 @@ layout(std140) uniform current_view_block
 layout(std140) uniform user_view_block
 { view_type user_view; };
 
+const int max_views = 200;
 layout(std140) uniform view_block
-{ view_type views[9]; };
+{ view_type views[max_views]; };
 
 layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[9]; };
+{ uvec4 data_offsets[max_views]; };
 
 
 
@@ -56,6 +57,9 @@ noperspective in vertex_data vertex;
 uint32_t compress( in vec4 clr )
 { return (uint32_t(clr.x*255.0) << 24u) + (uint32_t(clr.y*255.0) << 16u) + (uint32_t(clr.z*255.0) << 8u) + (uint32_t(0.1*255.0)); } 
 
+vec4 decompress(uint32_t rgba)
+{ return vec4( float((rgba>>24u)&255u),float((rgba>>16u)&255u),float((rgba>>8u)&255u),float(rgba&255u) ) / 255.0; }
+
 float get_tc_z( 
 	in sampler2D sampler, 
 	in vec2 tc_position )
@@ -83,6 +87,17 @@ bool get_user_view_coordinates( in vec3 wc_position, out float ec_position_z, ou
 	vec3 ndc_position = cc_position.xyz / cc_position.w;
 	vec2 tc_position = (ndc_position.xy + vec2(1.0)) * 0.5;
 	ec_position_z = get_ec_z(depths, tc_position, user_view.projection_matrix);
+	pc_position = ivec2(tc_position * user_view.dimensions);
+	return true;
+}
+
+bool get_clamped_user_view_coordinates( in vec3 wc_position, out ivec2 pc_position ) {
+	vec4 cc_position = user_view.view_projection_matrix * vec4(wc_position, 1.0);
+
+	vec3 ndc_position = cc_position.xyz / cc_position.w;
+	vec2 tc_position = (ndc_position.xy + vec2(1.0)) * 0.5;
+	tc_position.x = clamp(tc_position.x, 0.0, 1.0);
+	tc_position.y = clamp(tc_position.y, 0.0, 1.0);
 	pc_position = ivec2(tc_position * user_view.dimensions);
 	return true;
 }
@@ -167,22 +182,67 @@ void splat(
 		|| ec_user_position_z > ec_position_z_seen_by_user + const_bias)
 	{ return; }
 
-	vec3 wc_normal = texture(wc_normals, vec2(pc_user_position) / vec2(user_view.dimensions)).xyz;
+	const float differential_bias = 10.0;
+	if (max(max(abs(ray.dP.dx.x), abs(ray.dP.dx.y)), abs(ray.dP.dx.z)) > differential_bias
+		|| max(max(abs(ray.dP.dy.x), abs(ray.dP.dy.y)), abs(ray.dP.dy.z)) > differential_bias)
+		return;
 
-	// Area
-	float A = PI / 4.0 * length(cross(ray.dP.dx, ray.dP.dy));
-	vec4 E = albedo * 0.03 / A;
+	const float scale = 30.0;
+	ray.dP.dx *= scale;
+	ray.dP.dy *= scale;
 
+	vec3 wc_sample1 = wc_position + ( ray.dP.dx + ray.dP.dy) * 0.5 ;
+	vec3 wc_sample2 = wc_position + (-ray.dP.dx + ray.dP.dy) * 0.5 ;
+	vec3 wc_sample3 = wc_position + ( ray.dP.dx - ray.dP.dy) * 0.5 ;
+	vec3 wc_sample4 = wc_position + (-ray.dP.dx - ray.dP.dy) * 0.5 ;
+
+	ivec2 pc_sample1;
+	ivec2 pc_sample2;
+	ivec2 pc_sample3;
+	ivec2 pc_sample4;
+
+	get_clamped_user_view_coordinates(wc_sample1, pc_sample1);
+	get_clamped_user_view_coordinates(wc_sample2, pc_sample2);
+	get_clamped_user_view_coordinates(wc_sample3, pc_sample3);
+	get_clamped_user_view_coordinates(wc_sample4, pc_sample4);
+
+	// if (!get_clamped_user_view_coordinates(wc_sample1, pc_sample1)
+	// 	|| !get_clamped_user_view_coordinates(wc_sample2, pc_sample2)
+	// 	|| !get_clamped_user_view_coordinates(wc_sample3, pc_sample3)
+	// 	|| !get_clamped_user_view_coordinates(wc_sample4, pc_sample4))
+	// 	return;
+
+
+	ivec2 pc_bottom_left = min(min(min(pc_sample1, pc_sample2), pc_sample3), pc_sample4);
+	ivec2 pc_top_right = max(max(max(pc_sample1, pc_sample2), pc_sample3), pc_sample4);
+
+	ivec2 size = pc_top_right - pc_bottom_left;
+	if (length(size) > 400) return;
+
+/*
 	float r_max = 0.5 * max(length(ray.dP.dx), length(ray.dP.dy));
 	vec2 tc_size = get_tc_length(r_max * 35.0, ec_position_z_seen_by_user, user_view.projection_matrix);
 	ivec2 pc_size = ivec2(tc_size * window_dimensions);
-	pc_size = min(pc_size, ivec2(10));
-
-	mat3x2 temp = transpose(mat2x3(cross(ray.dP.dy, wc_normal), cross(wc_normal, ray.dP.dx)));
-	mat3x2 M = 2 / dot(ray.dP.dx, cross(ray.dP.dy, wc_normal)) * temp;
-
+	pc_size = min(pc_size, ivec2(1));
+	
 	ivec2 pc_bottom_left = pc_user_position - pc_size;
 	ivec2 pc_top_right = pc_user_position + pc_size;
+*/
+
+
+	vec3 wc_normal = texture(wc_normals, vec2(pc_user_position) / vec2(user_view.dimensions)).xyz;
+
+
+
+	// Area
+	float A = PI / 4.0 * length(cross(ray.dP.dx, ray.dP.dy));
+	vec4 E = 10.0 * albedo / A;
+
+	const float a = 100.0;
+	mat3 temp = transpose(mat3(cross(ray.dP.dy, wc_normal), cross(wc_normal, ray.dP.dx), a * wc_normal));
+	mat3 M = 2 / dot(ray.dP.dx, cross(ray.dP.dy, wc_normal)) * temp;
+
+
 
 	// Cap to screen
 	pc_bottom_left = ivec2(max(pc_bottom_left.x, 0), max(pc_bottom_left.y, 0));
@@ -194,12 +254,15 @@ void splat(
 			vec2 tc_sample = pc_sample / vec2(user_view.dimensions);
 			vec3 wc_sample = texture(wc_positions, tc_sample).xyz;
 			
-			//float d = distance(wc_sample, wc_position);
 			float d = length(M * (wc_sample - wc_position));
-			float k = K(d / 35.0);
+			float k = K(d);
 			splat(uvec2(pc_sample), PI * k * E);
 		}
 }
+
+
+vec3 rotate_vector( vec4 quat, vec3 vec )
+{ return vec + 2.0 * cross( cross( vec, quat.xyz ) + quat.w * vec, quat.xyz ); }
 
 
 
@@ -239,11 +302,13 @@ void splat_first_bounce( in int view_id, in ray_differential ray, in vec3 wc_pos
 		wc_last_sample_position,
 		wc_previous,
 		wc_next;
+		uint32_t sample_diffuse, last_diffuse, previous_diffuse, next_diffuse;
 	bool get_next = false;
 
 	int list_length = 0;
 	while (0 != current && list_length < max_list_length) {
 		float depth = data[current].depth;
+		sample_diffuse = data[current].compressed_diffuse;
 		vec3 direction = (
 			forward * depth 
 			+ right * right_scale * ndc_position.x
@@ -256,28 +321,38 @@ void splat_first_bounce( in int view_id, in ray_differential ray, in vec3 wc_pos
 			get_next = false;
 			next_distance = sample_distance;
 			wc_next = wc_sample_position;
+			next_diffuse = sample_diffuse;
 		}
 
 		if (sample_distance < min_distance) {
 			previous_distance = min_distance;
 			wc_previous = wc_last_sample_position;
+			previous_diffuse = last_diffuse;
 			min_distance = sample_distance;
 			get_next = true;
 		}
 
 		wc_last_sample_position = wc_sample_position;
+		last_diffuse = sample_diffuse;
 
 		current = data[current].next;
 		++list_length;
 	}
 	if (get_next) {
 		wc_next = wc_sample_position;
+		next_diffuse = sample_diffuse;
 	}
 
-
+	if (1 >= list_length) return;
 
 
 	const float const_bias = 10.0;
+	vec3 wc_origin_normal = texture(light_wc_normals, gl_FragCoord.xy / window_dimensions).xyz;
+	vec3 w_i = normalize(-vertex.wc_view_ray_direction);
+
+	//float w1 = dot(wc_origin_normal, w_i);
+	//albedo *= w1;
+	albedo *= 0.5;
 	{
 		float ec_position_z_seen_by_user = (user_view.view_matrix * vec4(wc_previous, 1.0)).z;
 
@@ -286,17 +361,53 @@ void splat_first_bounce( in int view_id, in ray_differential ray, in vec3 wc_pos
 		ivec2 pc_user_position;
 		if (get_user_view_coordinates(wc_previous, ec_user_position_z, pc_user_position)
 			&& ec_user_position_z < ec_position_z_seen_by_user + const_bias)
-		{
-			vec3 wc_normal = texture(wc_normals, vec2(pc_user_position) / vec2(user_view.dimensions)).xyz;
-			vec3 global_normal = texture(light_wc_normals, gl_FragCoord.xy / window_dimensions).xyz;
-			float t = distance(wc_position, wc_previous);
-			vec3 D = normalize(-forward);
+		{	
+			vec3 w_o = normalize(-forward);
 
-			transfer(ray, D, wc_normal, t);
+			vec4 q;
+			q.xyz = cross(w_o, w_i);
+			q.w = 1.0 + dot(w_o, w_i);
+			q = normalize(q);
+			ray.dD.dx = rotate_vector(q, ray.dD.dx);
+			ray.dD.dy = rotate_vector(q, ray.dD.dy);
 
-			float w = dot(global_normal, D);
+			vec3 wc_hit_normal = texture(wc_normals, vec2(pc_user_position) / vec2(user_view.dimensions)).xyz;
+			float t = distance(wc_position, wc_previous);			
+
+			transfer(ray, w_o, wc_hit_normal, t);
+
+			float w = dot(wc_hit_normal, -w_o);
 			if (0.0 < w)
-				splat(ray, wc_previous, albedo * w);
+				splat(ray, wc_previous, decompress(previous_diffuse) * albedo * w);
+		}
+	}
+	{
+		float ec_position_z_seen_by_user = (user_view.view_matrix * vec4(wc_next, 1.0)).z;
+
+		// Project into user view
+		float ec_user_position_z;
+		ivec2 pc_user_position;
+		if (get_user_view_coordinates(wc_next, ec_user_position_z, pc_user_position)
+			&& ec_user_position_z < ec_position_z_seen_by_user + const_bias)
+		{
+			vec3 w_o = normalize(forward);
+
+			vec4 q;
+			q.xyz = cross(w_o, w_i);
+			q.w = 1.0 + dot(w_o, w_i);
+			q = normalize(q);
+			ray.dD.dx = rotate_vector(q, ray.dD.dx);
+			ray.dD.dy = rotate_vector(q, ray.dD.dy);
+
+			vec3 wc_hit_normal = texture(wc_normals, vec2(pc_user_position) / vec2(user_view.dimensions)).xyz;
+			
+			float t = distance(wc_position, wc_next);			
+
+			transfer(ray, w_o, wc_hit_normal, t);
+
+			float w = dot(wc_hit_normal, -w_o);
+			if (0.0 < w)
+				splat(ray, wc_next, decompress(next_diffuse) * albedo * w);
 		}
 	}
 }
@@ -321,9 +432,12 @@ void main()
 	ray_differential ray = construct_ray_differential(d, right, up);
 	transfer(ray, normalize(d), wc_normal, -ec_position_z);
 
-	for (int i = 0; i < 9; i++)
+	const int num_views = max_views;
+	for (int i = 0; i < num_views; i++)
 		splat_first_bounce(i, ray, wc_position, albedo);
 
 	// Direct splat
-	//splat(ray, wc_position, albedo);
+	float f = max(dot(wc_normal, normalize(-vertex.wc_view_ray_direction)), 0.0);
+	//float falloff = 100000000.0 / (length(vertex.wc_view_ray_direction) * length(vertex.wc_view_ray_direction));
+	splat(ray, wc_position, albedo * f);
 }

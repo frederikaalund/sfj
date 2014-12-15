@@ -369,11 +369,12 @@ struct view_type {
 layout(std140) uniform user_view_block
 { view_type user_view; };
 
+const int max_views = 200;
 layout(std140) uniform view_block
-{ view_type views[9]; };
+{ view_type views[max_views]; };
 
 layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[9]; };
+{ uvec4 data_offsets[max_views]; };
 
 
 vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
@@ -539,7 +540,7 @@ float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 w
 
 float visibility( in vec3 wc_position, in vec3 wc_normal ) {
 	float result = 0.0;
-	const int views = 9;
+	const int views = 200;
 	for (int i = 0; i < views; ++i)
 		result += visibility_both_directions(i, wc_position, wc_normal);
 	return result / float(views);
@@ -595,7 +596,7 @@ void main()
 	//color.rgb = texture(wc_positions, tc_window).xyz;
 	//color = oit();
 	//color.rgb *= 0.1;
-	//color += get_debug_view();
+	//color = get_debug_view();
 	//color = vec4(visibility(wc_position, wc_normal));
 	color = get_photon_splats();
 	//color += sampling_test(wc_position);

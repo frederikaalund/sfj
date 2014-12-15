@@ -61,11 +61,18 @@ void draw_statistics(
 			rendering_pipeline.shadow_mapping.render_time);
 
 		auto all_passes = rendering_pipeline.shadow_mapping.render_time;
+		chrono::high_resolution_clock::duration oit{0};
 		for (const auto& pass : rendering_pipeline.passes) {
+			if ("oit" == pass.name.substr(0, 3)) {
+				oit += pass.render_time;
+				continue;
+			}
 			output_pass("\t" + pass.name, pass.render_time);
 			all_passes += pass.render_time;
 		}
 	
+		output_pass("\toit (all passes)", oit);
+
 		output_pass("\t(sequencing overhead)", rendering_pipeline.render_time - all_passes);
 
 		text.setString(ss.str());

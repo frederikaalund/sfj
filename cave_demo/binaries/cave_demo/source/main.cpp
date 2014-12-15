@@ -38,7 +38,13 @@ glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f
 }
 void create_world( rendering_assets_type& rendering_assets ) {
 	static group all_statics;
-
+	/*
+	all_statics.emplace_back(std::make_shared<entities>(
+		std::initializer_list<entities::model_type>{"models/cornell-box/cornell.fbx"},
+		std::initializer_list<entities::dynamic_type>{"sponza.bullet"},
+		std::initializer_list<entities::transformation_type>{make_mat4(1.0f)}));
+	*/
+	
 	all_statics.emplace_back(std::make_shared<entities>(
 		std::initializer_list<entities::model_type>{"models/crytek-sponza/sponza.fbx", "models/teapot/teapot.obj", "models/references/sphere_rough.fbx"},
 		std::initializer_list<entities::dynamic_type>{"sponza.bullet", "cube.bullet", "house.bullet"},
@@ -232,15 +238,20 @@ int main( int argc, char const* argv[] )
 ////////////////////////////////////////////////////////////////////////////////
 		// Returns true until the window is closed
 		while (window.update()) {
-			// Only strafe the view when the user is actually focusing it
-			if (window.is_focused()) strafe_view(view);
+			if (window.is_focused() && sf::Keyboard::isKeyPressed(sf::Keyboard::R)) {
+
+				// Only strafe the view when the user is actually focusing it
+				if (window.is_focused()) strafe_view(view);
+
+				// Render the scene
+				rendering_pipeline.render(framebuffer, rendering_assets);
+				// Overlay rendering statistics
+				draw_statistics(window, options.rendering.asset_directory, rendering_pipeline, options.is_complete());
+			}
+
 
 			// Load models, textures, etc.
 			rendering_assets.update();
-			// Render the scene
-			rendering_pipeline.render(framebuffer, rendering_assets);
-			// Overlay rendering statistics
-			draw_statistics(window, options.rendering.asset_directory, rendering_pipeline, options.is_complete());
 
 			//export_rendering_assets_information(rendering_assets);
 

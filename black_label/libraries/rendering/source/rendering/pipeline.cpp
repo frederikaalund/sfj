@@ -133,6 +133,46 @@ bool pipeline::import( path pipeline_file )
 
 
 ////////////////////////////////////////////////////////////////////////////////
+/// OIT Views
+////////////////////////////////////////////////////////////////////////////////
+		int oit_view_count{0};
+		for (auto view_root : root.get_child("oit_views") | boost::adaptors::map_values)
+		{
+			auto eye = get_vec3(view_root);
+			
+			auto name = "oit_view" + to_string(oit_view_count);
+			auto width = 100;
+			auto height = 100;
+			auto left = -1000.0f;
+			auto right = 1000.0f;
+			auto top = 1000.0f;
+			auto bottom = -1000.0f;
+			auto near_ = -10000.0f;
+			auto far_ = 10000.0f;
+
+			auto view = make_shared<black_label::rendering::view>(
+				eye,
+				glm::vec3{ 0.0f, 0.0f, 0.0f },
+				glm::vec3{ 0.0f, 1.0f, 0.0f },
+				width,
+				height,
+				left,
+				right,
+				bottom,
+				top,
+				near_,
+				far_
+				);
+
+			allocated_views.emplace_back(name, view);
+			views.emplace(name, view);
+
+			++oit_view_count;
+		}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 /// Textures
 ////////////////////////////////////////////////////////////////////////////////
 		pass::texture_container allocated_textures;
@@ -255,6 +295,57 @@ bool pipeline::import( path pipeline_file )
 		{
 			auto pass_configuration = pass_child.second;
 			auto name = pass_configuration.get<string>("name");
+
+			if ("oit_passes" == name) {
+				program::configuration configuration;
+				configuration.vertex_shader(shader_directory / "oit.vertex.glsl");
+				configuration.fragment_shader(shader_directory / "oit.fragment.glsl");
+				configuration.preprocessor_commands("#version 430\n");
+				auto program_ = add_program(configuration);
+				
+				for (int id{0}; oit_view_count > id; ++id) {
+					const view* view = views.find("oit_view" + to_string(id))->second.lock().get();
+
+					pass::buffer_container pass_buffers;
+					pass::index_bound_buffer_container pass_index_bound_buffers;
+
+					pass_buffers.emplace_back("data_buffer", buffers.find("data_buffer")->second.lock());
+					pass_index_bound_buffers.emplace_back("counter", index_bound_buffers.at("counter").lock());
+
+					unsigned int clearing_mask{ 0u };
+					unsigned int face_culling_mode{ 0u };
+
+					render_mode render_mode;
+					render_mode.set(render_mode::statics);
+					render_mode.set(render_mode::dynamics);
+					render_mode.set(render_mode::test_depth, false);
+					render_mode.set(render_mode::materials, false);
+
+					unsigned int post_memory_barrier_mask{GL_SHADER_STORAGE_BARRIER_BIT};
+					auto preincrement_buffer_counter = 40000;
+
+					pass::texture_container input_textures, output_textures;
+					pass::view_container auxiliary_views;
+
+					passes.emplace_back(
+						"oit_view" + to_string(id),
+						program_,
+						move(input_textures),
+						move(output_textures),
+						move(auxiliary_views),
+						move(pass_buffers),
+						move(pass_index_bound_buffers),
+						clearing_mask,
+						post_memory_barrier_mask,
+						face_culling_mode,
+						render_mode,
+						view,
+						user_view,
+						preincrement_buffer_counter);
+				}
+				continue;
+			}
+
 			auto vertex_program = pass_configuration.get<string>("vertex_program");
 			auto geometry_program = pass_configuration.get("geometry_program", "");
 			auto fragment_program = pass_configuration.get<string>("fragment_program");
@@ -282,6 +373,15 @@ bool pipeline::import( path pipeline_file )
 				for (const auto& auxiliary_view : *auxiliary_views_root | boost::adaptors::map_values)
 				{
 					auto name = auxiliary_view.get<string>("");
+					if ("oit_views" == name) {
+						for (int id{0}; oit_view_count > id; ++id) {
+							auto oit_name = "oit_view" + to_string(id);
+							auto view = views.at(oit_name);
+							auxiliary_views.emplace_back(move(oit_name), view.lock());
+						}
+						continue;
+					}
+
 					auto view = views.at(name);
 					auxiliary_views.emplace_back(move(name), view.lock());
 				}
