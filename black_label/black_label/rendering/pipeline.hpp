@@ -44,6 +44,7 @@ public:
 		swap(lhs.buffers_to_reset_pre_first_frame, rhs.buffers_to_reset_pre_first_frame);
 		swap(lhs.passes, rhs.passes);
 		swap(lhs.shadow_mapping, rhs.shadow_mapping);
+		swap(lhs.ldm_view_count, rhs.ldm_view_count);
 	}
 
 	pipeline( const black_label::rendering::view* user_view = nullptr, path shader_directory = path{} )
@@ -148,6 +149,7 @@ public:
 	pass_container passes;
 	basic_pass shadow_mapping;
 	mutable std::chrono::high_resolution_clock::duration render_time;
+	int ldm_view_count{0};
 
 
 

@@ -4,8 +4,6 @@
 #include <cave_demo/window.hpp>
 
 #include <black_label/file_system_watcher.hpp>
-#include <black_label/rendering.hpp>
-#include <black_label/world/entities.hpp>
 
 #include <boost/range.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -13,8 +11,6 @@
 
 
 using namespace black_label::utility;
-using namespace black_label::utility;
-using namespace black_label::world;
 using namespace black_label::rendering;
 using namespace black_label::file_system_watcher;
 using namespace cave_demo;
@@ -22,64 +18,7 @@ using namespace cave_demo;
 using namespace std;
 
 using black_label::path;
-using rendering_assets_type = assets<
-	int, 
-	black_label::world::entities::model_type*, 
-	black_label::world::entities::transformation_type*>;
 
-
-
-glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f )
-{
-	auto m = glm::mat4(); 
-	m[3][0] = x; m[3][1] = y; m[3][2] = z;
-	m[0][0] = m[1][1] = m[2][2] = scale;
-	return m;
-}
-void create_world( rendering_assets_type& rendering_assets ) {
-	static group all_statics;
-	/*
-	all_statics.emplace_back(std::make_shared<entities>(
-		std::initializer_list<entities::model_type>{"models/cornell-box/cornell.fbx"},
-		std::initializer_list<entities::dynamic_type>{"sponza.bullet"},
-		std::initializer_list<entities::transformation_type>{make_mat4(1.0f)}));
-	*/
-	
-	all_statics.emplace_back(std::make_shared<entities>(
-		std::initializer_list<entities::model_type>{"models/crytek-sponza/sponza.fbx", "models/teapot/teapot.obj", "models/references/sphere_rough.fbx"},
-		std::initializer_list<entities::dynamic_type>{"sponza.bullet", "cube.bullet", "house.bullet"},
-		std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
-
-	using rendering_entities = rendering_assets_type::external_entities;
-
-	vector<rendering_entities> asset_data;
-	asset_data.reserve(all_statics.size());
-	int id{0};
-	for (const auto& entity : all_statics)
-		asset_data.emplace_back(
-			id++, 
-			boost::make_iterator_range(entity->begin(entity->models), entity->end(entity->models)),
-			boost::make_iterator_range(entity->begin(entity->transformations), entity->end(entity->transformations)));
-
-	rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
-		
-	//later test1(5000, true, [&] {
-	//	BOOST_LOG_TRIVIAL(info) << "Adding all statics";
-	//	rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
-	//	later test2(1000, true, [&] {
-	//		BOOST_LOG_TRIVIAL(info) << "Removing all statics";
-	//		rendering_assets.remove_statics(cbegin(asset_data), cend(asset_data));
-	//		later test3(7500, true, [&] {
-	//			BOOST_LOG_TRIVIAL(info) << "Adding all statics";
-	//			rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
-	//			later test4(7500, true, [&] {
-	//				BOOST_LOG_TRIVIAL(info) << "Removing all statics";
-	//				rendering_assets.remove_statics(cbegin(asset_data), cend(asset_data));
-	//			});
-	//		});
-	//	});
-	//});
-}
 void strafe_view( view& view ) {
 	auto increment = (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
 		? 5.0f : 1.0f;

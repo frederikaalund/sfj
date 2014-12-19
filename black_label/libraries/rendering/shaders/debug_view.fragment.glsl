@@ -18,20 +18,22 @@ struct view_type {
 layout(std140) uniform user_view_block
 { view_type user_view; };
 
-layout(std140) uniform view_block
-{ view_type views[50]; };
+uniform int ldm_view_count;
 
-layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[50]; };
+readonly restrict layout(std430) buffer view_block
+{ view_type views[]; };
+
+readonly restrict layout(std430) buffer data_offset_block
+{ uvec4 data_offsets[]; };
 
 
 
-struct oit_data {
+struct ldm_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
 readonly restrict layout (std430) buffer data_buffer
-{ oit_data data[]; };
+{ ldm_data data[]; };
 writeonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
 
@@ -94,6 +96,6 @@ void main() {
 	vec2 tc_position = vec2(gl_FragCoord) / window_dimensions;
 	vec2 ndc_position = tc_position * 2.0 - vec2(1.0);
 
-	for (int i = 0; i < 50; ++i)
+	for (int i = 0; i < ldm_view_count; ++i)
 		draw_layered_depth_map(ndc_position, views[i], data_offsets[i][0], i + 1);
 }

@@ -22,21 +22,22 @@ layout(std140) uniform current_view_block
 layout(std140) uniform user_view_block
 { view_type user_view; };
 
-const int max_views = 200;
-layout(std140) uniform view_block
-{ view_type views[max_views]; };
+uniform int ldm_view_count;
 
-layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[max_views]; };
+readonly restrict layout(std430) buffer view_block
+{ view_type views[]; };
+
+readonly restrict layout(std430) buffer data_offset_block
+{ uvec4 data_offsets[]; };
 
 
 
-struct oit_data {
+struct ldm_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
 readonly restrict layout (std430) buffer data_buffer
-{ oit_data data[]; };
+{ ldm_data data[]; };
 
 struct color_data {
 	uint32_t r, g, b;
@@ -432,7 +433,7 @@ void main()
 	ray_differential ray = construct_ray_differential(d, right, up);
 	transfer(ray, normalize(d), wc_normal, -ec_position_z);
 
-	const int num_views = max_views;
+	const int num_views = ldm_view_count;
 	for (int i = 0; i < num_views; i++)
 		splat_first_bounce(i, ray, wc_position, albedo);
 

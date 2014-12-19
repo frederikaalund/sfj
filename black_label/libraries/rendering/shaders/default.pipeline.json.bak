@@ -140,9 +140,9 @@
 			}
 		},
 		{ 
-			"name": "oit_forward",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_forward",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "forward",
 			"buffers": [ "data_buffer", "counter" ],
@@ -159,9 +159,9 @@
 			}
 		},
 		{ 
-			"name": "oit_top",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_top",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "top",
 			"buffers": [ "data_buffer", "counter" ],
@@ -178,9 +178,9 @@
 			}
 		},
 		{ 
-			"name": "oit_front",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_front",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "front",
 			"buffers": [ "data_buffer", "counter" ],
@@ -197,9 +197,9 @@
 			}
 		},
 		{ 
-			"name": "oit_top_right",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_top_right",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "top_right",
 			"buffers": [ "data_buffer", "counter" ],
@@ -216,9 +216,9 @@
 			}
 		},
 		{ 
-			"name": "oit_top_left",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_top_left",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "top_left",
 			"buffers": [ "data_buffer", "counter" ],
@@ -235,9 +235,9 @@
 			}
 		},
 		{ 
-			"name": "oit_bottom_left",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_bottom_left",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "bottom_left",
 			"buffers": [ "data_buffer", "counter" ],
@@ -254,9 +254,9 @@
 			}
 		},
 		{ 
-			"name": "oit_bottom_right",
-			"vertex_program": "oit.vertex.glsl",
-			"fragment_program": "oit.fragment.glsl",
+			"name": "ldm_bottom_right",
+			"vertex_program": "ldm.vertex.glsl",
+			"fragment_program": "ldm.fragment.glsl",
 			"preprocessor_commands": [ "#version 430" ],
 			"view": "bottom_right",
 			"buffers": [ "data_buffer", "counter" ],

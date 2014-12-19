@@ -5,12 +5,12 @@
 uniform ivec2 window_dimensions;
 
 
-struct oit_data {
+struct ldm_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
 writeonly restrict layout (std430) buffer data_buffer
-{ oit_data data[]; };
+{ ldm_data data[]; };
 
 writeonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };

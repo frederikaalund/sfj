@@ -245,6 +245,21 @@ void program::reload( path program_file ) {
 			link();
 		}
 	}
+	else if (geometry.is_tried_instantiated() && program_file == geometry.path_to_shader)
+	{
+		BOOST_LOG_TRIVIAL(info) << "Reloading shader: " << program_file;
+
+		if (is_complete())
+			glDetachShader(id, geometry.id);
+
+		geometry.load();
+
+		if (is_complete())
+		{
+			glAttachShader(id, geometry.id);
+			link();
+		}
+	}
 	else if (program_file == fragment.path_to_shader)
 	{
 		BOOST_LOG_TRIVIAL(info) << "Reloading shader: " << program_file;

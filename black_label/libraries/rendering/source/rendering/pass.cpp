@@ -1,4 +1,4 @@
-#define BLACK_LABEL_SHARED_LIBRARY_EXPORT
+﻿#define BLACK_LABEL_SHARED_LIBRARY_EXPORT
 #include <black_label/rendering/pass.hpp>
 
 #include <GL/glew.h>
@@ -123,10 +123,10 @@ void pass::set_buffers( unsigned int& shader_storage_binding_point, unsigned int
 		buffer.update(sizeof(uint32_t), &count);
 	}
 		
-	static gpu::buffer gpu_data_offsets{gpu::target::uniform_buffer, gpu::usage::dynamic_draw};
+	static gpu::buffer gpu_data_offsets{gpu::target::shader_storage, gpu::usage::dynamic_draw};
 	auto total_size = static_cast<ptrdiff_t>(sizeof(glm::uvec4) * data_offsets.size());
 	gpu_data_offsets.bind_and_update(total_size, data_offsets.data());
-	program->set_uniform_block("data_offset_block", uniform_binding_point, gpu_data_offsets);
+	program->set_shader_storage_block("data_offset_block", shader_storage_binding_point, gpu_data_offsets);
 
 }
 
@@ -140,9 +140,10 @@ void pass::set_uniforms() const {
 	program->set_uniform("wc_view_eye_position", view->eye);
 	static poisson_disc poisson_disc;
 	program->set_uniform("poisson_disc", poisson_disc);
+	program->set_uniform("ldm_view_count", ldm_view_count);
 }
 
-void pass::set_auxiliary_views( unsigned int& uniform_binding_point ) const {
+void pass::set_auxiliary_views( unsigned int& shader_storage_binding_point, unsigned int& uniform_binding_point ) const {
 	struct view_type {
 		glm::mat4 view_matrix, projection_matrix, view_projection_matrix;
 		glm::vec4 eye;
@@ -178,7 +179,7 @@ void pass::set_auxiliary_views( unsigned int& uniform_binding_point ) const {
 
 	// Auxiliary views
 	const auto total_size = static_cast<ptrdiff_t>(sizeof(view_type) * auxiliary_views.size());
-	static gpu::buffer views_buffer{gpu::target::uniform_buffer, gpu::usage::dynamic_draw, total_size};
+	static gpu::buffer views_buffer{gpu::target::shader_storage, gpu::usage::dynamic_draw, total_size};
 	std::vector<view_type> gpu_auxiliary_views;
 	gpu_auxiliary_views.reserve(auxiliary_views.size());
 	for (const auto& entry : auxiliary_views) {
@@ -198,11 +199,74 @@ void pass::set_auxiliary_views( unsigned int& uniform_binding_point ) const {
 	}
 
 	views_buffer.bind_and_update(total_size, gpu_auxiliary_views.data());
-	program->set_uniform_block("view_block", uniform_binding_point, views_buffer);
+	program->set_shader_storage_block("view_block", shader_storage_binding_point, views_buffer);
 }
 
 void pass::set_memory_barrier() const
 { glMemoryBarrier(GL_ALL_BARRIER_BITS); } // TODO: Debugging. Use post_memory_barrier_mask
+
+
+
+void pass::render_photons(gpu::framebuffer& framebuffer, const black_label::rendering::view& view, unsigned int& texture_unit) const
+{
+	using namespace std;
+	using namespace boost::adaptors;
+
+	set_viewport(view, output_textures | map_values | indirected);
+	set_blend_mode();
+	set_depth_test();
+	set_face_culling_mode();
+	if (!set_framebuffer(framebuffer, output_textures | map_values | indirected)) {
+		BOOST_LOG_TRIVIAL(warning) << "The framebuffer is not complete.";
+		return;
+	}
+	set_clearing_mask();
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+
+	program->set_uniform("view_matrix", view.view_matrix);
+	program->set_uniform("view_projection_matrix", view.view_projection_matrix);
+
+	auto& photon_count_buffer = boost::find_if(index_bound_buffers, [](const auto& entry) { return "photon_counter" == entry.first; })->second;
+	uint32_t photon_count;
+	photon_count_buffer->bind();
+	glGetBufferSubData(photon_count_buffer->target, 0, sizeof(uint32_t), &photon_count);
+
+	auto& photon_buffer = boost::find_if(buffers, [](const auto& entry) { return "photon_buffer" == entry.first; })->second;
+	glBindBuffer(GL_ARRAY_BUFFER, photon_buffer->id);
+
+	static auto vertex_array = gpu::vertex_array(generate);
+	vertex_array.bind();
+	gpu::vertex_array::index_type index{0};
+
+	glEnable(GL_BLEND);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_ONE, GL_ONE);
+	//glEnable(GL_POLYGON_OFFSET_FILL);
+	//glEnable(GL_POLYGON_OFFSET_POINT);
+	//glPolygonOffset(100.0f, 100.0f);
+	glDepthMask(false);
+
+	int stride{6 * 4 * sizeof(float)};
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, nullptr);
+	glEnableVertexAttribArray(index++);
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(1 * 4 * sizeof(float)));
+	glEnableVertexAttribArray(index++);
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(2 * 4 * sizeof(float)));
+	glEnableVertexAttribArray(index++);
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(3 * 4 * sizeof(float)));
+	glEnableVertexAttribArray(index++);
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(4 * 4 * sizeof(float)));
+	glEnableVertexAttribArray(index++);
+	glVertexAttribPointer(index, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(5 * 4 * sizeof(float)));
+	glEnableVertexAttribArray(index++);
+
+	glDrawArrays(GL_POINTS, 0, photon_count);
+
+	glDisable(GL_BLEND);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDisable(GL_POLYGON_OFFSET_POINT);
+	glDepthMask(true);
+}
 
 } // namespace rendering
 } // namespace black_label

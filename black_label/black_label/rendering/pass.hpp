@@ -16,6 +16,7 @@
 #include <chrono>
 
 #include <boost/range/adaptor/indirected.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/glm.hpp>
@@ -34,6 +35,7 @@ public:
 		statics,
 		dynamics,
 		screen_aligned_quad,
+		photons,
 		materials,
 		test_depth,
 		SIZE
@@ -218,7 +220,8 @@ public:
 		black_label::rendering::render_mode render_mode,
 		const black_label::rendering::view* view,
 		const black_label::rendering::view* user_view,
-		int preincrement_buffer_counter = 0 ) 
+		int preincrement_buffer_counter = 0,
+		int ldm_view_count = 0 ) 
 		: basic_pass{
 			std::move(name),
 			std::move(program), 
@@ -234,6 +237,7 @@ public:
 		, view{std::move(view)}
 		, user_view{std::move(user_view)}
 		, preincrement_buffer_counter{preincrement_buffer_counter}
+		, ldm_view_count{ldm_view_count}
 	{}
 
 	void set_input_textures( unsigned int& texture_unit ) const;
@@ -285,8 +289,16 @@ public:
 		program->set_uniform("lights_size", light_count);
 #endif
 	}
-	void set_auxiliary_views( unsigned int& uniform_binding_point ) const;
+	void set_auxiliary_views( unsigned int& shader_storage_binding_point, unsigned int& uniform_binding_point ) const;
 	void set_memory_barrier() const;
+
+
+	
+	void render_photons( 
+		gpu::framebuffer& framebuffer, 
+		const view& view,
+		unsigned int& texture_unit ) const;
+
 
 	template<typename assets_type>
 	void render( gpu::framebuffer& framebuffer, const assets_type& assets ) const {
@@ -301,13 +313,19 @@ public:
 		set_buffers(shader_storage_binding_point, uniform_binding_point);
 		set_uniforms();
 		set_lights(assets.lights, assets.light_buffer, texture_unit, uniform_binding_point);
-		set_auxiliary_views(uniform_binding_point);
-		basic_pass::render(
-			framebuffer, 
-			assets, 
-			*view, 
-			output_textures | map_values | indirected, 
-			texture_unit);
+		set_auxiliary_views(shader_storage_binding_point, uniform_binding_point);
+		if (render_mode[render_mode::photons])
+			render_photons(
+				framebuffer,
+				*view,
+				texture_unit);
+		else
+			basic_pass::render(
+				framebuffer, 
+				assets, 
+				*view, 
+				output_textures | map_values | indirected,
+				texture_unit);
 		set_memory_barrier();
 #ifdef _DEBUG
 		wait_for_opengl();
@@ -323,7 +341,7 @@ public:
 	const black_label::rendering::view
 		* view,
 		* user_view;
-	int preincrement_buffer_counter;
+	int preincrement_buffer_counter, ldm_view_count;
 };
 
 

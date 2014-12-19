@@ -14,6 +14,7 @@ uniform sampler2D albedos;
 uniform sampler2D random;
 uniform sampler2D ambient_occlusion;
 uniform sampler2D shadow_map_0, shadow_map_1;
+uniform sampler2D photon_splats, light_albedos;
 
 uniform samplerBuffer lights;
 #ifdef USE_TILED_SHADING
@@ -45,19 +46,19 @@ layout(std140) uniform light_block
 
 
 
-struct oit_data {
+struct ldm_data {
 	uint32_t next, compressed_diffuse;
 	float depth;
 };
 readonly restrict layout (std430) buffer data_buffer
-{ oit_data data[]; };
+{ ldm_data data[]; };
 readonly restrict layout (std430) buffer debug_view_buffer
 { uint32_t debug_view[]; };
 struct color_data {
 	uint32_t r, g, b;
 };
 readonly restrict layout (std430) buffer photon_splat_buffer
-{ color_data photon_splats[]; };
+{ color_data photon_splats_data[]; };
 
 
 
@@ -114,7 +115,7 @@ float calculate_shadow_coefficient(
 	// Normal bias (virtually translate scene along normal vectors)
 	float cos_alpha = clamp(dot(wc_normal, light.wc_direction.xyz), 0.0, 1.0);
     float normal_bias_coefficient = sqrt(1.0 - cos_alpha * cos_alpha); // <=> sin(acos(wc_normal, light_direction));
-	wc_position += wc_normal * normal_bias_coefficient;
+	wc_position += wc_normal * normal_bias_coefficient * 1.5;
 
 	// Coordinate transformations
 	vec4 cc_position = light.view_projection_matrix * vec4(wc_position, 1.0);
@@ -124,7 +125,7 @@ float calculate_shadow_coefficient(
 
 	// Shadow behind light
 	if (ec_position_z > 0.0) return 0.0;
-
+light.radius = 5.0;
 	// Sample count as a function of light size
 	int chi = int(light.radius / 12.5);
 	int samples = clamp(chi * chi, 4, poisson_disc_size);
@@ -307,7 +308,7 @@ vec4 blend(vec4 clr, vec4 srf)
   return clr + (1.0 - clr.w) * vec4(srf.xyz * srf.w , srf.w);  
 }
 
-vec4 oit() {
+vec4 ldm() {
 	// Get the head node
 	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
 	uint32_t current = data[heads_index].next;
@@ -351,7 +352,7 @@ vec4 get_debug_view() {
 
 vec4 get_photon_splats() {
 	uint32_t index = uint32_t(gl_FragCoord.x) + uint32_t(gl_FragCoord.y) * window_dimensions.x;
-	color_data color = photon_splats[index];
+	color_data color = photon_splats_data[index];
 	return vec4(float(color.r) / 255.0, float(color.g) / 255.0, float(color.b) / 255.0, 1.0);
 }
 
@@ -369,12 +370,13 @@ struct view_type {
 layout(std140) uniform user_view_block
 { view_type user_view; };
 
-const int max_views = 200;
-layout(std140) uniform view_block
-{ view_type views[max_views]; };
+uniform int ldm_view_count;
 
-layout(std140) uniform data_offset_block
-{ uvec4 data_offsets[max_views]; };
+readonly restrict layout(std430) buffer view_block
+{ view_type views[]; };
+
+readonly restrict layout(std430) buffer data_offset_block
+{ uvec4 data_offsets[]; };
 
 
 vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
@@ -548,6 +550,10 @@ float visibility( in vec3 wc_position, in vec3 wc_normal ) {
 
 
 
+vec4 get_photon_splats_from_texture( vec2 tc_window ) {
+	return texture(photon_splats, tc_window);
+}
+
 
 void main()
 {
@@ -589,16 +595,19 @@ void main()
 		 	uniform_distribution_random);
 
 	// Indirect light
-	color.rgb += 0.08 * albedo;
+	//color.rgb += 0.08 * albedo;
 	//color.rgb += 0.08 * albedo * ambient_occlusion_factor;
 
 	// Overrides
 	//color.rgb = texture(wc_positions, tc_window).xyz;
-	//color = oit();
+	//color = ldm();
 	//color.rgb *= 0.1;
 	//color = get_debug_view();
 	//color = vec4(visibility(wc_position, wc_normal));
-	color = get_photon_splats();
+	//color = get_photon_splats();
+	color = get_photon_splats_from_texture(tc_window);
+	//color += get_photon_splats_from_texture(tc_window) * visibility(wc_position, wc_normal);
+	//color = texture(light_albedos, tc_window);
 	//color += sampling_test(wc_position);
 	//color.rgb = wc_position;
 	//color.rgb = albedo;

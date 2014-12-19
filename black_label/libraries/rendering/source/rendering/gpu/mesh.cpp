@@ -16,16 +16,23 @@ void mesh::render( const core_program& program, unsigned int texture_unit ) cons
 {
 	if (diffuse && diffuse->valid())
 		diffuse->use(program, "diffuse_texture", texture_unit);
-	else
+	else {
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, 0);
 		program.set_uniform("diffuse_texture", 0);
+	}
 
 	if (specular && specular->valid())
 	{
 		specular->use(program, "specular_texture", texture_unit);
 		program.set_uniform("specular_exponent", 1.0f);
 	}
-	else
+	else {
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		program.set_uniform("specular_texture", 0);
 		program.set_uniform("specular_exponent", 0.0f);
+	}
 
 	render();
 }

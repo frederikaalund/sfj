@@ -4,8 +4,8 @@
 #include <random>
 
 #include <boost/log/trivial.hpp>
-#include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/find.hpp>
 
@@ -133,14 +133,14 @@ bool pipeline::import( path pipeline_file )
 
 
 ////////////////////////////////////////////////////////////////////////////////
-/// OIT Views
+/// LDM Views
 ////////////////////////////////////////////////////////////////////////////////
-		int oit_view_count{0};
-		for (auto view_root : root.get_child("oit_views") | boost::adaptors::map_values)
+		ldm_view_count = 0;
+		for (auto view_root : root.get_child("ldm_views") | boost::adaptors::map_values)
 		{
 			auto eye = get_vec3(view_root);
 			
-			auto name = "oit_view" + to_string(oit_view_count);
+			auto name = "ldm_view" + to_string(ldm_view_count);
 			auto width = 100;
 			auto height = 100;
 			auto left = -1000.0f;
@@ -167,7 +167,7 @@ bool pipeline::import( path pipeline_file )
 			allocated_views.emplace_back(name, view);
 			views.emplace(name, view);
 
-			++oit_view_count;
+			++ldm_view_count;
 		}
 
 
@@ -296,15 +296,15 @@ bool pipeline::import( path pipeline_file )
 			auto pass_configuration = pass_child.second;
 			auto name = pass_configuration.get<string>("name");
 
-			if ("oit_passes" == name) {
+			if ("ldm_passes" == name) {
 				program::configuration configuration;
-				configuration.vertex_shader(shader_directory / "oit.vertex.glsl");
-				configuration.fragment_shader(shader_directory / "oit.fragment.glsl");
+				configuration.vertex_shader(shader_directory / "ldm.vertex.glsl");
+				configuration.fragment_shader(shader_directory / "ldm.fragment.glsl");
 				configuration.preprocessor_commands("#version 430\n");
 				auto program_ = add_program(configuration);
 				
-				for (int id{0}; oit_view_count > id; ++id) {
-					const view* view = views.find("oit_view" + to_string(id))->second.lock().get();
+				for (int id{0}; ldm_view_count > id; ++id) {
+					const view* view = views.find("ldm_view" + to_string(id))->second.lock().get();
 
 					pass::buffer_container pass_buffers;
 					pass::index_bound_buffer_container pass_index_bound_buffers;
@@ -319,7 +319,7 @@ bool pipeline::import( path pipeline_file )
 					render_mode.set(render_mode::statics);
 					render_mode.set(render_mode::dynamics);
 					render_mode.set(render_mode::test_depth, false);
-					render_mode.set(render_mode::materials, false);
+					render_mode.set(render_mode::materials, pass_configuration.get<bool>("materials", true));
 
 					unsigned int post_memory_barrier_mask{GL_SHADER_STORAGE_BARRIER_BIT};
 					auto preincrement_buffer_counter = 40000;
@@ -328,7 +328,7 @@ bool pipeline::import( path pipeline_file )
 					pass::view_container auxiliary_views;
 
 					passes.emplace_back(
-						"oit_view" + to_string(id),
+						"ldm_view" + to_string(id),
 						program_,
 						move(input_textures),
 						move(output_textures),
@@ -373,11 +373,11 @@ bool pipeline::import( path pipeline_file )
 				for (const auto& auxiliary_view : *auxiliary_views_root | boost::adaptors::map_values)
 				{
 					auto name = auxiliary_view.get<string>("");
-					if ("oit_views" == name) {
-						for (int id{0}; oit_view_count > id; ++id) {
-							auto oit_name = "oit_view" + to_string(id);
-							auto view = views.at(oit_name);
-							auxiliary_views.emplace_back(move(oit_name), view.lock());
+					if ("ldm_views" == name) {
+						for (int id{0}; ldm_view_count > id; ++id) {
+							auto ldm_name = "ldm_view" + to_string(id);
+							auto view = views.at(ldm_name);
+							auxiliary_views.emplace_back(move(ldm_name), view.lock());
 						}
 						continue;
 					}
@@ -427,6 +427,7 @@ bool pipeline::import( path pipeline_file )
 				if ("statics" == model_value) render_mode.set(render_mode::statics);
 				else if ("dynamics" == model_value) render_mode.set(render_mode::dynamics);
 				else if ("screen_aligned_quad" == model_value) render_mode.set(render_mode::screen_aligned_quad);
+				else if ("photons" == model_value) render_mode.set(render_mode::photons);
 				else throw exception{"Invalid model type."};
 			}
 
@@ -492,7 +493,8 @@ bool pipeline::import( path pipeline_file )
 				render_mode,
 				view,
 				user_view,
-				preincrement_buffer_counter);
+				preincrement_buffer_counter,
+				ldm_view_count);
 		}
 	} 
 	catch (const exception& exception)

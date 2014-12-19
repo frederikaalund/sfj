@@ -4,11 +4,19 @@
 #include <cave_demo/window.hpp>
 
 #include <black_label/path.hpp>
+#include <black_label/rendering.hpp>
 #include <black_label/rendering/pipeline.hpp>
 
 
 
 namespace cave_demo {
+
+using rendering_assets_type = black_label::rendering::assets<
+	int,
+	black_label::world::entities::model_type*,
+	black_label::world::entities::transformation_type*>;
+
+void create_world( rendering_assets_type& rendering_assets );
 
 void draw_statistics(
 	window& window,

@@ -1,17 +1,84 @@
 ﻿#include <cave_demo/utility.hpp>
 
+#include <black_label/path.hpp>
+#include <black_label/world/entities.hpp>
+
 #include <chrono>
 #include <sstream>
+
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/range/adaptors.hpp>
 
 
 
 using namespace black_label::rendering;
+using namespace black_label::world;
 using namespace std;
 using namespace std::chrono;
+
+using black_label::path;
 
 
 
 namespace cave_demo {
+
+glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f )
+{
+	auto m = glm::mat4(); 
+	m[3][0] = x; m[3][1] = y; m[3][2] = z;
+	m[0][0] = m[1][1] = m[2][2] = scale;
+	return m;
+}
+void create_world( rendering_assets_type& rendering_assets ) {
+	static group all_statics;
+	
+	path scene_file{"scene.json"};
+	BOOST_LOG_TRIVIAL(info) << "Importing scene file " << scene_file << "...";
+
+	boost::property_tree::ptree root;
+	boost::property_tree::read_json(scene_file.string(), root);
+
+	vector<path> models, dynamics;
+	vector<glm::mat4> transformations;
+
+	for (auto entity : root.get_child("entities") | boost::adaptors::map_values) {
+		auto model = entity.get<string>("model");
+		models.emplace_back(move(model));
+
+		auto dynamic = entity.get<string>("dynamic");
+		dynamics.emplace_back(move(dynamic));
+
+		glm::mat4 transformation; // Identity matrix
+		if (auto transformation_root_ = entity.get_child_optional("transformation"))
+			for (auto& transformation_child : *transformation_root_)
+			{
+				if ("translate" == transformation_child.first) {
+
+				}
+			}
+		transformations.emplace_back(transformation);
+	}
+	
+	all_statics.emplace_back(std::make_shared<entities>(
+		models,
+		dynamics,
+		//transformations
+		std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
+
+	using rendering_entities = rendering_assets_type::external_entities;
+
+	vector<rendering_entities> asset_data;
+	asset_data.reserve(all_statics.size());
+	int id{0};
+	for (const auto& entity : all_statics)
+		asset_data.emplace_back(
+			id++, 
+			boost::make_iterator_range(entity->begin(entity->models), entity->end(entity->models)),
+			boost::make_iterator_range(entity->begin(entity->transformations), entity->end(entity->transformations)));
+
+	rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
+}
 
 void draw_statistics(
 	window& window,
@@ -61,17 +128,17 @@ void draw_statistics(
 			rendering_pipeline.shadow_mapping.render_time);
 
 		auto all_passes = rendering_pipeline.shadow_mapping.render_time;
-		chrono::high_resolution_clock::duration oit{0};
+		chrono::high_resolution_clock::duration ldm{0};
 		for (const auto& pass : rendering_pipeline.passes) {
-			if ("oit" == pass.name.substr(0, 3)) {
-				oit += pass.render_time;
+			all_passes += pass.render_time;
+			if ("ldm" == pass.name.substr(0, 3)) {
+				ldm += pass.render_time;
 				continue;
 			}
 			output_pass("\t" + pass.name, pass.render_time);
-			all_passes += pass.render_time;
 		}
 	
-		output_pass("\toit (all passes)", oit);
+		output_pass("\tldm (all passes)", ldm);
 
 		output_pass("\t(sequencing overhead)", rendering_pipeline.render_time - all_passes);
 
