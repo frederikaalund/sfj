@@ -54,6 +54,7 @@ bool pipeline::import( path pipeline_file )
 	index_bound_buffers.clear();
 	buffers_to_reset_pre_first_frame.clear();
 	passes.clear();
+	data_offsets = make_shared<std::vector<glm::uvec4>>();
 
 	try {
 		pipeline_file = canonical_and_preferred(pipeline_file, shader_directory);
@@ -136,23 +137,26 @@ bool pipeline::import( path pipeline_file )
 /// LDM Views
 ////////////////////////////////////////////////////////////////////////////////
 		ldm_view_count = 0;
+		auto ldm_size = root.get<int>("ldm_size", 100);
+		auto ldm_scale = root.get<float>("ldm_scale", 2000.0f);
+		auto ldm_offset = get_vec3(root.get_child("ldm_offset"));
 		for (auto view_root : root.get_child("ldm_views") | boost::adaptors::map_values)
 		{
-			auto eye = get_vec3(view_root);
+			auto eye = get_vec3(view_root) + ldm_offset;
 			
 			auto name = "ldm_view" + to_string(ldm_view_count);
-			auto width = 100;
-			auto height = 100;
-			auto left = -1000.0f;
-			auto right = 1000.0f;
-			auto top = 1000.0f;
-			auto bottom = -1000.0f;
-			auto near_ = -10000.0f;
-			auto far_ = 10000.0f;
+			auto width = ldm_size;
+			auto height = ldm_size;
+			auto left = -ldm_scale;
+			auto right = ldm_scale;
+			auto top = ldm_scale;
+			auto bottom = -ldm_scale;
+			auto near_ = -ldm_scale;
+			auto far_ = ldm_scale;
 
 			auto view = make_shared<black_label::rendering::view>(
 				eye,
-				glm::vec3{ 0.0f, 0.0f, 0.0f },
+				ldm_offset,
 				glm::vec3{ 0.0f, 1.0f, 0.0f },
 				width,
 				height,
@@ -341,7 +345,9 @@ bool pipeline::import( path pipeline_file )
 						render_mode,
 						view,
 						user_view,
-						preincrement_buffer_counter);
+						preincrement_buffer_counter,
+						0,
+						data_offsets);
 				}
 				continue;
 			}
@@ -494,7 +500,8 @@ bool pipeline::import( path pipeline_file )
 				view,
 				user_view,
 				preincrement_buffer_counter,
-				ldm_view_count);
+				ldm_view_count,
+				data_offsets);
 		}
 	} 
 	catch (const exception& exception)

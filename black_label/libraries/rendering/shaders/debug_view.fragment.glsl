@@ -4,7 +4,6 @@
 
 uniform samplerBuffer lights;
 uniform ivec2 window_dimensions;
-//uniform mat4 view_projection_matrix;
 
 
 
@@ -14,6 +13,7 @@ struct view_type {
 	vec4 right, forward, up;
 	ivec2 dimensions;
 };
+
 
 layout(std140) uniform user_view_block
 { view_type user_view; };
@@ -29,7 +29,8 @@ readonly restrict layout(std430) buffer data_offset_block
 
 
 struct ldm_data {
-	uint32_t next, compressed_diffuse;
+	uint32_t next;
+	//uint32_t compressed_diffuse;
 	float depth;
 };
 readonly restrict layout (std430) buffer data_buffer
@@ -50,7 +51,7 @@ void draw_layered_depth_map(
 	uint32_t current = data[heads_index].next;
 
 	// Constants
-	const int max_list_length = 200;
+	const int max_list_length = 2000;
 
 	// Loop over each point
 	int list_length = 0;
@@ -59,20 +60,20 @@ void draw_layered_depth_map(
 		current = data[current].next;
 		list_length++;
 
-		vec3 wc_light_position = view.eye.xyz;
+		vec3 wc_eye_position = view.eye.xyz;
 		vec3 right = view.right.xyz;
 		vec3 forward = view.forward.xyz;
 		vec3 up = view.up.xyz;
 
 		// Othographic
-		const float right_scale = 1000.0;
-		const float top_scale = 1000.0;
+		const float right_scale = 2000.0;
+		const float top_scale = 2000.0;
 
 		vec3 direction = (
-			forward * (depth)
+			forward * depth
 			+ right * right_scale * ndc_position.x
 			+ up * top_scale * ndc_position.y);
-		vec3 wc_sample_position = wc_light_position + direction;
+		vec3 wc_sample_position = wc_eye_position + direction;
 
 		// Project into user view
 		vec4 cc_sample_position = user_view.view_projection_matrix * vec4(wc_sample_position, 1.0);
@@ -82,10 +83,10 @@ void draw_layered_depth_map(
 			continue;
 		vec3 ndc_sample_position = cc_sample_position.xyz / cc_sample_position.w;
 		vec2 tc_sample_position = (ndc_sample_position.xy + vec2(1.0)) * 0.5;
-		uvec2 vc_sample_position = uvec2(tc_sample_position * user_view.dimensions);
+		uvec2 sc_sample_position = uvec2(tc_sample_position * user_view.dimensions);
 
 		// Write to buffer (as if it was a texture)
-		uint32_t index = vc_sample_position.x + vc_sample_position.y * user_view.dimensions.x;
+		uint32_t index = sc_sample_position.x + sc_sample_position.y * user_view.dimensions.x;
 		debug_view[index] = id;
 	}
 }

@@ -1,4 +1,4 @@
-#define USE_RANDOM_DIRECTION 1
+#define USE_RANDOM_DIRECTION 0
 
 const int poisson_disc_size = 128;
 uniform vec2 poisson_disc[poisson_disc_size];
@@ -119,10 +119,10 @@ void main()
 	ambient_occlusion.a = 0.0;
 	
 	const int base_samples = 0;
-	const int min_samples = 16;
-	const float ec_radius = 100.0;
+	const int min_samples = 512;
+	const float ec_radius = 1280.0;
 	const float ec_radius_squared = ec_radius * ec_radius;
-	const float bias = 0.4;
+	const float bias = 0.0;
 
 	const int samples = min_samples;
 
@@ -137,7 +137,7 @@ void main()
 	}
 
 	// Stepping
-	const int max_steps = 4;
+	const int max_steps = 128; // 8
 	int steps = min(int(sc_radius.x), max_steps);
 
 
@@ -197,6 +197,7 @@ void main()
 			{
 				float sin_sample_angle = tan_to_sin(tan_sample_angle);
 				float falloff = 1.0 - ec_ray_length_squared / ec_radius_squared;
+				//float falloff = 1.0 - pow(min(sqrt(ec_ray_length_squared) / ec_radius, 1.0), 2.0);
 				float horizon = sin_sample_angle - sin_horizon_angle;
 				ambient_occlusion.a += horizon * falloff;
 				tan_horizon_angle = tan_sample_angle;

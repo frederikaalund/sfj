@@ -12,6 +12,9 @@
 
 #include <tbb/concurrent_unordered_map.h>
 
+// TODO: Remove. Just for debugging
+#include <GL/glew.h>
+
 
 
 namespace black_label {
@@ -45,6 +48,7 @@ public:
 		swap(lhs.passes, rhs.passes);
 		swap(lhs.shadow_mapping, rhs.shadow_mapping);
 		swap(lhs.ldm_view_count, rhs.ldm_view_count);
+		swap(lhs.data_offsets, rhs.data_offsets);
 	}
 
 	pipeline( const black_label::rendering::view* user_view = nullptr, path shader_directory = path{} )
@@ -94,7 +98,43 @@ public:
 	//void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets ) const
 	void render_passes( gpu::framebuffer& framebuffer, const assets_type& assets )
 	//{ for (const auto& pass : passes) pass.render(framebuffer, assets); }
-	{ for (auto& pass : passes) pass.render(framebuffer, assets); }
+	{ 
+		for (auto& pass : passes) pass.render(framebuffer, assets);
+
+		if (auto count_buffer = index_bound_buffers["counter"].lock()) {
+			// Get the number of link nodes
+			uint32_t count;
+			count_buffer->bind();
+			glGetBufferSubData(count_buffer->target, 0, sizeof(uint32_t), &count);
+
+			// Allocate enough space for the link nodes
+			auto& data_buffer = *buffers["data_buffer"].lock();
+			data_buffer_size = (count + data_offsets->back()[0]) * (4 + 4);
+
+			data_buffer.bind();
+			int32_t old_data_buffer_size;
+			glGetBufferParameteriv(data_buffer.target, GL_BUFFER_SIZE, &old_data_buffer_size);
+			if (old_data_buffer_size != data_buffer_size)
+				data_buffer.update(data_buffer_size);
+		}
+
+		if (auto count_buffer = index_bound_buffers["photon_counter"].lock()) {
+			// Get the number of photons
+			uint32_t count;
+			count_buffer->bind();
+			glGetBufferSubData(count_buffer->target, 0, sizeof(uint32_t), &count);
+
+			// Allocate enough space for the photons
+			auto& photon_buffer = *buffers["photon_buffer"].lock();
+			photon_buffer_size = count * (5 * 4 * sizeof(float));
+
+			photon_buffer.bind();
+			int32_t old_photon_buffer_size;
+			glGetBufferParameteriv(photon_buffer.target, GL_BUFFER_SIZE, &old_photon_buffer_size);
+			if (old_photon_buffer_size != photon_buffer_size)
+				photon_buffer.update(photon_buffer_size);
+		}
+	}
 			
 	template<typename assets_type>
 	//void render( gpu::framebuffer& framebuffer, const assets_type& assets ) const {
@@ -149,7 +189,9 @@ public:
 	pass_container passes;
 	basic_pass shadow_mapping;
 	mutable std::chrono::high_resolution_clock::duration render_time;
+	uint32_t data_buffer_size, photon_buffer_size;
 	int ldm_view_count{0};
+	std::shared_ptr<std::vector<glm::uvec4>> data_offsets;
 
 
 

@@ -6,6 +6,7 @@
 #include <black_label/path.hpp>
 #include <black_label/rendering.hpp>
 #include <black_label/rendering/pipeline.hpp>
+#include <black_label/rendering/view.hpp>
 
 
 
@@ -16,7 +17,7 @@ using rendering_assets_type = black_label::rendering::assets<
 	black_label::world::entities::model_type*,
 	black_label::world::entities::transformation_type*>;
 
-void create_world( rendering_assets_type& rendering_assets );
+void create_world( rendering_assets_type& rendering_assets, black_label::rendering::view& view );
 
 void draw_statistics(
 	window& window,

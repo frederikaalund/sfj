@@ -96,13 +96,6 @@ int main( int argc, char const* argv[] )
 			glm::vec3{300.0f, 200.0f, -300.0f}, 
 			glm::vec3{0.0f, 1.0f, 0.0f}, 
 			options.window.width, options.window.height};
-		//view view{
-		//	glm::vec3{1200.0f, 200.0f, 200.0f}, 
-		//	glm::vec3{300.0f, 200.0f, -300.0f}, 
-		//	glm::vec3{0.0f, 1.0f, 0.0f}, 
-		//	options.window.width, options.window.height,
-		//	-100.0f, 100.0f,
-		//	-100.0f, 100.0f};
 		window window{view.window.x, view.window.y};
 		
 		black_label::rendering::initialize();
@@ -168,7 +161,7 @@ int main( int argc, char const* argv[] )
 ////////////////////////////////////////////////////////////////////////////////
 		// This is a placeholder for a script and/or scene file
 		set_clear_color({0.9f, 0.934f, 1.0f, 1.0f});
-		create_world(rendering_assets);
+		create_world(rendering_assets, view);
 		
 
 
@@ -178,6 +171,7 @@ int main( int argc, char const* argv[] )
 		// Returns true until the window is closed
 		while (window.update()) {
 			if (window.is_focused() && sf::Keyboard::isKeyPressed(sf::Keyboard::R)) {
+				bool was_t_pressed = sf::Keyboard::isKeyPressed(sf::Keyboard::T);
 
 				// Only strafe the view when the user is actually focusing it
 				if (window.is_focused()) strafe_view(view);
@@ -185,7 +179,9 @@ int main( int argc, char const* argv[] )
 				// Render the scene
 				rendering_pipeline.render(framebuffer, rendering_assets);
 				// Overlay rendering statistics
-				draw_statistics(window, options.rendering.asset_directory, rendering_pipeline, options.is_complete());
+				if (!was_t_pressed)
+					draw_statistics(window, options.rendering.asset_directory, rendering_pipeline, options.is_complete());
+				window.window_.display();
 			}
 
 

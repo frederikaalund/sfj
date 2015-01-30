@@ -2,8 +2,8 @@
 #extension GL_NV_gpu_shader5: enable
 #extension GL_EXT_shader_image_load_store: enable
 
-#define USE_PHYSICAL_SOFT_SHADOWS
-#define USE_OREN_NAYAR_DIFFUSE_REFLECTANCE
+//#define USE_PHYSICAL_SOFT_SHADOWS
+//#define USE_OREN_NAYAR_DIFFUSE_REFLECTANCE
 
 const int poisson_disc_size = 16;
 uniform vec2 poisson_disc[poisson_disc_size];
@@ -47,7 +47,7 @@ layout(std140) uniform light_block
 
 
 struct ldm_data {
-	uint32_t next, compressed_diffuse;
+	uint32_t next;
 	float depth;
 };
 readonly restrict layout (std430) buffer data_buffer
@@ -222,8 +222,8 @@ vec4 get_reflected_light(
 		vec3 wc_light_position = vec3(texelFetch(lights, light_id * LIGHT_STRUCT_SIZE).x, texelFetch(lights, light_id * LIGHT_STRUCT_SIZE + 1).x, texelFetch(lights, light_id * LIGHT_STRUCT_SIZE + 2).x);
 		vec3 light_color = vec3(texelFetch(lights, light_id * LIGHT_STRUCT_SIZE + 3).x, texelFetch(lights, light_id * LIGHT_STRUCT_SIZE + 4).x, texelFetch(lights, light_id * LIGHT_STRUCT_SIZE + 5).x);
 
-		float light_radius = 50.0;
-		light_color *= 10000000.0;
+		float light_radius = 1.0;
+		light_color *= 400000.0;
 		
 
 		// Representative point approximation of spherical lights
@@ -234,9 +234,10 @@ vec4 get_reflected_light(
 		vec3 wc_representative_point = wc_light_position 
 			+ wc_light_direction_unnormalized + wc_center_to_reflection 
 			* clamp(light_radius / length(wc_center_to_reflection), 0.0, 1.0);
+			
 
 		// Common BRDF parameters
-		vec3 wc_light_direction = wc_representative_point - wc_position;
+		vec3 wc_light_direction = wc_light_position - wc_position;
 		float wc_light_distance = length(wc_light_direction);
 		wc_light_direction /= wc_light_distance;
 		// The half angle vector (h)
@@ -245,6 +246,18 @@ vec4 get_reflected_light(
 		float dotNH = dot(wc_normal, wc_half_angle);
 		float dotNV = dot(wc_normal, wc_view_direction);
 		float dotNL = dot(wc_normal, wc_light_direction);
+
+		// Spot light
+
+		// Carpet Light
+		vec3 wc_light_target = vec3(300.0, 100.0, -220.0);
+		// Sky Light
+		//vec3 wc_light_target = vec3(300.0, 600.0, -220.0);
+
+
+		vec3 wc_direction = normalize(wc_light_position - wc_light_target);
+		float eta = acos(max(dot(wc_light_direction, wc_direction), 0.0));
+		if (eta > PI / 8.0) return vec4(0.0);
 
 		// Falloff
 		float falloff = 1.0 / (wc_light_distance * wc_light_distance);
@@ -256,6 +269,7 @@ vec4 get_reflected_light(
 
 		// Specularly reflected light
 		// Reference: http://www.unrealengine.com/files/downloads/2013SiggraphPresentationsNotes.pdf
+		/*
 		float chi = PI * (dotNH * dotNH * (a_squared - 1.0) + 1.0);
 		float D = a_squared / (chi * chi);
 		float k = (roughness + 1.0) * (roughness + 1.0);
@@ -265,6 +279,8 @@ vec4 get_reflected_light(
 		vec3 F = fresnel_schlick(material_specular_color, wc_view_direction, wc_half_angle);
 		vec3 specularly_reflected_light = (D * F * G) / (4.0 * dotNL * dotNV) 
 			* specular_sphere_normalization;
+		*/
+		vec3 specularly_reflected_light = vec3(0.0);
 
 		// Diffusely reflected light
 		vec3 diffusely_reflected_light = albedo * max(dotNL, 0.0)
@@ -310,8 +326,8 @@ vec4 blend(vec4 clr, vec4 srf)
 
 vec4 ldm() {
 	// Get the head node
-	uint32_t heads_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
-	uint32_t current = data[heads_index].next;
+	uint32_t head_index = uint32_t(gl_FragCoord.x - 0.5) + uint32_t(gl_FragCoord.y - 0.5) * window_dimensions.xs;
+	uint32_t current = data[head_index].next;
 
 	// Constants
 	const int max_list_length = 100;
@@ -320,7 +336,6 @@ vec4 ldm() {
 	int list_length = 0;
 	while (0 != current && list_length < max_list_length) {
 		//color = blend(decompress(data[current].compressed_diffuse), color);
-		color = blend(decompress(data[current].compressed_diffuse), color);
 
 		current = data[current].next;
 		++list_length;
@@ -345,7 +360,7 @@ vec4 get_debug_view() {
 	uint32_t index = uint32_t(gl_FragCoord.x) + uint32_t(gl_FragCoord.y) * window_dimensions.x;
 
 	if (0 < debug_view[index])
-		return get_view_color(int(debug_view[index] - 1));
+		return vec4(1.0);//get_view_color(int(debug_view[index] - 1));
 	return vec4(0.0);
 }
 
@@ -399,8 +414,8 @@ vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
 	vec3 up = view.up.xyz;
 
 	// Othographic
-	const float right_scale = 1000.0;
-	const float top_scale = 1000.0;
+	const float right_scale = 2000.0;
+	const float top_scale = 2000.0;
 
 
 //float depth = -(view.view_matrix * vec4(wc_position, 1.0)).z;
@@ -415,8 +430,8 @@ vec4 draw_view_as_points( in int view_id, in vec3 wc_position ) {
 
 
 	// Get the head node
-	uint32_t heads_index = data_offset + window_position.x + window_position.y * view.dimensions.x;
-	uint32_t current = data[heads_index].next;
+	uint32_t head_index = data_offset + window_position.x + window_position.y * view.dimensions.x;
+	uint32_t current = data[head_index].next;
 
 	if (0 == current)
 		return vec4(1.0, 1.0, 1.0, 0.0);
@@ -460,31 +475,36 @@ vec4 sampling_test( in vec3 wc_position ) {
 
 
 
+const float max_distance = 9999999.0;
+float visibility( in float occluder_distance )
+{ return (occluder_distance == max_distance) ? 1.0 : 0.0; }
 
+const float falloff_distance = 200.0;
+const float falloff_exponent = 2.0;
+float attenuated_visibility( in float occluder_distance )
+{ return pow(min(occluder_distance / falloff_distance, 1.0), falloff_exponent); }
 
-float visibility( in vec3 wc_view_direction, in vec3 wc_normal, in float occluder_distance ) {
-	float weight = max(dot(wc_view_direction, wc_normal), 0.0);
-	return 1.0 - weight * min(400.0 / (occluder_distance * occluder_distance), 1.0);	
-}
-
-float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 wc_normal ) {
-	// Normal bias (virtually translate scene along normal vectors)
-	float cos_alpha = clamp(dot(wc_normal, light.wc_direction.xyz), 0.0, 1.0);
-    float normal_bias_coefficient = sqrt(1.0 - cos_alpha * cos_alpha); // <=> sin(acos(wc_normal, light_direction));
-	wc_position += wc_normal * normal_bias_coefficient * 2.0;
-
+float trace_ambient_occlusion( in int view_id, in vec3 wc_position, in vec3 wc_normal ) {
 	view_type view = views[view_id];
 	uint32_t data_offset = data_offsets[view_id];
+
+	// Normal offset (virtually translate scene along normal vector)
+	float cos_alpha = clamp(dot(wc_normal, view.forward.xyz), 0.0, 1.0);
+    float normal_offset = sqrt(1.0 - cos_alpha * cos_alpha); // <=> sin(acos(cos_alpha));
+    const float constant_factor = 10.0;
+	wc_position += wc_normal * normal_offset * constant_factor;
 
 	// Coordinate transformations
 	vec4 cc_position = view.view_projection_matrix * vec4(wc_position, 1.0);
 	if (cc_position.x > cc_position.w || cc_position.x < -cc_position.w
 		|| cc_position.y > cc_position.w || cc_position.y < -cc_position.w
 		|| cc_position.z > cc_position.w || cc_position.z < -cc_position.w)
-		return vec4(1.0);
+		// Assume clear outside of LDM bounds
+		return 1.0;
+
 	vec3 ndc_position = cc_position.xyz / cc_position.w;
 	vec3 tc_position = (ndc_position + vec3(1.0)) * 0.5;
-	uvec2 window_position = uvec2(tc_position.xy * view.dimensions);
+	uvec2 sc_position = uvec2(tc_position.xy * view.dimensions);
 
 	vec3 wc_eye = view.eye.xyz;
 	vec3 right = view.right.xyz;
@@ -492,22 +512,21 @@ float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 w
 	vec3 up = view.up.xyz;
 
 	// Othographic
-	const float right_scale = 1000.0;
-	const float top_scale = 1000.0;
+	const float right_scale = 2000.0;
+	const float top_scale = 2000.0;
 
 	// Get the head node
-	uint32_t heads_index = data_offset + window_position.x + window_position.y * view.dimensions.x;
-	uint32_t current = data[heads_index].next;
+	uint32_t head_index = data_offset + sc_position.x + sc_position.y * view.dimensions.x;
+	uint32_t current = data[head_index].next;
 
 	const int max_list_length = 200;
-	const float distance_threshold = 999999.0;
-	float min_distance = distance_threshold;
+	float min_distance = max_distance;
 	float previous_distance = min_distance;
 	float next_distance = min_distance;
 	bool get_next = false;
 
 	int list_length = 0;
-	while (0 != current && list_length < max_list_length) {
+	while (0 != current && list_length++ < max_list_length) {
 		float depth = data[current].depth;
 		vec3 direction = (
 			forward * (depth)
@@ -526,26 +545,24 @@ float visibility_both_directions( in int view_id, in vec3 wc_position, in vec3 w
 			previous_distance = min_distance;
 			min_distance = sample_distance;
 			get_next = true;
-		}
+		} else break;
 
 		current = data[current].next;
-		++list_length;
 	}
-	if (get_next)
-		next_distance = distance_threshold;
+	if (get_next) next_distance = max_distance;
 
-	float V1 = visibility(view.forward.xyz, wc_normal, next_distance);
-	float V2 = visibility(-view.forward.xyz, wc_normal, previous_distance);
+	float cos_theta = dot(view.forward.xyz, wc_normal);
 
-	return (V1 + V2) / 2.0;
+	return (cos_theta > 0.0) 
+		? visibility(next_distance) * cos_theta
+		: visibility(previous_distance) * -cos_theta;
 }
 
-float visibility( in vec3 wc_position, in vec3 wc_normal ) {
+float trace_ambient_occlusion( in vec3 wc_position, in vec3 wc_normal ) {
 	float result = 0.0;
-	const int views = 200;
-	for (int i = 0; i < views; ++i)
-		result += visibility_both_directions(i, wc_position, wc_normal);
-	return result / float(views);
+	for (int i = 0; i < ldm_view_count; ++i)
+		result += trace_ambient_occlusion(i, wc_position, wc_normal);
+	return 2.0 * result / float(ldm_view_count);
 }
 
 
@@ -564,12 +581,13 @@ void main()
 	vec3 wc_view_direction = normalize(vertex.wc_view_ray_direction);
 	vec3 albedo = texture(albedos, tc_window).xyz;
 
+	float ambient_occlusion_factor = texture(ambient_occlusion, tc_window).a;
 
+/*
 	float roughness = 1.0;
 	float uniform_distribution_random = texture(random, tc_window).x;
 
 	vec3 bent_normal = normalize(texture(ambient_occlusion, tc_window).rgb * 2.0 - 1.0);
-	float ambient_occlusion_factor = texture(ambient_occlusion, tc_window).a;
 	const float a = 0.0;
 	const float b = 1.0;
 	const float c = 1.0;
@@ -593,25 +611,28 @@ void main()
 		 	wc_normal, 
 		 	tc_window, 
 		 	uniform_distribution_random);
-
+*/
 	// Indirect light
 	//color.rgb += 0.08 * albedo;
 	//color.rgb += 0.08 * albedo * ambient_occlusion_factor;
 
+	//vec4 environment_color = 0.05 * vec4(0.7, 0.7, 1.0, 1.0) * vec4(trace_ambient_occlusion(wc_position, wc_normal));
+	//color += get_photon_splats_from_texture(tc_window) + environment_color;
+
 	// Overrides
+	//color.rgb = vec3(ambient_occlusion_factor);	
+	color = vec4(trace_ambient_occlusion(wc_position, wc_normal));
+	//color += get_photon_splats_from_texture(tc_window);
+
 	//color.rgb = texture(wc_positions, tc_window).xyz;
 	//color = ldm();
 	//color.rgb *= 0.1;
-	//color = get_debug_view();
-	//color = vec4(visibility(wc_position, wc_normal));
-	//color = get_photon_splats();
-	color = get_photon_splats_from_texture(tc_window);
-	//color += get_photon_splats_from_texture(tc_window) * visibility(wc_position, wc_normal);
+	//color =  1.0 * vec4(albedo, 0.0) + get_debug_view();
+	
 	//color = texture(light_albedos, tc_window);
 	//color += sampling_test(wc_position);
 	//color.rgb = wc_position;
 	//color.rgb = albedo;
-	//color.rgb = vec3(ambient_occlusion_factor);	
 	//color.rgb = vec3(float(counts[index]) / 20.0);
 
 	// Overbright

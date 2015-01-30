@@ -1,0 +1,93 @@
+{
+        "ldm_views": [
+        ],
+        "ldm_size": 100,
+        "ldm_scale": 2000.0,
+        "ldm_offset": [0.0, 500.0, 0.0],
+        "views": [
+                {
+                        "name": "debug_view",
+                        "width": 100,
+                        "height": 100
+                },
+                {
+                        "name": "light_view",
+                        // Carpet Light
+                        "eye": [300.0, 500.0, 150.0],
+                        "target": [300.0, 100.0, -220.0],
+
+                        // Sky Light
+                        //"eye": [300.0, 1000.0, 150.0],
+                        //"target": [300.0, 600.0, -220.0],
+                        "width": 100,
+                        "height": 100,
+                        "perspective": {
+                                "near": 10.0,
+                                "far": 10000.0
+                        }
+                }
+        ],
+
+        "textures": [
+                { "name": "depths", "format": "depth32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+                { "name": "albedos", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+                { "name": "wc_normals", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+                { "name": "wc_positions", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" },
+                { "name": "random", "format": "rgba16f", "filter": "nearest", "wrap": "repeat", "data": "random" },
+                { "name": "ambient_occlusion", "format": "rgba16f", "filter": "nearest", "wrap": "clamp_to_edge", "width": 1.0, "height": 1.0 },
+                { "name": "lit", "format": "rgba32f", "filter": "nearest", "wrap": "clamp_to_edge" }
+        ],
+
+        "buffers": [
+                { "name": "counter", "target": "atomic_counter", "binding": 0, "size": 4, "data": "null", "reset": "pre_first_pass" },
+                { "name": "photon_counter", "target": "atomic_counter", "binding": 1, "size": 4, "data": "null", "reset": "pre_first_pass" }
+        ],
+
+        "passes": [                
+                {
+                        "name": "buffering",
+                        "vertex_program": "buffering.vertex.glsl",
+                        "fragment_program": "buffering.fragment.glsl",
+                        "preprocessor_commands": [ "#version 430" ],
+                        "textures": {
+                                "output": [ "depths", "wc_normals", "wc_positions", "albedos" ]
+                        },
+                        "models": [ "statics", "dynamics" ],
+                        "clear": [ "color", "depth" ],
+                        "test_depth": true
+                },
+                { 
+                        "name": "ambient_occlusion",
+                        "vertex_program": "lighting.vertex.glsl",
+                        "fragment_program": "ambient_occlusion.fragment.glsl",
+                        "preprocessor_commands": [ "#version 430" ],
+                        "textures": {
+                                "input": [ "depths", "wc_normals", "random" ],
+                                "output": [ "ambient_occlusion" ]
+                        },
+                        "models": [ "screen_aligned_quad" ]
+                },
+                { 
+                        "name": "lighting",
+                        "vertex_program": "lighting.vertex.glsl",
+                        "fragment_program": "lighting.fragment.glsl",
+                        "preprocessor_commands": [ "#version 430" ],
+                        "auxiliary_views": ["ldm_views"],
+                        "textures": {
+                                "input": [ "depths", "wc_normals", "wc_positions", "albedos", "ambient_occlusion", "random" ],
+                                "output": [ "lit" ]
+                        },
+                        "models": [ "screen_aligned_quad" ]
+                },
+                { 
+                        "name": "tone_mapping",
+                        "vertex_program": "pass-through.vertex.glsl",
+                        "fragment_program": "tone_mapper.fragment.glsl",
+                        "preprocessor_commands": [ "#version 430" ],
+                        "textures": {
+                                "input": [ "lit" ]
+                        },
+                        "models": [ "screen_aligned_quad" ]
+                }
+        ]
+}

@@ -30,9 +30,18 @@ glm::mat4 make_mat4( float scale, float x = 0.0f, float y = 0.0f, float z = 0.0f
 	m[0][0] = m[1][1] = m[2][2] = scale;
 	return m;
 }
-void create_world( rendering_assets_type& rendering_assets ) {
+void create_world( rendering_assets_type& rendering_assets, black_label::rendering::view& view ) {
 	static group all_statics;
 	
+	static auto get_vec3 = [](const boost::property_tree::ptree& root) {
+		assert(3 == root.size());
+		auto first = root.begin();
+		auto x = (*first++).second.get<float>("");
+		auto y = (*first++).second.get<float>("");
+		auto z = (*first++).second.get<float>("");
+		return glm::vec3(x, y, z);
+	};
+
 	path scene_file{"scene.json"};
 	BOOST_LOG_TRIVIAL(info) << "Importing scene file " << scene_file << "...";
 
@@ -53,9 +62,10 @@ void create_world( rendering_assets_type& rendering_assets ) {
 		if (auto transformation_root_ = entity.get_child_optional("transformation"))
 			for (auto& transformation_child : *transformation_root_)
 			{
-				if ("translate" == transformation_child.first) {
-
-				}
+				if (auto scale = transformation_child.second.get_optional<float>("scale"))
+					transformation = glm::scale(transformation, glm::vec3{*scale});
+				if (auto translation = transformation_child.second.get_child_optional("translate"))
+					transformation = glm::translate(transformation, get_vec3(*translation));
 			}
 		transformations.emplace_back(transformation);
 	}
@@ -63,8 +73,7 @@ void create_world( rendering_assets_type& rendering_assets ) {
 	all_statics.emplace_back(std::make_shared<entities>(
 		models,
 		dynamics,
-		//transformations
-		std::initializer_list<entities::transformation_type>{make_mat4(1.0f), make_mat4(1.0f), make_mat4(1.0f, 0.0f, 200.0f, 0.0f)}));
+		transformations));
 
 	using rendering_entities = rendering_assets_type::external_entities;
 
@@ -78,6 +87,13 @@ void create_world( rendering_assets_type& rendering_assets ) {
 			boost::make_iterator_range(entity->begin(entity->transformations), entity->end(entity->transformations)));
 
 	rendering_assets.add_statics(cbegin(asset_data), cend(asset_data));
+
+
+
+	// Camera
+	view.eye = get_vec3(root.get_child("camera.eye"));
+	view.target = get_vec3(root.get_child("camera.target"));
+	view.on_view_moved();
 }
 
 void draw_statistics(
@@ -111,14 +127,14 @@ void draw_statistics(
 		has_written_message = false;
 		static unordered_map<string, double> averages;
 		stringstream ss;
-		ss.precision(3);
+		ss.precision(4);
 		auto output_pass = [&] ( const std::string& name, const chrono::high_resolution_clock::duration& render_duration )
 		{ 
 			if (10s < render_duration || 10us > render_duration) return;
 			auto render_time = duration_cast<duration<double, milli>>(render_duration).count();
-			static const double alpha{0.05};
+			static const double alpha{0.75};
 			averages[name] = alpha * render_time + (1.0 - alpha) * averages[name];
-			ss << name << " [ms]: " << averages[name] << "\n"; 
+			ss << name << " [ms]: " << render_time << " (" << averages[name] << ")\n"; 
 		};
 
 		output_pass("rendering_pipeline.json", rendering_pipeline.render_time);
@@ -142,6 +158,9 @@ void draw_statistics(
 
 		output_pass("\t(sequencing overhead)", rendering_pipeline.render_time - all_passes);
 
+		ss << "data_buffer_size" << " [MB]: " << rendering_pipeline.data_buffer_size * 1.0e-6f << "\n"; 
+		ss << "photon_buffer_size" << " [MB]: " << rendering_pipeline.photon_buffer_size * 1.0e-6f << "\n"; 
+
 		text.setString(ss.str());
 		text.setCharacterSize(16);
 
@@ -152,7 +171,6 @@ void draw_statistics(
 		text.setColor(sf::Color::White);
 		text.setPosition(5, 0);
 		window.window_.draw(text);
-		window.window_.display();
 	}
 	else if (!has_written_message) {
 		has_written_message = true;
@@ -169,7 +187,6 @@ void draw_statistics(
 			floor(window_size.y / 2.0f - (textBounds.top  + textBounds.height / 2.0f))));
 		text.setColor(sf::Color::White);
 		window.window_.draw(text);
-		window.window_.display();
 	}
 }
 

@@ -118,9 +118,9 @@ public:
 		unsigned int texture_unit{0};
 		program->use();
 		render(framebuffer, assets, view, output_textures, texture_unit);
-#ifdef _DEBUG
+//#ifdef _DEBUG
 		wait_for_opengl();
-#endif
+//#endif
 		render_time = std::chrono::high_resolution_clock::now() - start_time;
 	}
 
@@ -221,7 +221,8 @@ public:
 		const black_label::rendering::view* view,
 		const black_label::rendering::view* user_view,
 		int preincrement_buffer_counter = 0,
-		int ldm_view_count = 0 ) 
+		int ldm_view_count = 0,
+		std::shared_ptr<std::vector<glm::uvec4>> data_offsets = nullptr ) 
 		: basic_pass{
 			std::move(name),
 			std::move(program), 
@@ -238,6 +239,7 @@ public:
 		, user_view{std::move(user_view)}
 		, preincrement_buffer_counter{preincrement_buffer_counter}
 		, ldm_view_count{ldm_view_count}
+		, data_offsets{data_offsets}
 	{}
 
 	void set_input_textures( unsigned int& texture_unit ) const;
@@ -327,9 +329,9 @@ public:
 				output_textures | map_values | indirected,
 				texture_unit);
 		set_memory_barrier();
-#ifdef _DEBUG
+//#ifdef _DEBUG
 		wait_for_opengl();
-#endif
+//#endif
 		render_time = std::chrono::high_resolution_clock::now() - start_time;
 	}
 
@@ -342,6 +344,7 @@ public:
 		* view,
 		* user_view;
 	int preincrement_buffer_counter, ldm_view_count;
+	std::shared_ptr<std::vector<glm::uvec4>> data_offsets;
 };
 
 

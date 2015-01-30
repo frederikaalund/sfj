@@ -42,7 +42,7 @@ readonly restrict layout (std430) buffer data_buffer
 struct color_data {
 	uint32_t r, g, b;
 };
-volatile restrict layout (std430) buffer photon_splat_buffer
+coherent restrict layout (std430) buffer photon_splat_buffer
 { color_data photon_splats[]; };
 
 
